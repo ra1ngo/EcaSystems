@@ -1,0 +1,15 @@
+{
+  "name": "com.ecasystems.framework",
+  "version": "0.1.0",
+  "displayName": "EcaSystems",
+  "description": "Event-Condition-Action framework for Unity.",
+  "unity": "6000.0",
+  "keywords": [
+    "eca",
+    "event",
+    "condition",
+    "action",
+    "rules",
+    "framework"
+  ]
+}
