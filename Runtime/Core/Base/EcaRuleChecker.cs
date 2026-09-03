@@ -9,11 +9,8 @@ namespace EcaSystems.Core
             IReadOnlyList<IEcaRule<TContext>> rules,
             Func<IEcaRule<TContext>, TContext> contextFactory)
         {
-            if (rules == null)
-                throw new ArgumentNullException(nameof(rules));
-
-            if (contextFactory == null)
-                throw new ArgumentNullException(nameof(contextFactory));
+            if (rules == null) throw new ArgumentNullException(nameof(rules));
+            if (contextFactory == null) throw new ArgumentNullException(nameof(contextFactory));
 
             var result = new List<IEcaRule<TContext>>(rules.Count);
 

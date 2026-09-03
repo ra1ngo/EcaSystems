@@ -11,13 +11,11 @@ namespace EcaSystems.Core
 
         public void Register<TContext>(IEcaRule<TContext> rule)
         {
-            if (rule == null)
-                throw new ArgumentNullException(nameof(rule));
+            if (rule == null) throw new ArgumentNullException(nameof(rule));
 
             ValidateRuleContext<TContext>(rule.Event);
 
-            if (!_registeredRuleIds.Add(rule.Id))
-                throw new InvalidOperationException($"Rule with id '{rule.Id}' is already registered.");
+            if (!_registeredRuleIds.Add(rule.Id)) throw new InvalidOperationException($"Rule with id '{rule.Id}' is already registered.");
 
             try
             {
@@ -38,27 +36,20 @@ namespace EcaSystems.Core
 
         public bool Unregister<TContext>(IEcaRule<TContext> rule)
         {
-            if (rule == null)
-                throw new ArgumentNullException(nameof(rule));
-
-            if (!_rulesByEventId.TryGetValue(rule.Event.Id, out var rules))
-                return false;
-
-            if (!rules.Remove(rule))
-                return false;
+            if (rule == null) throw new ArgumentNullException(nameof(rule));
+            if (!_rulesByEventId.TryGetValue(rule.Event.Id, out var rules)) return false;
+            if (!rules.Remove(rule)) return false;
 
             _registeredRuleIds.Remove(rule.Id);
 
-            if (rules.Count == 0)
-                _rulesByEventId.Remove(rule.Event.Id);
+            if (rules.Count == 0) _rulesByEventId.Remove(rule.Event.Id);
 
             return true;
         }
 
         public IReadOnlyList<IEcaRule<TContext>> GetRulesForEvent<TContext>(IEcaEvent ecaEvent)
         {
-            if (ecaEvent == null)
-                throw new ArgumentNullException(nameof(ecaEvent));
+            if (ecaEvent == null) throw new ArgumentNullException(nameof(ecaEvent));
 
             ValidateRuleContext<TContext>(ecaEvent);
 

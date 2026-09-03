@@ -24,7 +24,6 @@ namespace EcaSystems.Core
             }
 
             runtime = new EcaRuleRuntime(ruleId, overlap);
-
             _runtimes.Add(ruleId, runtime);
 
             return runtime;

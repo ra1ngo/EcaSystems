@@ -12,11 +12,8 @@ namespace EcaSystems.Core
 
         public EcaEvent(string id, string name, string description = "")
         {
-            if (string.IsNullOrWhiteSpace(id))
-                throw new ArgumentException("Event id cannot be empty.", nameof(id));
-
-            if (string.IsNullOrWhiteSpace(name))
-                throw new ArgumentException("Event name cannot be empty.", nameof(name));
+            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Event id cannot be empty.", nameof(id));
+            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Event name cannot be empty.", nameof(name));
 
             Id = id;
             Name = name;

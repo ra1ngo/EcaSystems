@@ -9,15 +9,9 @@ namespace EcaSystems.Core
         private readonly IEcaRuleChecker _ruleChecker;
         private readonly IEcaRuleRunner _ruleRunner;
 
-        public EcaEngine()
-            : this(new EcaRuleRegistry(), new EcaRuleChecker(), new EcaRuleRunner())
-        {
-        }
+        public EcaEngine(): this(new EcaRuleRegistry(), new EcaRuleChecker(), new EcaRuleRunner()) {}
 
-        public EcaEngine(
-            IEcaRuleRegistry ruleRegistry,
-            IEcaRuleChecker ruleChecker,
-            IEcaRuleRunner ruleRunner)
+        public EcaEngine(IEcaRuleRegistry ruleRegistry, IEcaRuleChecker ruleChecker, IEcaRuleRunner ruleRunner)
         {
             _ruleRegistry = ruleRegistry ?? throw new ArgumentNullException(nameof(ruleRegistry));
             _ruleChecker = ruleChecker ?? throw new ArgumentNullException(nameof(ruleChecker));
@@ -39,15 +33,11 @@ namespace EcaSystems.Core
             Fire(ecaEvent, EcaEventContextEmpty.Value);
         }
 
-        public void Fire<TEventContext>(
-            EcaEvent<TEventContext> ecaEvent,
-            TEventContext eventContext)
+        public void Fire<TEventContext>(EcaEvent<TEventContext> ecaEvent, TEventContext eventContext)
         {
-            if (ecaEvent == null)
-                throw new ArgumentNullException(nameof(ecaEvent));
+            if (ecaEvent == null) throw new ArgumentNullException(nameof(ecaEvent));
 
             var context = new EcaContext<TEventContext>(eventContext);
-
             var rules = _ruleRegistry.GetRulesForEvent<EcaContext<TEventContext>>(ecaEvent);
             var checkedRules = _ruleChecker.Check(rules, _ => context);
 

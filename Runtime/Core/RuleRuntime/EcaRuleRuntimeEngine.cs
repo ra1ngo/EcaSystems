@@ -36,8 +36,7 @@ namespace EcaSystems.Core
             IEcaRule<EcaRuntimeContext<TEventContext>> rule,
             EcaOverlap overlap)
         {
-            if (rule == null)
-                throw new ArgumentNullException(nameof(rule));
+            if (rule == null) throw new ArgumentNullException(nameof(rule));
 
             _ruleRegistry.Register(rule);
 
@@ -67,14 +66,11 @@ namespace EcaSystems.Core
             EcaEvent<TEventContext> ecaEvent,
             TEventContext eventContext)
         {
-            if (ecaEvent == null)
-                throw new ArgumentNullException(nameof(ecaEvent));
+            if (ecaEvent == null) throw new ArgumentNullException(nameof(ecaEvent));
 
-            var rules =
-                _ruleRegistry.GetRulesForEvent<EcaRuntimeContext<TEventContext>>(ecaEvent);
+            var rules = _ruleRegistry.GetRulesForEvent<EcaRuntimeContext<TEventContext>>(ecaEvent);
 
-            var contexts =
-                new Dictionary<EcaRuleId, EcaRuntimeContext<TEventContext>>(rules.Count);
+            var contexts = new Dictionary<EcaRuleId, EcaRuntimeContext<TEventContext>>(rules.Count);
 
             for (var i = 0; i < rules.Count; i++)
             {

@@ -9,17 +9,11 @@ namespace EcaSystems.Core
     public sealed class EcaRuleRuntime
     {
         private readonly List<EcaRuleExecution> _executions = new();
-
         private long _nextExecutionId = 1;
-
         public EcaRuleId RuleId { get; }
-
         public EcaOverlap Overlap { get; }
-
         public EcaRuleRuntimeState State { get; } = new();
-
         public IReadOnlyList<EcaRuleExecution> Executions => _executions;
-
         public EcaRuleRuntime(EcaRuleId ruleId, EcaOverlap overlap)
         {
             if (string.IsNullOrWhiteSpace(ruleId))
@@ -62,25 +56,10 @@ namespace EcaSystems.Core
             EcaRuleExecution execution,
             Func<CancellationToken, Task> run)
         {
-            if (execution == null)
-                throw new ArgumentNullException(nameof(execution));
-
-            if (run == null)
-                throw new ArgumentNullException(nameof(run));
-
-            if (!_executions.Contains(execution))
-            {
-                throw new InvalidOperationException(
-                    "Execution does not belong to this EcaRuleRuntime."
-                );
-            }
-
-            if (execution.Status != EcaRuleExecutionStatus.Pending)
-            {
-                throw new InvalidOperationException(
-                    "Only a pending execution can be started."
-                );
-            }
+            if (execution == null) throw new ArgumentNullException(nameof(execution));
+            if (run == null) throw new ArgumentNullException(nameof(run));
+            if (!_executions.Contains(execution)) throw new InvalidOperationException("Execution does not belong to this EcaRuleRuntime.");
+            if (execution.Status != EcaRuleExecutionStatus.Pending) throw new InvalidOperationException("Only a pending execution can be started.");
 
             execution.MarkRunning();
             State.IncrementStarted();
@@ -89,8 +68,7 @@ namespace EcaSystems.Core
             {
                 var task = run(execution.CancellationToken);
 
-                if (task == null)
-                    throw new InvalidOperationException("Rule runner returned null Task.");
+                if (task == null) throw new InvalidOperationException("Rule runner returned null Task.");
 
                 await task;
 

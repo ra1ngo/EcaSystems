@@ -7,17 +7,11 @@ namespace EcaSystems.Core
     public sealed class EcaRuleExecution
     {
         private readonly CancellationTokenSource _cancellationSource = new();
-
         public long Id { get; }
-
         public EcaRuleId RuleId { get; }
-
         public EcaRuleExecutionStatus Status { get; private set; }
-
         public Exception Exception { get; private set; }
-
         public CancellationToken CancellationToken => _cancellationSource.Token;
-
         internal EcaRuleExecution(long id, EcaRuleId ruleId)
         {
             Id = id;
@@ -27,8 +21,7 @@ namespace EcaSystems.Core
 
         public void Cancel()
         {
-            if (Status != EcaRuleExecutionStatus.Pending &&
-                Status != EcaRuleExecutionStatus.Running)
+            if (Status != EcaRuleExecutionStatus.Pending && Status != EcaRuleExecutionStatus.Running)
             {
                 return;
             }

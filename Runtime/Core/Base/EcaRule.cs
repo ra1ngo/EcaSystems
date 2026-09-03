@@ -14,20 +14,11 @@ namespace EcaSystems.Core
 
         public EcaRule(EcaRuleConfig<TContext> config)
         {
-            if (config == null)
-                throw new ArgumentNullException(nameof(config));
-
-            if (string.IsNullOrWhiteSpace(config.Id))
-                throw new ArgumentException("Rule id cannot be empty.", nameof(config));
-
-            if (string.IsNullOrWhiteSpace(config.Name))
-                throw new ArgumentException("Rule name cannot be empty.", nameof(config));
-
-            if (config.Event == null)
-                throw new ArgumentNullException(nameof(config.Event));
-
-            if (config.Action == null)
-                throw new ArgumentNullException(nameof(config.Action));
+            if (config == null) throw new ArgumentNullException(nameof(config));
+            if (string.IsNullOrWhiteSpace(config.Id)) throw new ArgumentException("Rule id cannot be empty.", nameof(config));
+            if (string.IsNullOrWhiteSpace(config.Name)) throw new ArgumentException("Rule name cannot be empty.", nameof(config));
+            if (config.Event == null) throw new ArgumentNullException(nameof(config.Event));
+            if (config.Action == null) throw new ArgumentNullException(nameof(config.Action));
 
             var ruleEventContextType = EcaContextType.GetEventContextType<TContext>();
 

@@ -21,8 +21,7 @@ namespace EcaSystems.Core
 
         public static Type GetEventContextType(Type contextType)
         {
-            if (contextType.IsGenericType &&
-                contextType.GetGenericTypeDefinition() == typeof(IEcaContext<>))
+            if (contextType.IsGenericType && contextType.GetGenericTypeDefinition() == typeof(IEcaContext<>))
             {
                 return contextType.GetGenericArguments()[0];
             }
@@ -32,19 +31,13 @@ namespace EcaSystems.Core
             for (var i = 0; i < interfaces.Length; i++)
             {
                 var interfaceType = interfaces[i];
-
-                if (!interfaceType.IsGenericType)
-                    continue;
-
-                if (interfaceType.GetGenericTypeDefinition() != typeof(IEcaContext<>))
-                    continue;
+                if (!interfaceType.IsGenericType) continue;
+                if (interfaceType.GetGenericTypeDefinition() != typeof(IEcaContext<>)) continue;
 
                 return interfaceType.GetGenericArguments()[0];
             }
 
-            throw new InvalidOperationException(
-                $"Context type '{contextType}' must implement IEcaContext<TEventContext>."
-            );
+            throw new InvalidOperationException($"Context type '{contextType}' must implement IEcaContext<TEventContext>.");
         }
     }
 }
