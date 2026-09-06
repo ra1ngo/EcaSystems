@@ -1,48 +1,50 @@
 using System;
 using System.Collections.Generic;
+
 using EcaRuleId = System.String;
 
 namespace EcaSystems.Core
 {
-    public sealed class EcaRuleRuntimeEngine
+    public sealed class EcaExecutionEngine
     {
         private readonly IEcaRuleRegistry _ruleRegistry;
         private readonly IEcaRuleChecker _ruleChecker;
         private readonly IEcaRuleRunner _ruleRunner;
-        private readonly EcaRuleRuntimeRegistry _runtimeRegistry;
+        private readonly EcaRuleExecutionRegistry _executionRegistry;
 
-        public EcaRuleRuntimeEngine()
+        public EcaExecutionEngine()
             : this(
                 new EcaRuleRegistry(),
                 new EcaRuleChecker(),
                 new EcaRuleRunner(),
-                new EcaRuleRuntimeRegistry())
+                new EcaRuleExecutionRegistry())
         {
         }
 
-        public EcaRuleRuntimeEngine(
+        public EcaExecutionEngine(
             IEcaRuleRegistry ruleRegistry,
             IEcaRuleChecker ruleChecker,
             IEcaRuleRunner ruleRunner,
-            EcaRuleRuntimeRegistry runtimeRegistry)
+            EcaRuleExecutionRegistry executionRegistry)
         {
             _ruleRegistry = ruleRegistry ?? throw new ArgumentNullException(nameof(ruleRegistry));
             _ruleChecker = ruleChecker ?? throw new ArgumentNullException(nameof(ruleChecker));
             _ruleRunner = ruleRunner ?? throw new ArgumentNullException(nameof(ruleRunner));
-            _runtimeRegistry = runtimeRegistry ?? throw new ArgumentNullException(nameof(runtimeRegistry));
+            _executionRegistry = executionRegistry ?? throw new ArgumentNullException(nameof(executionRegistry));
         }
 
         public void Register<TEventContext>(
-            IEcaRule<EcaRuntimeContext<TEventContext>> rule,
+            IEcaRule<EcaExecutionContext<TEventContext>> rule,
             EcaOverlap overlap)
         {
-            if (rule == null) throw new ArgumentNullException(nameof(rule));
+            if (rule == null)
+                throw new ArgumentNullException(nameof(rule));
 
             _ruleRegistry.Register(rule);
 
             try
             {
-                _runtimeRegistry.GetOrCreate(rule.Id, overlap);
+                _executionRegistry.GetOrCreate(rule.Id, overlap);
             }
             catch
             {
@@ -52,7 +54,7 @@ namespace EcaSystems.Core
         }
 
         public bool Unregister<TEventContext>(
-            IEcaRule<EcaRuntimeContext<TEventContext>> rule)
+            IEcaRule<EcaExecutionContext<TEventContext>> rule)
         {
             return _ruleRegistry.Unregister(rule);
         }
@@ -66,50 +68,51 @@ namespace EcaSystems.Core
             EcaEvent<TEventContext> ecaEvent,
             TEventContext eventContext)
         {
-            if (ecaEvent == null) throw new ArgumentNullException(nameof(ecaEvent));
+            if (ecaEvent == null)
+                throw new ArgumentNullException(nameof(ecaEvent));
 
-            var rules = _ruleRegistry.GetRulesForEvent<EcaRuntimeContext<TEventContext>>(ecaEvent);
+            var rules = _ruleRegistry.GetRulesForEvent<EcaExecutionContext<TEventContext>>(ecaEvent);
 
-            var contexts = new Dictionary<EcaRuleId, EcaRuntimeContext<TEventContext>>(rules.Count);
+            var contexts = new Dictionary<EcaRuleId, EcaExecutionContext<TEventContext>>(rules.Count);
 
             for (var i = 0; i < rules.Count; i++)
             {
                 var rule = rules[i];
-                var runtime = _runtimeRegistry.Get(rule.Id);
+                var group = _executionRegistry.Get(rule.Id);
 
                 contexts.Add(
                     rule.Id,
-                    new EcaRuntimeContext<TEventContext>(
+                    new EcaExecutionContext<TEventContext>(
                         eventContext,
-                        runtime.State)
+                        group.State
+                    )
                 );
             }
 
-            var checkedRules =
-                _ruleChecker.Check(
-                    rules,
-                    rule => contexts[rule.Id]
-                );
+            var checkedRules = _ruleChecker.Check(
+                rules,
+                rule => contexts[rule.Id]
+            );
 
             var pending = new List<(
-                IEcaRule<EcaRuntimeContext<TEventContext>> Rule,
-                EcaRuntimeContext<TEventContext> Context,
-                EcaRuleRuntime Runtime,
+                IEcaRule<EcaExecutionContext<TEventContext>> Rule,
+                EcaExecutionContext<TEventContext> Context,
+                EcaRuleExecutionGroup Group,
                 EcaRuleExecution Execution
             )>(checkedRules.Count);
 
             for (var i = 0; i < checkedRules.Count; i++)
             {
                 var rule = checkedRules[i];
-                var runtime = _runtimeRegistry.Get(rule.Id);
+                var group = _executionRegistry.Get(rule.Id);
 
-                if (!runtime.TryCreateExecution(out var execution))
+                if (!group.TryCreateExecution(out var execution))
                     continue;
 
                 pending.Add((
                     rule,
                     contexts[rule.Id],
-                    runtime,
+                    group,
                     execution
                 ));
             }
@@ -118,7 +121,7 @@ namespace EcaSystems.Core
             {
                 var item = pending[i];
 
-                _ = item.Runtime.Run(
+                _ = item.Group.Run(
                     item.Execution,
                     token => _ruleRunner.Run(
                         item.Rule,

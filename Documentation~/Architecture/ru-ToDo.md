@@ -154,3 +154,37 @@
 - [ ] Обновить mental tests после фиксации semantics `Reset / Queue / Unregister`.
 - [ ] Добавить короткий architecture overview после стабилизации RuleRuntime API.
 - [ ] Удалить устаревшие экспериментальные файлы и классы предыдущих ECA-реализаций, если они ещё остались в репозитории.
+
+
+## Еще
+
+- переименовать runtime - execution
+- reset, queue
+- core/scope
+- core/systems
+- defaultSystems (globalState + time)
+- once. don
+- debounce, throttling
+- группы событий
+- механизм сигналов между событиями (передачи данных между scope или между событиями)
+
+
+P0
+1. Entity-scoped EcaRuleRuntime
+2. Cancellation semantics
+3. Reset
+4. Queue
+5. Unregister semantics с active/queued executions
+
+P1
+6. Recursive Fire tests
+7. Runtime inspection API
+8. Failure observation
+9. Нормальные automated tests
+
+P2
+10. Core/Systems architecture
+11. Context/global-state extension mechanism
+12. GlobalStateSystem
+13. Runtime/Systems
+14. TimeSystem + Unity time source / wrappers

@@ -22,10 +22,10 @@ namespace EcaSystems.Unity
             TestBaseChecksAllConditionsBeforeActions();
             TestDuplicateRuleId();
 
-            await TestRuleRuntimePending();
-            await TestRuleRuntimeIgnore();
-            await TestRuleRuntimeAllow();
-            await TestRuleRuntimeFailedAction();
+            await TestExecutionGroupPending();
+            await TestExecutionIgnore();
+            await TestExecutionAllow();
+            await TestExecutionFailedAction();
 
             Debug.Log(
                 $"=== EcaSystems Smoke Tests Finished: PASS {_passed}, FAIL {_failed} ==="
@@ -194,8 +194,7 @@ namespace EcaSystems.Unity
                         Id = "test.base.condition-order.second",
                         Name = "Second Rule",
                         Event = testEvent,
-                        Condition =
-                            new FlagMustBeFalseCondition(sharedState),
+                        Condition = new FlagMustBeFalseCondition(sharedState),
                         Action = secondAction
                     }
                 );
@@ -237,8 +236,7 @@ namespace EcaSystems.Unity
                         Id = "same.rule.id",
                         Name = "Rule One",
                         Event = testEvent,
-                        Action =
-                            new BaseCountingAction<TestEventContext>()
+                        Action = new BaseCountingAction<TestEventContext>()
                     }
                 );
 
@@ -249,8 +247,7 @@ namespace EcaSystems.Unity
                         Id = "same.rule.id",
                         Name = "Rule Two",
                         Event = testEvent,
-                        Action =
-                            new BaseCountingAction<TestEventContext>()
+                        Action = new BaseCountingAction<TestEventContext>()
                     }
                 );
 
@@ -274,20 +271,20 @@ namespace EcaSystems.Unity
         }
 
         // =====================================================================
-        // RULE RUNTIME
+        // EXECUTION
         // =====================================================================
 
-        private async Task TestRuleRuntimePending()
+        private async Task TestExecutionGroupPending()
         {
-            Debug.Log("--- RuleRuntime: Pending ---");
+            Debug.Log("--- Execution: Pending ---");
 
-            var runtime = new EcaRuleRuntime(
-                "test.runtime.pending.rule",
+            var group = new EcaRuleExecutionGroup(
+                "test.execution.pending.rule",
                 EcaOverlap.Ignore
             );
 
             var created =
-                runtime.TryCreateExecution(
+                group.TryCreateExecution(
                     out var execution
                 );
 
@@ -303,70 +300,70 @@ namespace EcaSystems.Unity
             );
 
             Expect(
-                "Pending Execution already belongs to Runtime",
-                runtime.Executions.Count == 1
+                "Pending Execution already belongs to ExecutionGroup",
+                group.Executions.Count == 1
             );
 
             var secondCreated =
-                runtime.TryCreateExecution(out _);
+                group.TryCreateExecution(out _);
 
             Expect(
                 "Ignore rejects another Execution while Pending exists",
                 !secondCreated
             );
 
-            await runtime.Run(
+            await group.Run(
                 execution,
                 _ => Task.CompletedTask
             );
 
             Expect(
                 "Execution is removed after completion",
-                runtime.Executions.Count == 0
+                group.Executions.Count == 0
             );
 
             Expect(
-                "Runtime counters become 1 / 1",
-                runtime.State.EcaRuleExecutionTotalStarted == 1 &&
-                runtime.State.EcaRuleExecutionTotalFinished == 1
+                "Execution counters become 1 / 1",
+                group.State.EcaRuleExecutionTotalStarted == 1 &&
+                group.State.EcaRuleExecutionTotalFinished == 1
             );
         }
 
-        private async Task TestRuleRuntimeIgnore()
+        private async Task TestExecutionIgnore()
         {
-            Debug.Log("--- RuleRuntime: Ignore ---");
+            Debug.Log("--- Execution: Ignore ---");
 
             var ruleRegistry = new EcaRuleRegistry();
             var ruleChecker = new EcaRuleChecker();
             var ruleRunner = new EcaRuleRunner();
-            var runtimeRegistry = new EcaRuleRuntimeRegistry();
+            var executionRegistry = new EcaRuleExecutionRegistry();
 
-            var engine = new EcaRuleRuntimeEngine(
+            var engine = new EcaExecutionEngine(
                 ruleRegistry,
                 ruleChecker,
                 ruleRunner,
-                runtimeRegistry
+                executionRegistry
             );
 
             var testEvent = new EcaEvent<TestEventContext>(
-                "test.runtime.ignore",
-                "Runtime Ignore Event"
+                "test.execution.ignore",
+                "Execution Ignore Event"
             );
 
             var condition =
-                new RuntimeRecordingCondition<TestEventContext>();
+                new ExecutionRecordingCondition<TestEventContext>();
 
             var action =
-                new RuntimeGateAction<TestEventContext>();
+                new ExecutionGateAction<TestEventContext>();
 
             var rule =
-                new EcaRule<EcaRuntimeContext<TestEventContext>>(
+                new EcaRule<EcaExecutionContext<TestEventContext>>(
                     new EcaRuleConfig<
-                        EcaRuntimeContext<TestEventContext>
+                        EcaExecutionContext<TestEventContext>
                     >
                     {
-                        Id = "test.runtime.ignore.rule",
-                        Name = "Runtime Ignore Rule",
+                        Id = "test.execution.ignore.rule",
+                        Name = "Execution Ignore Rule",
                         Event = testEvent,
                         Condition = condition,
                         Action = action
@@ -378,7 +375,7 @@ namespace EcaSystems.Unity
                 EcaOverlap.Ignore
             );
 
-            var runtime = runtimeRegistry.Get(rule.Id);
+            var group = executionRegistry.Get(rule.Id);
 
             // Fire #1
             engine.Fire(
@@ -406,15 +403,15 @@ namespace EcaSystems.Unity
 
             Expect(
                 "Ignore: one Running Execution exists",
-                runtime.Executions.Count == 1 &&
-                runtime.Executions[0].Status ==
+                group.Executions.Count == 1 &&
+                group.Executions[0].Status ==
                 EcaRuleExecutionStatus.Running
             );
 
             Expect(
-                "Ignore: live RuntimeState is 1 / 0",
-                runtime.State.EcaRuleExecutionTotalStarted == 1 &&
-                runtime.State.EcaRuleExecutionTotalFinished == 0
+                "Ignore: live ExecutionState is 1 / 0",
+                group.State.EcaRuleExecutionTotalStarted == 1 &&
+                group.State.EcaRuleExecutionTotalFinished == 0
             );
 
             // Fire #2 while #1 is still running.
@@ -441,7 +438,7 @@ namespace EcaSystems.Unity
 
             Expect(
                 "Ignore: still one Execution",
-                runtime.Executions.Count == 1
+                group.Executions.Count == 1
             );
 
             // Complete execution #1.
@@ -449,19 +446,19 @@ namespace EcaSystems.Unity
 
             await WaitUntil(
                 () =>
-                    runtime.State
+                    group.State
                         .EcaRuleExecutionTotalFinished == 1
             );
 
             Expect(
                 "Ignore: after completion state is 1 / 1",
-                runtime.State.EcaRuleExecutionTotalStarted == 1 &&
-                runtime.State.EcaRuleExecutionTotalFinished == 1
+                group.State.EcaRuleExecutionTotalStarted == 1 &&
+                group.State.EcaRuleExecutionTotalFinished == 1
             );
 
             Expect(
                 "Ignore: completed Execution removed",
-                runtime.Executions.Count == 0
+                group.Executions.Count == 0
             );
 
             // Fire #3 after previous execution finished.
@@ -492,49 +489,49 @@ namespace EcaSystems.Unity
 
             await WaitUntil(
                 () =>
-                    runtime.State
+                    group.State
                         .EcaRuleExecutionTotalFinished == 2
             );
 
             Expect(
                 "Ignore: final state is 2 / 2",
-                runtime.State.EcaRuleExecutionTotalStarted == 2 &&
-                runtime.State.EcaRuleExecutionTotalFinished == 2
+                group.State.EcaRuleExecutionTotalStarted == 2 &&
+                group.State.EcaRuleExecutionTotalFinished == 2
             );
         }
 
-        private async Task TestRuleRuntimeAllow()
+        private async Task TestExecutionAllow()
         {
-            Debug.Log("--- RuleRuntime: Allow ---");
+            Debug.Log("--- Execution: Allow ---");
 
             var ruleRegistry = new EcaRuleRegistry();
             var ruleChecker = new EcaRuleChecker();
             var ruleRunner = new EcaRuleRunner();
-            var runtimeRegistry = new EcaRuleRuntimeRegistry();
+            var executionRegistry = new EcaRuleExecutionRegistry();
 
-            var engine = new EcaRuleRuntimeEngine(
+            var engine = new EcaExecutionEngine(
                 ruleRegistry,
                 ruleChecker,
                 ruleRunner,
-                runtimeRegistry
+                executionRegistry
             );
 
             var testEvent = new EcaEvent<TestEventContext>(
-                "test.runtime.allow",
-                "Runtime Allow Event"
+                "test.execution.allow",
+                "Execution Allow Event"
             );
 
             var action =
-                new RuntimeGateAction<TestEventContext>();
+                new ExecutionGateAction<TestEventContext>();
 
             var rule =
-                new EcaRule<EcaRuntimeContext<TestEventContext>>(
+                new EcaRule<EcaExecutionContext<TestEventContext>>(
                     new EcaRuleConfig<
-                        EcaRuntimeContext<TestEventContext>
+                        EcaExecutionContext<TestEventContext>
                     >
                     {
-                        Id = "test.runtime.allow.rule",
-                        Name = "Runtime Allow Rule",
+                        Id = "test.execution.allow.rule",
+                        Name = "Execution Allow Rule",
                         Event = testEvent,
                         Action = action
                     }
@@ -545,7 +542,7 @@ namespace EcaSystems.Unity
                 EcaOverlap.Allow
             );
 
-            var runtime = runtimeRegistry.Get(rule.Id);
+            var group = executionRegistry.Get(rule.Id);
 
             engine.Fire(
                 testEvent,
@@ -564,13 +561,13 @@ namespace EcaSystems.Unity
 
             Expect(
                 "Allow: two Executions exist simultaneously",
-                runtime.Executions.Count == 2
+                group.Executions.Count == 2
             );
 
             Expect(
-                "Allow: RuntimeState is 2 / 0",
-                runtime.State.EcaRuleExecutionTotalStarted == 2 &&
-                runtime.State.EcaRuleExecutionTotalFinished == 0
+                "Allow: ExecutionState is 2 / 0",
+                group.State.EcaRuleExecutionTotalStarted == 2 &&
+                group.State.EcaRuleExecutionTotalFinished == 0
             );
 
             Expect(
@@ -587,8 +584,8 @@ namespace EcaSystems.Unity
 
             // The first Action stores a reference to the same live state.
             Expect(
-                "Allow: RuntimeState passed to Action is live",
-                action.RuntimeStates[0]
+                "Allow: ExecutionState passed to Action is live",
+                action.ExecutionStates[0]
                     .EcaRuleExecutionTotalStarted == 2
             );
 
@@ -596,54 +593,54 @@ namespace EcaSystems.Unity
 
             await WaitUntil(
                 () =>
-                    runtime.State
+                    group.State
                         .EcaRuleExecutionTotalFinished == 2
             );
 
             Expect(
                 "Allow: all Executions removed after completion",
-                runtime.Executions.Count == 0
+                group.Executions.Count == 0
             );
 
             Expect(
                 "Allow: final state is 2 / 2",
-                runtime.State.EcaRuleExecutionTotalStarted == 2 &&
-                runtime.State.EcaRuleExecutionTotalFinished == 2
+                group.State.EcaRuleExecutionTotalStarted == 2 &&
+                group.State.EcaRuleExecutionTotalFinished == 2
             );
         }
 
-        private async Task TestRuleRuntimeFailedAction()
+        private async Task TestExecutionFailedAction()
         {
-            Debug.Log("--- RuleRuntime: Failed Action ---");
+            Debug.Log("--- Execution: Failed Action ---");
 
             var ruleRegistry = new EcaRuleRegistry();
             var ruleChecker = new EcaRuleChecker();
             var ruleRunner = new EcaRuleRunner();
-            var runtimeRegistry = new EcaRuleRuntimeRegistry();
+            var executionRegistry = new EcaRuleExecutionRegistry();
 
-            var engine = new EcaRuleRuntimeEngine(
+            var engine = new EcaExecutionEngine(
                 ruleRegistry,
                 ruleChecker,
                 ruleRunner,
-                runtimeRegistry
+                executionRegistry
             );
 
             var testEvent = new EcaEvent<TestEventContext>(
-                "test.runtime.failed",
-                "Runtime Failed Event"
+                "test.execution.failed",
+                "Execution Failed Event"
             );
 
             var rule =
-                new EcaRule<EcaRuntimeContext<TestEventContext>>(
+                new EcaRule<EcaExecutionContext<TestEventContext>>(
                     new EcaRuleConfig<
-                        EcaRuntimeContext<TestEventContext>
+                        EcaExecutionContext<TestEventContext>
                     >
                     {
-                        Id = "test.runtime.failed.rule",
-                        Name = "Runtime Failed Rule",
+                        Id = "test.execution.failed.rule",
+                        Name = "Execution Failed Rule",
                         Event = testEvent,
                         Action =
-                            new RuntimeThrowingAction<
+                            new ExecutionThrowingAction<
                                 TestEventContext
                             >()
                     }
@@ -654,7 +651,7 @@ namespace EcaSystems.Unity
                 EcaOverlap.Ignore
             );
 
-            var runtime = runtimeRegistry.Get(rule.Id);
+            var group = executionRegistry.Get(rule.Id);
 
             engine.Fire(
                 testEvent,
@@ -663,23 +660,23 @@ namespace EcaSystems.Unity
 
             await WaitUntil(
                 () =>
-                    runtime.State
+                    group.State
                         .EcaRuleExecutionTotalFinished == 1
             );
 
             Expect(
                 "Failed Action still increments Started",
-                runtime.State.EcaRuleExecutionTotalStarted == 1
+                group.State.EcaRuleExecutionTotalStarted == 1
             );
 
             Expect(
                 "Failed Action increments Finished",
-                runtime.State.EcaRuleExecutionTotalFinished == 1
+                group.State.EcaRuleExecutionTotalFinished == 1
             );
 
             Expect(
-                "Failed Execution is removed from Runtime",
-                runtime.Executions.Count == 0
+                "Failed Execution is removed from ExecutionGroup",
+                group.Executions.Count == 0
             );
         }
 
@@ -713,12 +710,19 @@ namespace EcaSystems.Unity
             if (condition)
             {
                 _passed++;
-                Debug.Log($"[PASS] {testName}");
+
+                Debug.Log(
+                    $"[PASS] {testName}"
+                );
+
                 return;
             }
 
             _failed++;
-            Debug.LogError($"[FAIL] {testName}");
+
+            Debug.LogError(
+                $"[FAIL] {testName}"
+            );
         }
 
         // =====================================================================
@@ -740,12 +744,12 @@ namespace EcaSystems.Unity
             public bool Value;
         }
 
-        private readonly struct RuntimeRecord
+        private readonly struct ExecutionRecord
         {
             public long Started { get; }
             public long Finished { get; }
 
-            public RuntimeRecord(
+            public ExecutionRecord(
                 long started,
                 long finished)
             {
@@ -784,7 +788,6 @@ namespace EcaSystems.Unity
             : IEcaAction<EcaContext<TEventContext>>
         {
             public int RunCount { get; private set; }
-
             public int LastValue { get; private set; }
 
             public Task Run(
@@ -825,22 +828,22 @@ namespace EcaSystems.Unity
         }
 
         // =====================================================================
-        // RUNTIME CONDITIONS
+        // EXECUTION CONDITIONS
         // =====================================================================
 
-        private sealed class RuntimeRecordingCondition<TEventContext>
-            : IEcaCondition<EcaRuntimeContext<TEventContext>>
+        private sealed class ExecutionRecordingCondition<TEventContext>
+            : IEcaCondition<EcaExecutionContext<TEventContext>>
         {
-            public List<RuntimeRecord> Records { get; } = new();
+            public List<ExecutionRecord> Records { get; } = new();
 
             public bool Check(
-                EcaRuntimeContext<TEventContext> context)
+                EcaExecutionContext<TEventContext> context)
             {
                 Records.Add(
-                    new RuntimeRecord(
-                        context.RuleRuntimeState
+                    new ExecutionRecord(
+                        context.RuleExecutionState
                             .EcaRuleExecutionTotalStarted,
-                        context.RuleRuntimeState
+                        context.RuleExecutionState
                             .EcaRuleExecutionTotalFinished
                     )
                 );
@@ -850,36 +853,35 @@ namespace EcaSystems.Unity
         }
 
         // =====================================================================
-        // RUNTIME ACTIONS
+        // EXECUTION ACTIONS
         // =====================================================================
 
-        private sealed class RuntimeGateAction<TEventContext>
-            : IEcaAction<EcaRuntimeContext<TEventContext>>
+        private sealed class ExecutionGateAction<TEventContext>
+            : IEcaAction<EcaExecutionContext<TEventContext>>
         {
-            private readonly List<TaskCompletionSource<bool>>
-                _gates = new();
+            private readonly List<TaskCompletionSource<bool>> _gates = new();
 
             public int RunCount { get; private set; }
 
-            public List<RuntimeRecord> Records { get; } = new();
+            public List<ExecutionRecord> Records { get; } = new();
 
-            public List<EcaRuleRuntimeState> RuntimeStates { get; } = new();
+            public List<EcaRuleExecutionState> ExecutionStates { get; } = new();
 
             public Task Run(
-                EcaRuntimeContext<TEventContext> context,
+                EcaExecutionContext<TEventContext> context,
                 CancellationToken cancellationToken)
             {
                 RunCount++;
 
-                RuntimeStates.Add(
-                    context.RuleRuntimeState
+                ExecutionStates.Add(
+                    context.RuleExecutionState
                 );
 
                 Records.Add(
-                    new RuntimeRecord(
-                        context.RuleRuntimeState
+                    new ExecutionRecord(
+                        context.RuleExecutionState
                             .EcaRuleExecutionTotalStarted,
-                        context.RuleRuntimeState
+                        context.RuleExecutionState
                             .EcaRuleExecutionTotalFinished
                     )
                 );
@@ -905,11 +907,11 @@ namespace EcaSystems.Unity
             }
         }
 
-        private sealed class RuntimeThrowingAction<TEventContext>
-            : IEcaAction<EcaRuntimeContext<TEventContext>>
+        private sealed class ExecutionThrowingAction<TEventContext>
+            : IEcaAction<EcaExecutionContext<TEventContext>>
         {
             public Task Run(
-                EcaRuntimeContext<TEventContext> context,
+                EcaExecutionContext<TEventContext> context,
                 CancellationToken cancellationToken)
             {
                 throw new InvalidOperationException(

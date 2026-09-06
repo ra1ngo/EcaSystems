@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using EcaRuleId = System.String;
+using EcaEventId = System.String;
 
 namespace EcaSystems.Core
 {
     public sealed class EcaRuleRegistry : IEcaRuleRegistry
     {
-        private readonly Dictionary<string, List<object>> _rulesByEventId = new();
+        private readonly Dictionary<EcaEventId, List<object>> _rulesByEventId = new();
         private readonly HashSet<EcaRuleId> _registeredRuleIds = new();
 
         public void Register<TContext>(IEcaRule<TContext> rule)
