@@ -48,8 +48,11 @@ namespace EcaSystems.Core
 
         public bool Unregister<TEventContext>(IEcaRule<EcaExecutionContext<TEventContext>> rule)
         {
-            // TODO: decide lifecycle of retained groups and active executions before adding Scope.
-            return _ruleRegistry.Unregister(rule);
+            if (!_ruleRegistry.Unregister(rule)) return false;
+
+            // Running Actions finish naturally through their existing group references.
+            _executionRegistry.Remove(rule.Id);
+            return true;
         }
 
         public void Fire(EcaEvent<EcaEventContextEmpty> ecaEvent)

@@ -27,6 +27,7 @@ namespace EcaSystems.Unity
             await TestExecutionConditionOrder();
             await TestRunModes();
             await TestFailureStatus();
+            await TestExecutionUnregister();
             TestRegistryValidation();
 
             Debug.Log(
@@ -772,6 +773,77 @@ namespace EcaSystems.Unity
             await WaitUntil(() => group.Executions.Count == 0);
             Expect("OperationCanceledException is an ordinary failure",
                 execution.Status == EcaRuleExecutionStatus.Failed && ReferenceEquals(execution.Exception, interrupted));
+        }
+
+        private async Task TestExecutionUnregister()
+        {
+            var rules = new EcaRuleRegistry();
+            var groups = new EcaRuleExecutionRegistry();
+            var engine = new EcaExecutionEngine(rules, new EcaRuleSelector(rules),
+                new EcaRuleChecker(), groups, new EcaExecutionContextFactory(), new EcaRuleRunner());
+            var ecaEvent = new EcaEvent<TestEventContext>("test.unregister", "Unregister");
+            var oldAction = new ExecutionGateAction<TestEventContext>();
+            var oldRule = CreateExecutionRule("unregister.rule", ecaEvent, oldAction);
+            var mode = new EcaRunMode(EcaOverlap.Ignore, 1);
+            engine.Register(oldRule, mode);
+            var oldGroup = groups.Get<TestEventContext>(oldRule.Id);
+            engine.Fire(ecaEvent, new TestEventContext(1));
+            var oldExecution = oldGroup.Executions[0];
+
+            Expect("Execution unregister succeeds", engine.Unregister(oldRule));
+            Expect("Unregister removes Rule and Group immediately", rules.Rules.Count == 0 &&
+                !groups.TryGet<TestEventContext>(oldRule.Id, out _));
+            Expect("Unregister leaves running Action unfinished", oldGroup.Executions.Count == 1 &&
+                oldExecution.Status == EcaRuleExecutionStatus.Running &&
+                oldGroup.State.EcaRuleExecutionTotalFinished == 0);
+            engine.Fire(ecaEvent, new TestEventContext(2));
+            Expect("Unregistered Rule receives no new Fire", oldAction.RunCount == 1);
+            Expect("Repeated unregister returns false", !engine.Unregister(oldRule));
+
+            var newAction = new ExecutionGateAction<TestEventContext>();
+            var newRule = CreateExecutionRule(oldRule.Id, ecaEvent, newAction);
+            engine.Register(newRule, mode);
+            var newGroup = groups.Get<TestEventContext>(newRule.Id);
+            Expect("Same RuleId immediately gets an independent Group and State",
+                !ReferenceEquals(oldGroup, newGroup) && !ReferenceEquals(oldGroup.State, newGroup.State) &&
+                newGroup.State.EcaRuleExecutionTotalStarted == 0 &&
+                newGroup.State.EcaRuleExecutionTotalFinished == 0);
+            Expect("Unregister of old Rule cannot remove replacement", !engine.Unregister(oldRule) &&
+                ReferenceEquals(newGroup, groups.Get<TestEventContext>(newRule.Id)));
+            engine.Fire(ecaEvent, new TestEventContext(3));
+            var newExecution = newGroup.Executions[0];
+            Expect("New Limit lifetime permits a run while old Action is still running",
+                newAction.RunCount == 1 && oldExecution.Status == EcaRuleExecutionStatus.Running &&
+                newExecution.Status == EcaRuleExecutionStatus.Running);
+
+            oldAction.CompleteAll();
+            await WaitUntil(() => oldGroup.Executions.Count == 0);
+            Expect("Old Action completes naturally after unregister",
+                oldExecution.Status == EcaRuleExecutionStatus.Completed &&
+                oldGroup.State.EcaRuleExecutionTotalStarted == 1 &&
+                oldGroup.State.EcaRuleExecutionTotalFinished == 1);
+            Expect("Old completion leaves new Group registered and counters independent",
+                ReferenceEquals(newGroup, groups.Get<TestEventContext>(newRule.Id)) &&
+                newGroup.Executions.Count == 1 && newGroup.State.EcaRuleExecutionTotalStarted == 1 &&
+                newGroup.State.EcaRuleExecutionTotalFinished == 0);
+            newAction.CompleteAll();
+            await WaitUntil(() => newGroup.Executions.Count == 0);
+            engine.Fire(ecaEvent, new TestEventContext(4));
+            Expect("Replacement obeys its own Limit after completion", newAction.RunCount == 1 &&
+                newExecution.Status == EcaRuleExecutionStatus.Completed &&
+                newGroup.State.EcaRuleExecutionTotalFinished == 1);
+            Expect("Idle Group is removed on unregister", engine.Unregister(newRule) &&
+                !groups.TryGet<TestEventContext>(newRule.Id, out _));
+            engine.Register(newRule, mode);
+            Expect("The same Rule instance can be registered with fresh state",
+                !ReferenceEquals(newGroup, groups.Get<TestEventContext>(newRule.Id)) &&
+                groups.Get<TestEventContext>(newRule.Id).State.EcaRuleExecutionTotalStarted == 0);
+            engine.Unregister(newRule);
+
+            var nullRejected = false;
+            try { engine.Unregister<TestEventContext>(null); }
+            catch (ArgumentNullException) { nullRejected = true; }
+            Expect("Execution unregister rejects null", nullRejected);
         }
 
         private void TestRegistryValidation()

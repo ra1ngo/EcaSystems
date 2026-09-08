@@ -73,6 +73,5 @@ namespace EcaSystems.Core
             }
         }
 
-        // TODO: Close/Dispose and unregister ownership require a separate lifecycle decision.
     }
 }
