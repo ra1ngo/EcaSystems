@@ -1,96 +1,89 @@
-# EcaSystems - Roadmap
+# EcaSystems — возможное развитие
 
-These capabilities do not block first practical use. See [ToDo.md](ToDo.md) for required next stages and [Context.md](Context.md) for current decisions. Execution v1 is complete; the items below are unimplemented possibilities requiring separate design and practical use cases.
+Эти возможности не блокируют первое практическое применение. Обязательные этапы — в [ToDo.md](ToDo.md), согласованные решения — в [Context.md](Context.md). Execution v1 и Scope v1 завершены. Ниже перечислены нереализованные возможности, требующие отдельного проектирования и практических сценариев. Документ ведётся на русском языке.
 
-## Future advanced execution
+## Расширенное выполнение
 
-An ordinary C# Task cannot universally be forcibly stopped and then resumed at an arbitrary point. Cooperative requests do not guarantee that arbitrary Action.Run code stops or performs domain cleanup.
+Произвольный C# Task нельзя универсально принудительно остановить и продолжить с произвольного места. Кооперативный запрос не гарантирует остановку Action.Run или предметную очистку.
 
-Interrupt, resume, pause, reset and save/load execution will likely require an explicit executable model:
+Прерывание, продолжение, пауза, Reset и сохранение выполнения, вероятно, потребуют явной модели: Action / Program состоит из Step / Command; состояние выполнения содержит текущий шаг / program counter, историю и сериализуемые данные там, где это применимо.
 
-```text
-Action / Program
-  Step / Command 1
-  Step / Command 2
-  ...
+- [ ] Проверить модель на реальном сценарии, включая основу для сохранения/загрузки.
+- [ ] При необходимости отдельно определить контракты прерывания и очистки.
+- [ ] Рассматривать Queue и Reset как возможные будущие возможности, не обязательные стандартные режимы.
+- [ ] Оценить Priority, Retry, Timeout, MaxConcurrency, Dependencies, Sequences и Parallel при наличии оснований.
+- [ ] Для каждой возможности отдельно определить ответственный слой; заранее не расширять минимальную Execution v1.
 
-Execution state
-  current step / program counter
-  history
-  serializable state where applicable
-```
+## Асинхронный / плавный Unregister
 
-- [ ] Investigate this model against a real use case; it may also provide the foundation for save/load.
-- [ ] Define interruption and cleanup contracts separately if needed.
-- [ ] Consider Queue and Reset only as possible future capabilities, not mandatory standard modes.
-- [ ] Evaluate Priority, Retry, Timeout, MaxConcurrency, Dependencies, Sequences and Parallel when justified.
-- [ ] Decide ownership of each capability separately; do not expand minimal Execution v1 in advance.
+V1 немедленно удаляет Rule и Group, позволяя Actions завершиться естественно. Возможный будущий UnregisterAsync: Rule перестаёт получать новые Fire; старая Group переходит в retiring/closing; executions завершаются естественно; ожидание заканчивается после всей старой Group.
 
-## Future async / graceful Unregister
+Тот же RuleId должен быть доступен для повторной регистрации до завершения старого UnregisterAsync. Новая активная Group независима от старой retiring Group; старая не резервирует RuleId в активном registry.
 
-V1 removes Rule and Group immediately and lets running Actions finish naturally. Possible future semantics:
+- [ ] Рассмотреть раздельное хранение active и retiring groups.
+- [ ] Рассмотреть идентичность поколения/экземпляра.
+- [ ] Удалять retiring groups по identity, а не простым Remove(ruleId), чтобы не удалить замену.
+- [ ] Проектировать и тестировать отдельно; сейчас не реализовывать Closing/UnregisterAsync.
 
-```text
-UnregisterAsync(old rule)
-  -> Rule stops receiving new Fire
-  -> old Group becomes retiring/closing
-  -> existing executions finish naturally
-  -> await completes after the entire old Group finishes
-```
+## Инспекция и история Execution
 
-The same RuleId must be re-registerable before old UnregisterAsync completes. The new active Group is independent of the old retiring Group; the old Group must not reserve its RuleId in the active registry.
+Group уже предоставляет публичный IReadOnlyList Executions. GroupState содержит только два живых счётчика.
 
-- [ ] Consider separate active vs retiring group storage.
-- [ ] Consider generation/instance identity.
-- [ ] Remove retiring groups by identity, not a simple Remove(ruleId), to avoid removing a replacement.
-- [ ] Design and test separately; do not implement Closing or UnregisterAsync now.
+- [ ] Рассмотреть LastExecution, PreviousExecution, History, ActiveCount, PendingCount и LastFailure.
+- [ ] Выбрать между отдельным ExecutionHistory и событиями наблюдения.
+- [ ] Сохранить защиту изменяемых внутренних коллекций.
 
-## Execution inspection / history
+## Развитие Scope
 
-Group already exposes public IReadOnlyList Executions. GroupState currently contains only two live counters.
+Scope v1: hierarchy определяет только время жизни; Fire всегда local-only. Следующие варианты не являются выбранной архитектурой:
 
-- [ ] Consider LastExecution, PreviousExecution, History, ActiveCount, PendingCount and LastFailure.
-- [ ] Decide between a separate ExecutionHistory and observation events.
-- [ ] Keep mutable internal collections protected.
+- [ ] Маршрутизация событий между scopes при появлении реального сценария.
+- [ ] Явный Fire в нескольких scopes как отдельный вариант.
+- [ ] Автоматический parent bubbling — только при подтверждённой необходимости.
+- [ ] Global event bus как отдельная возможная архитектура для сравнения.
+- [ ] Оптимизация через shared RuleRegistry для большого числа однотипных scopes, только после измерений.
+- [ ] Расширенная инспекция scopes и инструменты дерева.
+- [ ] Сериализация/сохранение ScopeId, если потребуется.
+- [ ] Типы/теги scopes только при реальной необходимости.
 
-## Debugging / observation
+## Отладка и наблюдение
 
-- [ ] Observe started / completed / failed and exception information.
-- [ ] Diagnostic API and Debug UI for groups and active executions.
-- [ ] Visualize Event -> Rule -> Execution chains.
+- [ ] Наблюдать started / completed / failed и сведения об исключениях.
+- [ ] Диагностический API и Debug UI для групп и активных executions.
+- [ ] Визуализировать цепочки Event → Rule → Execution.
 
-## Cyclic / reentrant Fire diagnostics
+## Диагностика циклического / повторно входящего Fire
 
-- [ ] Diagnose Event A -> Action -> Event A and longer cycles.
-- [ ] Consider event-chain tracking and configurable depth limits.
-- [ ] Diagnose before restricting legitimate complex event chains.
+- [ ] Диагностировать Event A → Action → Event A и более длинные циклы.
+- [ ] Рассмотреть отслеживание цепочки событий и настраиваемые ограничения глубины.
+- [ ] Сначала диагностировать, затем ограничивать, сохраняя допустимые сложные цепочки.
 
-## Custom overlap extensibility
+## Расширение Overlap
 
-Current modes are only Ignore / Allow with a simple switch.
+Сейчас используются только Ignore / Allow с простым switch.
 
-- [ ] Revisit custom overlap when a practical need exists.
-- [ ] Then evaluate Policy / Strategy / Plan without mutable access to Group internals.
-- [ ] Do not treat extensibility or additional standard modes as already agreed architecture.
+- [ ] Вернуться к пользовательским режимам при практической необходимости.
+- [ ] Тогда оценить Policy / Strategy / Plan без изменяемого доступа к внутренностям Group.
+- [ ] Не считать расширяемость и дополнительные стандартные режимы согласованной архитектурой.
 
-## Visual programming / Editor
+## Визуальное программирование / Editor
 
-- [ ] Visual Rule Editor and node/graph representation.
-- [ ] UI for Events, Conditions, Actions, future Commands, Systems and variables.
-- [ ] Debug visualization and stable IDs for editing/serialization.
+- [ ] Визуальный редактор Rule и представление узлами/графом.
+- [ ] UI для Events, Conditions, Actions, будущих Commands, Systems и переменных.
+- [ ] Отладочная визуализация и стабильные ID для редактирования/сериализации.
 
-## Serialization / data authoring
+## Сериализация и подготовка данных
 
-- [ ] JSON/data-authored Rules and ScriptableObject authoring as needed.
-- [ ] Stable formats, versioning and migrations without coupling Core to a data format.
+- [ ] Rules из JSON/данных и подготовка через ScriptableObject при необходимости.
+- [ ] Стабильные форматы, версии и миграции без привязки Core к формату данных.
 
-## Persistence / save-load
+## Сохранение / загрузка
 
-- [ ] Save/load Global State, timer state and scopes/rules when practically needed.
-- [ ] Investigate mid-execution save/resume through the explicit step/state model above; do not promise arbitrary async Action resumption.
+- [ ] Сохранять Global State, таймеры и scopes/rules при практической необходимости.
+- [ ] Исследовать сохранение/продолжение посреди execution через явную модель шагов/состояния выше; не обещать продолжение произвольной async Action.
 
-## Advanced testing / performance
+## Расширенные тесты и производительность
 
-- [ ] Stress tests for many scopes/executions.
-- [ ] Property tests for future policies and tests for cyclic diagnostics.
-- [ ] Profiling, benchmarks and diagnostics for forgotten registrations/lifecycle leaks.
+- [ ] Нагрузочные тесты большого числа scopes/executions.
+- [ ] Тесты свойств будущих политик и тесты диагностики циклов.
+- [ ] Профилирование, измерения и диагностика забытых регистраций/утечек жизненного цикла.
