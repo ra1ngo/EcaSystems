@@ -4,17 +4,18 @@ namespace EcaSystems.Core
 {
     public interface IEcaExecutionContext<out TEventContext> : IEcaContext<TEventContext>
     {
-        EcaRuleExecutionState RuleExecutionState { get; }
+        EcaRuleExecutionGroupState RuleExecutionGroupState { get; }
     }
 
     public sealed class EcaExecutionContext<TEventContext> : EcaContext<TEventContext>, IEcaExecutionContext<TEventContext>
     {
-        public EcaRuleExecutionState RuleExecutionState { get; }
+        // EventContext is the logically immutable payload shared by one Fire; it is not copied.
+        public EcaRuleExecutionGroupState RuleExecutionGroupState { get; }
 
-        public EcaExecutionContext(TEventContext eventContext, EcaRuleExecutionState ruleExecutionState)
+        public EcaExecutionContext(TEventContext eventContext, EcaRuleExecutionGroupState ruleExecutionGroupState)
             : base(eventContext)
         {
-            RuleExecutionState = ruleExecutionState ?? throw new ArgumentNullException(nameof(ruleExecutionState));
+            RuleExecutionGroupState = ruleExecutionGroupState ?? throw new ArgumentNullException(nameof(ruleExecutionGroupState));
         }
     }
 }

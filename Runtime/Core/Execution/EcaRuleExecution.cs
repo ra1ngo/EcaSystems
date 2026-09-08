@@ -1,58 +1,39 @@
 using System;
-using System.Threading;
 using EcaRuleId = System.String;
 
 namespace EcaSystems.Core
 {
-    public sealed class EcaRuleExecution
+    public sealed class EcaRuleExecution<TEventContext>
     {
-        private readonly CancellationTokenSource _cancellationSource = new();
         public long Id { get; }
-        public EcaRuleId RuleId { get; }
+        public EcaRuleId RuleId => Rule.Id;
+        public IEcaRule<EcaExecutionContext<TEventContext>> Rule { get; }
+        public EcaExecutionContext<TEventContext> Context { get; }
         public EcaRuleExecutionStatus Status { get; private set; }
         public Exception Exception { get; private set; }
-        public CancellationToken CancellationToken => _cancellationSource.Token;
-        internal EcaRuleExecution(long id, EcaRuleId ruleId)
+
+        internal EcaRuleExecution(long id,
+            IEcaRule<EcaExecutionContext<TEventContext>> rule,
+            EcaExecutionContext<TEventContext> context)
         {
             Id = id;
-            RuleId = ruleId;
+            Rule = rule ?? throw new ArgumentNullException(nameof(rule));
+            Context = context ?? throw new ArgumentNullException(nameof(context));
             Status = EcaRuleExecutionStatus.Pending;
-        }
-
-        public void Cancel()
-        {
-            if (Status != EcaRuleExecutionStatus.Pending && Status != EcaRuleExecutionStatus.Running)
-            {
-                return;
-            }
-
-            _cancellationSource.Cancel();
         }
 
         internal void MarkRunning()
         {
             Status = EcaRuleExecutionStatus.Running;
+            Context.RuleExecutionGroupState.IncrementStarted();
         }
 
-        internal void MarkCompleted()
-        {
-            Status = EcaRuleExecutionStatus.Completed;
-        }
-
-        internal void MarkCancelled()
-        {
-            Status = EcaRuleExecutionStatus.Cancelled;
-        }
+        internal void MarkCompleted() => Status = EcaRuleExecutionStatus.Completed;
 
         internal void MarkFailed(Exception exception)
         {
             Exception = exception;
             Status = EcaRuleExecutionStatus.Failed;
-        }
-
-        internal void Dispose()
-        {
-            _cancellationSource.Dispose();
         }
     }
 }

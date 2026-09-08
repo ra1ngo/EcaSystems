@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
 using EcaSystems.Core;
 using UnityEngine;
@@ -22,10 +21,14 @@ namespace EcaSystems.Unity
             TestBaseChecksAllConditionsBeforeActions();
             TestDuplicateRuleId();
 
-            await TestExecutionGroupPending();
             await TestExecutionIgnore();
             await TestExecutionAllow();
             await TestExecutionFailedAction();
+            await TestExecutionConditionOrder();
+            await TestRunModes();
+            await TestFailureStatus();
+            await TestExecutionUnregister();
+            TestRegistryValidation();
 
             Debug.Log(
                 $"=== EcaSystems Smoke Tests Finished: PASS {_passed}, FAIL {_failed} ==="
@@ -274,61 +277,6 @@ namespace EcaSystems.Unity
         // EXECUTION
         // =====================================================================
 
-        private async Task TestExecutionGroupPending()
-        {
-            Debug.Log("--- Execution: Pending ---");
-
-            var group = new EcaRuleExecutionGroup(
-                "test.execution.pending.rule",
-                EcaOverlap.Ignore
-            );
-
-            var created =
-                group.TryCreateExecution(
-                    out var execution
-                );
-
-            Expect(
-                "TryCreateExecution creates Execution",
-                created
-            );
-
-            Expect(
-                "New Execution starts as Pending",
-                execution.Status ==
-                EcaRuleExecutionStatus.Pending
-            );
-
-            Expect(
-                "Pending Execution already belongs to ExecutionGroup",
-                group.Executions.Count == 1
-            );
-
-            var secondCreated =
-                group.TryCreateExecution(out _);
-
-            Expect(
-                "Ignore rejects another Execution while Pending exists",
-                !secondCreated
-            );
-
-            await group.Run(
-                execution,
-                _ => Task.CompletedTask
-            );
-
-            Expect(
-                "Execution is removed after completion",
-                group.Executions.Count == 0
-            );
-
-            Expect(
-                "Execution counters become 1 / 1",
-                group.State.EcaRuleExecutionTotalStarted == 1 &&
-                group.State.EcaRuleExecutionTotalFinished == 1
-            );
-        }
-
         private async Task TestExecutionIgnore()
         {
             Debug.Log("--- Execution: Ignore ---");
@@ -340,9 +288,11 @@ namespace EcaSystems.Unity
 
             var engine = new EcaExecutionEngine(
                 ruleRegistry,
+                new EcaRuleSelector(ruleRegistry),
                 ruleChecker,
-                ruleRunner,
-                executionRegistry
+                executionRegistry,
+                new EcaExecutionContextFactory(),
+                ruleRunner
             );
 
             var testEvent = new EcaEvent<TestEventContext>(
@@ -372,10 +322,10 @@ namespace EcaSystems.Unity
 
             engine.Register<TestEventContext>(
                 rule,
-                EcaOverlap.Ignore
+                new EcaRunMode(EcaOverlap.Ignore)
             );
 
-            var group = executionRegistry.Get(rule.Id);
+            var group = executionRegistry.Get<TestEventContext>(rule.Id);
 
             // Fire #1
             engine.Fire(
@@ -409,7 +359,7 @@ namespace EcaSystems.Unity
             );
 
             Expect(
-                "Ignore: live ExecutionState is 1 / 0",
+                "Ignore: live ExecutionGroupState is 1 / 0",
                 group.State.EcaRuleExecutionTotalStarted == 1 &&
                 group.State.EcaRuleExecutionTotalFinished == 0
             );
@@ -511,9 +461,11 @@ namespace EcaSystems.Unity
 
             var engine = new EcaExecutionEngine(
                 ruleRegistry,
+                new EcaRuleSelector(ruleRegistry),
                 ruleChecker,
-                ruleRunner,
-                executionRegistry
+                executionRegistry,
+                new EcaExecutionContextFactory(),
+                ruleRunner
             );
 
             var testEvent = new EcaEvent<TestEventContext>(
@@ -539,10 +491,10 @@ namespace EcaSystems.Unity
 
             engine.Register<TestEventContext>(
                 rule,
-                EcaOverlap.Allow
+                new EcaRunMode(EcaOverlap.Allow)
             );
 
-            var group = executionRegistry.Get(rule.Id);
+            var group = executionRegistry.Get<TestEventContext>(rule.Id);
 
             engine.Fire(
                 testEvent,
@@ -565,7 +517,7 @@ namespace EcaSystems.Unity
             );
 
             Expect(
-                "Allow: ExecutionState is 2 / 0",
+                "Allow: ExecutionGroupState is 2 / 0",
                 group.State.EcaRuleExecutionTotalStarted == 2 &&
                 group.State.EcaRuleExecutionTotalFinished == 0
             );
@@ -584,8 +536,8 @@ namespace EcaSystems.Unity
 
             // The first Action stores a reference to the same live state.
             Expect(
-                "Allow: ExecutionState passed to Action is live",
-                action.ExecutionStates[0]
+                "Allow: ExecutionGroupState passed to Action is live",
+                action.ExecutionGroupStates[0]
                     .EcaRuleExecutionTotalStarted == 2
             );
 
@@ -620,9 +572,11 @@ namespace EcaSystems.Unity
 
             var engine = new EcaExecutionEngine(
                 ruleRegistry,
+                new EcaRuleSelector(ruleRegistry),
                 ruleChecker,
-                ruleRunner,
-                executionRegistry
+                executionRegistry,
+                new EcaExecutionContextFactory(),
+                ruleRunner
             );
 
             var testEvent = new EcaEvent<TestEventContext>(
@@ -648,10 +602,10 @@ namespace EcaSystems.Unity
 
             engine.Register<TestEventContext>(
                 rule,
-                EcaOverlap.Ignore
+                new EcaRunMode(EcaOverlap.Ignore)
             );
 
-            var group = executionRegistry.Get(rule.Id);
+            var group = executionRegistry.Get<TestEventContext>(rule.Id);
 
             engine.Fire(
                 testEvent,
@@ -683,6 +637,257 @@ namespace EcaSystems.Unity
         // =====================================================================
         // TEST HELPERS
         // =====================================================================
+
+
+        private static EcaRule<EcaExecutionContext<TestEventContext>> CreateExecutionRule(
+            string id, EcaEvent<TestEventContext> ecaEvent,
+            IEcaAction<EcaExecutionContext<TestEventContext>> action,
+            IEcaCondition<EcaExecutionContext<TestEventContext>> condition = null)
+        {
+            return new EcaRule<EcaExecutionContext<TestEventContext>>(
+                new EcaRuleConfig<EcaExecutionContext<TestEventContext>>
+                {
+                    Id = id, Name = id, Event = ecaEvent, Action = action, Condition = condition
+                });
+        }
+
+        private async Task TestExecutionConditionOrder()
+        {
+            var registry = new EcaRuleRegistry();
+            var groups = new EcaRuleExecutionRegistry();
+            var engine = new EcaExecutionEngine(registry, new EcaRuleSelector(registry),
+                new EcaRuleChecker(), groups, new EcaExecutionContextFactory(), new EcaRuleRunner());
+            var ecaEvent = new EcaEvent<TestEventContext>("test.execution.order", "Order");
+            var first = new ExecutionGateAction<TestEventContext>();
+            var second = new ExecutionGateAction<TestEventContext>();
+            var rejected = new ExecutionGateAction<TestEventContext>();
+            var firstRule = CreateExecutionRule("order.first", ecaEvent, first);
+            var secondRule = CreateExecutionRule("order.second", ecaEvent, second,
+                new DelegateEcaCondition<EcaExecutionContext<TestEventContext>>(_ => first.RunCount == 0));
+            var rejectedRule = CreateExecutionRule("order.false", ecaEvent, rejected,
+                new DelegateEcaCondition<EcaExecutionContext<TestEventContext>>(_ => false));
+            engine.Register(firstRule, new EcaRunMode(EcaOverlap.Allow));
+            engine.Register(secondRule, new EcaRunMode(EcaOverlap.Allow));
+            engine.Register(rejectedRule, new EcaRunMode(EcaOverlap.Allow));
+            engine.Fire(ecaEvent, new TestEventContext(42));
+            var firstGroup = groups.Get<TestEventContext>(firstRule.Id);
+            var secondGroup = groups.Get<TestEventContext>(secondRule.Id);
+            Expect("Execution: all Conditions precede Actions", first.RunCount == 1 && second.RunCount == 1);
+            Expect("Execution: false Condition creates no execution",
+                rejected.RunCount == 0 && groups.Get<TestEventContext>(rejectedRule.Id).Executions.Count == 0);
+            Expect("Execution: groups have separate live state",
+                !ReferenceEquals(firstGroup.State, secondGroup.State));
+            Expect("Execution retains the exact Rule and Context",
+                ReferenceEquals(firstGroup.Executions[0].Rule, firstRule) &&
+                ReferenceEquals(firstGroup.Executions[0].Context.RuleExecutionGroupState, firstGroup.State) &&
+                firstGroup.Executions[0].Context.EventContext.Value == 42);
+            first.CompleteAll();
+            second.CompleteAll();
+            await WaitUntil(() => firstGroup.Executions.Count == 0 && secondGroup.Executions.Count == 0);
+        }
+
+        private async Task TestRunModes()
+        {
+            var ecaEvent = new EcaEvent<TestEventContext>("test.limit", "Limit");
+            var factory = new EcaExecutionContextFactory();
+            foreach (var limit in new[] { -1, 0, 1, 2 })
+            {
+                var action = new ExecutionGateAction<TestEventContext>();
+                var rule = CreateExecutionRule("limit." + limit, ecaEvent, action);
+                var mode = limit == -1 ? new EcaRunMode(EcaOverlap.Allow) : new EcaRunMode(EcaOverlap.Allow, limit);
+                var group = new EcaRuleExecutionGroup<TestEventContext>(rule, mode, new EcaRuleRunner());
+                for (var i = 0; i < 4; i++)
+                {
+                    group.Fire(factory.Create(new TestEventContext(i), group.State));
+                    var execution = group.Executions.Count > 0 ? group.Executions[0] : null;
+                    action.CompleteAll();
+                    await WaitUntil(() => group.Executions.Count == 0);
+                    if (execution != null)
+                        Expect("Successful execution is Completed", execution.Status == EcaRuleExecutionStatus.Completed);
+                }
+                var expected = limit == -1 ? 4 : limit;
+                Expect("Limit " + limit + " counts actual starts", action.RunCount == expected &&
+                    group.State.EcaRuleExecutionTotalStarted == expected &&
+                    group.State.EcaRuleExecutionTotalFinished == expected);
+            }
+
+            var gate = new ExecutionGateAction<TestEventContext>();
+            var limitedRule = CreateExecutionRule("limit.overlap", ecaEvent, gate);
+            foreach (var overlap in new[] { EcaOverlap.Ignore, EcaOverlap.Allow })
+            {
+                var group = new EcaRuleExecutionGroup<TestEventContext>(limitedRule,
+                    new EcaRunMode(overlap, 2), new EcaRuleRunner());
+                var context = factory.Create(new TestEventContext(0), group.State);
+                group.Fire(context);
+                group.Fire(context);
+                group.Fire(context);
+                var active = overlap == EcaOverlap.Ignore ? 1 : 2;
+                Expect(overlap + ": active Fire respects overlap and limit",
+                    group.Executions.Count == active && group.State.EcaRuleExecutionTotalStarted == active);
+                gate.CompleteAll();
+                await WaitUntil(() => group.Executions.Count == 0);
+                group.Fire(context);
+                Expect(overlap + ": ignored Fire does not consume limit", group.State.EcaRuleExecutionTotalStarted == 2);
+                gate.CompleteAll();
+                await WaitUntil(() => group.Executions.Count == 0);
+                group.Fire(context);
+                Expect(overlap + ": exhausted limit prevents execution", group.Executions.Count == 0 &&
+                    group.State.EcaRuleExecutionTotalFinished == 2);
+            }
+
+            var invalid = false;
+            try { _ = new EcaRunMode(EcaOverlap.Allow, -2); }
+            catch (ArgumentOutOfRangeException) { invalid = true; }
+            Expect("Limit below -1 is rejected", invalid);
+
+            var checks = 0;
+            var blockedAction = new ExecutionGateAction<TestEventContext>();
+            var blockedRule = CreateExecutionRule("limit.zero.conditions", ecaEvent, blockedAction,
+                new DelegateEcaCondition<EcaExecutionContext<TestEventContext>>(_ => { checks++; return true; }));
+            var engine = new EcaExecutionEngine();
+            engine.Register(blockedRule, new EcaRunMode(EcaOverlap.Allow, 0));
+            engine.Fire(ecaEvent, new TestEventContext(0));
+            Expect("Conditions run before zero limit is applied", checks == 1 && blockedAction.RunCount == 0);
+        }
+
+        private async Task TestFailureStatus()
+        {
+            var ecaEvent = new EcaEvent<TestEventContext>("test.failure.status", "Failure");
+            var action = new ExecutionGateAction<TestEventContext>();
+            var rule = CreateExecutionRule("failure.status", ecaEvent, action);
+            var group = new EcaRuleExecutionGroup<TestEventContext>(rule, new EcaRunMode(EcaOverlap.Ignore), new EcaRuleRunner());
+            group.Fire(new EcaExecutionContextFactory().Create(new TestEventContext(1), group.State));
+            var execution = group.Executions[0];
+            var error = new InvalidOperationException("Expected asynchronous failure.");
+            action.FailAll(error);
+            await WaitUntil(() => group.Executions.Count == 0);
+            Expect("Faulted Run records Failed and the original exception",
+                execution.Status == EcaRuleExecutionStatus.Failed && ReferenceEquals(execution.Exception, error));
+            Expect("Failure balances counters", group.State.EcaRuleExecutionTotalStarted == 1 &&
+                group.State.EcaRuleExecutionTotalFinished == 1);
+
+            group.Fire(new EcaExecutionContextFactory().Create(new TestEventContext(2), group.State));
+            execution = group.Executions[0];
+            var interrupted = new OperationCanceledException("User Action failure.");
+            action.FailAll(interrupted);
+            await WaitUntil(() => group.Executions.Count == 0);
+            Expect("OperationCanceledException is an ordinary failure",
+                execution.Status == EcaRuleExecutionStatus.Failed && ReferenceEquals(execution.Exception, interrupted));
+        }
+
+        private async Task TestExecutionUnregister()
+        {
+            var rules = new EcaRuleRegistry();
+            var groups = new EcaRuleExecutionRegistry();
+            var engine = new EcaExecutionEngine(rules, new EcaRuleSelector(rules),
+                new EcaRuleChecker(), groups, new EcaExecutionContextFactory(), new EcaRuleRunner());
+            var ecaEvent = new EcaEvent<TestEventContext>("test.unregister", "Unregister");
+            var oldAction = new ExecutionGateAction<TestEventContext>();
+            var oldRule = CreateExecutionRule("unregister.rule", ecaEvent, oldAction);
+            var mode = new EcaRunMode(EcaOverlap.Ignore, 1);
+            engine.Register(oldRule, mode);
+            var oldGroup = groups.Get<TestEventContext>(oldRule.Id);
+            engine.Fire(ecaEvent, new TestEventContext(1));
+            var oldExecution = oldGroup.Executions[0];
+
+            Expect("Execution unregister succeeds", engine.Unregister(oldRule));
+            Expect("Unregister removes Rule and Group immediately", rules.Rules.Count == 0 &&
+                !groups.TryGet<TestEventContext>(oldRule.Id, out _));
+            Expect("Unregister leaves running Action unfinished", oldGroup.Executions.Count == 1 &&
+                oldExecution.Status == EcaRuleExecutionStatus.Running &&
+                oldGroup.State.EcaRuleExecutionTotalFinished == 0);
+            engine.Fire(ecaEvent, new TestEventContext(2));
+            Expect("Unregistered Rule receives no new Fire", oldAction.RunCount == 1);
+            Expect("Repeated unregister returns false", !engine.Unregister(oldRule));
+
+            var newAction = new ExecutionGateAction<TestEventContext>();
+            var newRule = CreateExecutionRule(oldRule.Id, ecaEvent, newAction);
+            engine.Register(newRule, mode);
+            var newGroup = groups.Get<TestEventContext>(newRule.Id);
+            Expect("Same RuleId immediately gets an independent Group and State",
+                !ReferenceEquals(oldGroup, newGroup) && !ReferenceEquals(oldGroup.State, newGroup.State) &&
+                newGroup.State.EcaRuleExecutionTotalStarted == 0 &&
+                newGroup.State.EcaRuleExecutionTotalFinished == 0);
+            Expect("Unregister of old Rule cannot remove replacement", !engine.Unregister(oldRule) &&
+                ReferenceEquals(newGroup, groups.Get<TestEventContext>(newRule.Id)));
+            engine.Fire(ecaEvent, new TestEventContext(3));
+            var newExecution = newGroup.Executions[0];
+            Expect("New Limit lifetime permits a run while old Action is still running",
+                newAction.RunCount == 1 && oldExecution.Status == EcaRuleExecutionStatus.Running &&
+                newExecution.Status == EcaRuleExecutionStatus.Running);
+
+            oldAction.CompleteAll();
+            await WaitUntil(() => oldGroup.Executions.Count == 0);
+            Expect("Old Action completes naturally after unregister",
+                oldExecution.Status == EcaRuleExecutionStatus.Completed &&
+                oldGroup.State.EcaRuleExecutionTotalStarted == 1 &&
+                oldGroup.State.EcaRuleExecutionTotalFinished == 1);
+            Expect("Old completion leaves new Group registered and counters independent",
+                ReferenceEquals(newGroup, groups.Get<TestEventContext>(newRule.Id)) &&
+                newGroup.Executions.Count == 1 && newGroup.State.EcaRuleExecutionTotalStarted == 1 &&
+                newGroup.State.EcaRuleExecutionTotalFinished == 0);
+            newAction.CompleteAll();
+            await WaitUntil(() => newGroup.Executions.Count == 0);
+            engine.Fire(ecaEvent, new TestEventContext(4));
+            Expect("Replacement obeys its own Limit after completion", newAction.RunCount == 1 &&
+                newExecution.Status == EcaRuleExecutionStatus.Completed &&
+                newGroup.State.EcaRuleExecutionTotalFinished == 1);
+            Expect("Idle Group is removed on unregister", engine.Unregister(newRule) &&
+                !groups.TryGet<TestEventContext>(newRule.Id, out _));
+            engine.Register(newRule, mode);
+            Expect("The same Rule instance can be registered with fresh state",
+                !ReferenceEquals(newGroup, groups.Get<TestEventContext>(newRule.Id)) &&
+                groups.Get<TestEventContext>(newRule.Id).State.EcaRuleExecutionTotalStarted == 0);
+            engine.Unregister(newRule);
+
+            var nullRejected = false;
+            try { engine.Unregister<TestEventContext>(null); }
+            catch (ArgumentNullException) { nullRejected = true; }
+            Expect("Execution unregister rejects null", nullRejected);
+        }
+
+        private void TestRegistryValidation()
+        {
+            var registry = new EcaRuleRegistry();
+            var selector = new EcaRuleSelector(registry);
+            var groups = new EcaRuleExecutionRegistry();
+            var ruleRunner = new EcaRuleRunner();
+            var ecaEvent = new EcaEvent<TestEventContext>("validation", "Validation");
+            var rule = CreateExecutionRule("validation.rule", ecaEvent, new ExecutionGateAction<TestEventContext>());
+            groups.Register(rule, new EcaRunMode(EcaOverlap.Allow), ruleRunner);
+            var original = groups.Get<TestEventContext>(rule.Id);
+            groups.Register(rule, new EcaRunMode(EcaOverlap.Allow), ruleRunner);
+            Expect("Equivalent RunMode preserves the group", ReferenceEquals(original, groups.Get<TestEventContext>(rule.Id)));
+            ExpectThrows("Registration rejects limit mismatch",
+                () => groups.Register(rule, new EcaRunMode(EcaOverlap.Allow, 1), ruleRunner));
+            ExpectThrows("Registration rejects another Rule with same id",
+                () => groups.Register(CreateExecutionRule(rule.Id, ecaEvent, new ExecutionGateAction<TestEventContext>()),
+                    new EcaRunMode(EcaOverlap.Allow), ruleRunner));
+            ExpectThrows("Typed Get rejects incompatible group", () => groups.Get<EcaEventContextEmpty>(rule.Id));
+            ExpectThrows("Typed TryGet rejects incompatible group",
+                () => groups.TryGet<EcaEventContextEmpty>(rule.Id, out _));
+            Expect("TryGet returns false for missing group", !groups.TryGet<TestEventContext>("missing", out _));
+            var engine = new EcaExecutionEngine(registry, selector, new EcaRuleChecker(),
+                groups, new EcaExecutionContextFactory(), ruleRunner);
+            ExpectThrows("Registration rejects overlap mismatch", () => engine.Register(rule, new EcaRunMode(EcaOverlap.Ignore)));
+            Expect("Failed group registration rolls back Rule registration", registry.Rules.Count == 0);
+            engine.Register(rule, new EcaRunMode(EcaOverlap.Allow));
+            Expect("Registration can succeed after rollback", registry.Rules.Count == 1);
+            ExpectThrows("Selector rejects incompatible full Context",
+                () => selector.ForEvent<EcaContext<TestEventContext>>(ecaEvent));
+            var conflictingEvent = new EcaEvent<EcaEventContextEmpty>("validation", "Conflicting event");
+            ExpectThrows("Selector rejects EventId collision with incompatible payload",
+                () => selector.ForEvent<EcaContext<EcaEventContextEmpty>>(conflictingEvent));
+            Expect("Registry exposes a read-only collection",
+                ((ICollection<IEcaRule>)registry.Rules).IsReadOnly);
+        }
+
+        private void ExpectThrows(string name, Action action)
+        {
+            try { action(); }
+            catch (InvalidOperationException) { Expect(name, true); return; }
+            Expect(name, false);
+        }
 
         private async Task WaitUntil(
             Func<bool> condition,
@@ -791,8 +996,7 @@ namespace EcaSystems.Unity
             public int LastValue { get; private set; }
 
             public Task Run(
-                EcaContext<TEventContext> context,
-                CancellationToken cancellationToken)
+                EcaContext<TEventContext> context)
             {
                 RunCount++;
 
@@ -818,8 +1022,7 @@ namespace EcaSystems.Unity
             }
 
             public Task Run(
-                EcaContext<TestEventContext> context,
-                CancellationToken cancellationToken)
+                EcaContext<TestEventContext> context)
             {
                 _state.Value = true;
 
@@ -841,9 +1044,9 @@ namespace EcaSystems.Unity
             {
                 Records.Add(
                     new ExecutionRecord(
-                        context.RuleExecutionState
+                        context.RuleExecutionGroupState
                             .EcaRuleExecutionTotalStarted,
-                        context.RuleExecutionState
+                        context.RuleExecutionGroupState
                             .EcaRuleExecutionTotalFinished
                     )
                 );
@@ -865,23 +1068,22 @@ namespace EcaSystems.Unity
 
             public List<ExecutionRecord> Records { get; } = new();
 
-            public List<EcaRuleExecutionState> ExecutionStates { get; } = new();
+            public List<EcaRuleExecutionGroupState> ExecutionGroupStates { get; } = new();
 
             public Task Run(
-                EcaExecutionContext<TEventContext> context,
-                CancellationToken cancellationToken)
+                EcaExecutionContext<TEventContext> context)
             {
                 RunCount++;
 
-                ExecutionStates.Add(
-                    context.RuleExecutionState
+                ExecutionGroupStates.Add(
+                    context.RuleExecutionGroupState
                 );
 
                 Records.Add(
                     new ExecutionRecord(
-                        context.RuleExecutionState
+                        context.RuleExecutionGroupState
                             .EcaRuleExecutionTotalStarted,
-                        context.RuleExecutionState
+                        context.RuleExecutionGroupState
                             .EcaRuleExecutionTotalFinished
                     )
                 );
@@ -889,13 +1091,15 @@ namespace EcaSystems.Unity
                 var gate =
                     new TaskCompletionSource<bool>();
 
-                cancellationToken.Register(
-                    () => gate.TrySetCanceled()
-                );
-
                 _gates.Add(gate);
 
                 return gate.Task;
+            }
+
+            public void FailAll(Exception exception)
+            {
+                foreach (var gate in _gates) gate.TrySetException(exception);
+                _gates.Clear();
             }
 
             public void CompleteAll()
@@ -911,8 +1115,7 @@ namespace EcaSystems.Unity
             : IEcaAction<EcaExecutionContext<TEventContext>>
         {
             public Task Run(
-                EcaExecutionContext<TEventContext> context,
-                CancellationToken cancellationToken)
+                EcaExecutionContext<TEventContext> context)
             {
                 throw new InvalidOperationException(
                     "Intentional smoke-test exception."

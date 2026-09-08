@@ -1,4 +1,3 @@
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace EcaSystems.Core
@@ -7,8 +6,7 @@ namespace EcaSystems.Core
     {
         Task Run<TContext>(
             IEcaRule<TContext> rule,
-            TContext context,
-            CancellationToken cancellationToken
+            TContext context
         );
     }
 }
