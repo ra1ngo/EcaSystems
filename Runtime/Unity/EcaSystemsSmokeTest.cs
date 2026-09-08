@@ -29,6 +29,10 @@ namespace EcaSystems.Unity
             await TestFailureStatus();
             await TestExecutionUnregister();
             TestRegistryValidation();
+            TestScopeLifetime();
+            await TestScopeIsolation();
+            await TestScopeLocalFire();
+            await TestScopeRunningDispose();
 
             Debug.Log(
                 $"=== EcaSystems Smoke Tests Finished: PASS {_passed}, FAIL {_failed} ==="
@@ -639,13 +643,13 @@ namespace EcaSystems.Unity
         // =====================================================================
 
 
-        private static EcaRule<EcaExecutionContext<TestEventContext>> CreateExecutionRule(
-            string id, EcaEvent<TestEventContext> ecaEvent,
-            IEcaAction<EcaExecutionContext<TestEventContext>> action,
-            IEcaCondition<EcaExecutionContext<TestEventContext>> condition = null)
+        private static EcaRule<EcaExecutionContext<TEventContext>> CreateExecutionRule<TEventContext>(
+            string id, EcaEvent<TEventContext> ecaEvent,
+            IEcaAction<EcaExecutionContext<TEventContext>> action,
+            IEcaCondition<EcaExecutionContext<TEventContext>> condition = null)
         {
-            return new EcaRule<EcaExecutionContext<TestEventContext>>(
-                new EcaRuleConfig<EcaExecutionContext<TestEventContext>>
+            return new EcaRule<EcaExecutionContext<TEventContext>>(
+                new EcaRuleConfig<EcaExecutionContext<TEventContext>>
                 {
                     Id = id, Name = id, Event = ecaEvent, Action = action, Condition = condition
                 });
@@ -880,6 +884,164 @@ namespace EcaSystems.Unity
                 () => selector.ForEvent<EcaContext<EcaEventContextEmpty>>(conflictingEvent));
             Expect("Registry exposes a read-only collection",
                 ((ICollection<IEcaRule>)registry.Rules).IsReadOnly);
+        }
+
+        private void TestScopeLifetime()
+        {
+            var engine = new EcaScopeEngine();
+            Expect("Scope engine starts empty", engine.ScopeCount == 0);
+            var root = engine.CreateScope("scope-1");
+            var child = root.CreateScope("child");
+            var grandchild = child.CreateScope();
+            var sibling = root.CreateScope();
+            var other = engine.CreateScope("other");
+            Expect("Root and child identity", root.ScopeId == "scope-1" && root.ParentScopeId == null &&
+                child.ParentScopeId == root.ScopeId && grandchild.ParentScopeId == child.ScopeId);
+            Expect("Auto ids skip explicit ids and differ", grandchild.ScopeId == "scope-2" &&
+                sibling.ScopeId == "scope-3");
+            Expect("Scope count and lookup", engine.ScopeCount == 5 &&
+                engine.TryGetScope(child.ScopeId, out var found) && ReferenceEquals(child, found));
+            ExpectThrows("Duplicate root id rejected", () => engine.CreateScope("child"));
+            ExpectThrows("Duplicate child id rejected", () => root.CreateScope("other"));
+            ExpectException<ArgumentException>("Empty scope id rejected", () => engine.CreateScope(""));
+            ExpectException<ArgumentException>("Whitespace child id rejected", () => root.CreateScope(" \t"));
+            Expect("Invalid creation leaves registry intact", engine.ScopeCount == 5);
+
+            child.Dispose();
+            child.Dispose();
+            Expect("Child disposal cascades without affecting parent or sibling",
+                child.IsDisposed && grandchild.IsDisposed && !root.IsDisposed && !sibling.IsDisposed &&
+                engine.ScopeCount == 3 && !engine.TryGetScope("child", out _) &&
+                !engine.TryGetScope(grandchild.ScopeId, out _));
+            var replacement = root.CreateScope("child");
+            child.Dispose();
+            Expect("Stale disposal leaves reused id intact", engine.TryGetScope("child", out found) &&
+                ReferenceEquals(found, replacement));
+            var emptyEvent = new EcaEvent<EcaEventContextEmpty>("scope.empty", "Empty");
+            ExpectException<ObjectDisposedException>("Disposed Register rejected",
+                () => child.Register<TestEventContext>(null, null));
+            ExpectException<ObjectDisposedException>("Disposed Unregister rejected",
+                () => child.Unregister<TestEventContext>(null));
+            ExpectException<ObjectDisposedException>("Disposed empty Fire rejected", () => child.Fire(emptyEvent));
+            ExpectException<ObjectDisposedException>("Disposed typed Fire rejected",
+                () => child.Fire(emptyEvent, EcaEventContextEmpty.Value));
+            ExpectException<ObjectDisposedException>("Disposed child creation rejected", () => child.CreateScope());
+            var nested = replacement.CreateScope();
+            root.Dispose();
+            Expect("Parent disposal removes all descendants", root.IsDisposed && sibling.IsDisposed &&
+                replacement.IsDisposed && nested.IsDisposed && engine.ScopeCount == 1 &&
+                !engine.TryGetScope(root.ScopeId, out _) && !engine.TryGetScope(sibling.ScopeId, out _) &&
+                !engine.TryGetScope(replacement.ScopeId, out _) && !engine.TryGetScope(nested.ScopeId, out _));
+            var otherChild = other.CreateScope();
+            var anotherRoot = engine.CreateScope();
+            engine.Dispose();
+            engine.Dispose();
+            Expect("Engine disposal clears roots and descendants", other.IsDisposed && otherChild.IsDisposed &&
+                anotherRoot.IsDisposed && engine.ScopeCount == 0 && !engine.TryGetScope("other", out _));
+            ExpectException<ObjectDisposedException>("Disposed engine creation rejected", () => engine.CreateScope());
+            ExpectException<ObjectDisposedException>("Engine-disposed scope rejects Fire", () => other.Fire(emptyEvent));
+        }
+
+        private async Task TestScopeIsolation()
+        {
+            foreach (var overlap in new[] { EcaOverlap.Ignore, EcaOverlap.Allow })
+            {
+                using var engine = new EcaScopeEngine();
+                var a = engine.CreateScope();
+                var b = engine.CreateScope();
+                var evt = new EcaEvent<TestEventContext>("scope.shared", "Shared");
+                var action = new ExecutionGateAction<TestEventContext>();
+                var rule = CreateExecutionRule("scope.shared.rule", evt, action);
+                a.Register(rule, new EcaRunMode(overlap, 1));
+                b.Register(rule, new EcaRunMode(overlap, 1));
+                a.Fire(evt, new TestEventContext(1));
+                a.Fire(evt, new TestEventContext(2));
+                Expect(overlap + ": Fire A is local and Limit is one", action.RunCount == 1);
+                b.Fire(evt, new TestEventContext(3));
+                Expect(overlap + ": same Rule has independent state and Limit in B", action.RunCount == 2 &&
+                    !ReferenceEquals(action.ExecutionGroupStates[0], action.ExecutionGroupStates[1]) &&
+                    action.Records[0].Started == 1 && action.Records[1].Started == 1);
+                action.CompleteAll();
+                await WaitUntil(() => action.ExecutionGroupStates[1].EcaRuleExecutionTotalFinished == 1);
+                a.Fire(evt, new TestEventContext(4));
+                b.Fire(evt, new TestEventContext(5));
+                Expect(overlap + ": both limits remain exhausted", action.RunCount == 2);
+                Expect("Unregister A is independent", a.Unregister(rule) && !a.Unregister(rule));
+                a.Register(rule, new EcaRunMode(overlap));
+                a.Fire(evt, new TestEventContext(6));
+                b.Fire(evt, new TestEventContext(7));
+                Expect("Re-register A resets only its lifetime", action.RunCount == 3);
+                action.CompleteAll();
+                await WaitUntil(() => action.ExecutionGroupStates[2].EcaRuleExecutionTotalFinished == 1);
+                b.Unregister(rule);
+                b.Register(rule, new EcaRunMode(overlap));
+                a.Fire(evt, new TestEventContext(8));
+                b.Fire(evt, new TestEventContext(9));
+                a.Fire(evt, new TestEventContext(10));
+                b.Fire(evt, new TestEventContext(11));
+                var expected = overlap == EcaOverlap.Ignore ? 5 : 7;
+                Expect(overlap + ": active overlap is independent across scopes", action.RunCount == expected);
+                action.CompleteAll();
+                await WaitUntil(() => action.ExecutionGroupStates[expected - 1].EcaRuleExecutionTotalFinished ==
+                    (overlap == EcaOverlap.Ignore ? 1 : 2));
+            }
+        }
+
+        private async Task TestScopeLocalFire()
+        {
+            using var engine = new EcaScopeEngine();
+            var parent = engine.CreateScope();
+            var child = parent.CreateScope();
+            var evt = new EcaEvent<EcaEventContextEmpty>("scope.local", "Local");
+            var parentAction = new ExecutionGateAction<EcaEventContextEmpty>();
+            var childAction = new ExecutionGateAction<EcaEventContextEmpty>();
+            parent.Register(CreateExecutionRule("scope.parent", evt, parentAction), new EcaRunMode(EcaOverlap.Allow));
+            child.Register(CreateExecutionRule("scope.child", evt, childAction), new EcaRunMode(EcaOverlap.Allow));
+            child.Fire(evt);
+            Expect("Child Fire does not reach parent", childAction.RunCount == 1 && parentAction.RunCount == 0);
+            parent.Fire(evt);
+            Expect("Parent Fire does not reach child", childAction.RunCount == 1 && parentAction.RunCount == 1);
+            parentAction.CompleteAll();
+            childAction.CompleteAll();
+            await WaitUntil(() => parentAction.ExecutionGroupStates[0].EcaRuleExecutionTotalFinished == 1 &&
+                childAction.ExecutionGroupStates[0].EcaRuleExecutionTotalFinished == 1);
+        }
+
+        private async Task TestScopeRunningDispose()
+        {
+            using var engine = new EcaScopeEngine();
+            var parent = engine.CreateScope();
+            var scope = parent.CreateScope("running");
+            var evt = new EcaEvent<TestEventContext>("scope.running", "Running");
+            var action = new ExecutionGateAction<TestEventContext>();
+            var rule = CreateExecutionRule("scope.running.rule", evt, action);
+            scope.Register(rule, new EcaRunMode(EcaOverlap.Ignore, 1));
+            scope.Fire(evt, new TestEventContext(0));
+            var oldState = action.ExecutionGroupStates[0];
+            parent.Dispose();
+            Expect("Dispose immediately removes running scope without waiting", scope.IsDisposed &&
+                engine.ScopeCount == 0 && !engine.TryGetScope("running", out _) &&
+                oldState.EcaRuleExecutionTotalFinished == 0);
+            var replacement = engine.CreateScope("running");
+            replacement.Register(rule, new EcaRunMode(EcaOverlap.Ignore, 1));
+            action.CompleteAll();
+            await WaitUntil(() => oldState.EcaRuleExecutionTotalFinished == 1);
+            replacement.Fire(evt, new TestEventContext(1));
+            Expect("Old Action completion preserves replacement and its Limit", action.RunCount == 2 &&
+                engine.TryGetScope("running", out var found) && ReferenceEquals(found, replacement) &&
+                !ReferenceEquals(oldState, action.ExecutionGroupStates[1]) &&
+                action.ExecutionGroupStates[1].EcaRuleExecutionTotalFinished == 0);
+            engine.Dispose();
+            action.CompleteAll();
+            await WaitUntil(() => action.ExecutionGroupStates[1].EcaRuleExecutionTotalFinished == 1);
+            Expect("Action finishes naturally after engine Dispose", replacement.IsDisposed && engine.ScopeCount == 0);
+        }
+
+        private void ExpectException<TException>(string name, Action action) where TException : Exception
+        {
+            try { action(); }
+            catch (TException) { Expect(name, true); return; }
+            Expect(name, false);
         }
 
         private void ExpectThrows(string name, Action action)
