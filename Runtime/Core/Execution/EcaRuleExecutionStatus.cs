@@ -5,8 +5,6 @@ namespace EcaSystems.Core
         Pending,
         Running,
         Completed,
-        Cancelling,
-        Cancelled,
         Failed
     }
 }

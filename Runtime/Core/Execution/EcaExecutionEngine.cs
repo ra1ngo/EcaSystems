@@ -10,34 +10,34 @@ namespace EcaSystems.Core
         private readonly IEcaRuleChecker _ruleChecker;
         private readonly IEcaRuleExecutionRegistry _executionRegistry;
         private readonly IEcaExecutionContextFactory _contextFactory;
-        private readonly IEcaExecutionExecutor _executionExecutor;
+        private readonly IEcaRuleRunner _ruleRunner;
 
         public EcaExecutionEngine() : this(new EcaRuleRegistry()) {}
 
         private EcaExecutionEngine(IEcaRuleRegistry ruleRegistry)
             : this(ruleRegistry, new EcaRuleSelector(ruleRegistry), new EcaRuleChecker(),
-                new EcaRuleExecutionRegistry(), new EcaExecutionContextFactory(), new EcaExecutionExecutor()) {}
+                new EcaRuleExecutionRegistry(), new EcaExecutionContextFactory(), new EcaRuleRunner()) {}
 
         public EcaExecutionEngine(IEcaRuleRegistry ruleRegistry, IEcaRuleSelector ruleSelector,
             IEcaRuleChecker ruleChecker, IEcaRuleExecutionRegistry executionRegistry,
-            IEcaExecutionContextFactory contextFactory, IEcaExecutionExecutor executionExecutor)
+            IEcaExecutionContextFactory contextFactory, IEcaRuleRunner ruleRunner)
         {
             _ruleRegistry = ruleRegistry ?? throw new ArgumentNullException(nameof(ruleRegistry));
             _ruleSelector = ruleSelector ?? throw new ArgumentNullException(nameof(ruleSelector));
             _ruleChecker = ruleChecker ?? throw new ArgumentNullException(nameof(ruleChecker));
             _executionRegistry = executionRegistry ?? throw new ArgumentNullException(nameof(executionRegistry));
             _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
-            _executionExecutor = executionExecutor ?? throw new ArgumentNullException(nameof(executionExecutor));
+            _ruleRunner = ruleRunner ?? throw new ArgumentNullException(nameof(ruleRunner));
         }
 
         public void Register<TEventContext>(IEcaRule<EcaExecutionContext<TEventContext>> rule,
-            EcaOverlap overlap)
+            EcaRunMode runMode)
         {
             if (rule == null) throw new ArgumentNullException(nameof(rule));
             _ruleRegistry.Register(rule);
             try
             {
-                _executionRegistry.Register(rule, overlap, _executionExecutor);
+                _executionRegistry.Register(rule, runMode, _ruleRunner);
             }
             catch
             {

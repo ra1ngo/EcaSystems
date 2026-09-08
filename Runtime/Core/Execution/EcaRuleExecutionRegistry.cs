@@ -9,21 +9,22 @@ namespace EcaSystems.Core
         private readonly Dictionary<EcaRuleId, IEcaRuleExecutionGroup> _groups = new();
 
         public void Register<TEventContext>(IEcaRule<EcaExecutionContext<TEventContext>> rule,
-            EcaOverlap overlap, IEcaExecutionExecutor executor)
+            EcaRunMode runMode, IEcaRuleRunner ruleRunner)
         {
             if (rule == null) throw new ArgumentNullException(nameof(rule));
-            if (executor == null) throw new ArgumentNullException(nameof(executor));
+            if (runMode == null) throw new ArgumentNullException(nameof(runMode));
+            if (ruleRunner == null) throw new ArgumentNullException(nameof(ruleRunner));
             if (TryGet<TEventContext>(rule.Id, out var existing))
             {
-                if (existing.Overlap != overlap)
-                    throw new InvalidOperationException($"Rule execution group '{rule.Id}' already exists with overlap '{existing.Overlap}', but '{overlap}' was requested.");
+                if (existing.RunMode.Overlap != runMode.Overlap || existing.RunMode.Limit != runMode.Limit)
+                    throw new InvalidOperationException($"Rule execution group '{rule.Id}' already exists with a different run mode.");
                 // Preserve re-registration of the same rule without rebinding active executions.
                 if (!ReferenceEquals(existing.Rule, rule))
                     throw new InvalidOperationException($"Rule execution group '{rule.Id}' already belongs to another rule.");
                 return;
             }
 
-            _groups.Add(rule.Id, new EcaRuleExecutionGroup<TEventContext>(rule, overlap, executor));
+            _groups.Add(rule.Id, new EcaRuleExecutionGroup<TEventContext>(rule, runMode, ruleRunner));
         }
 
         public EcaRuleExecutionGroup<TEventContext> Get<TEventContext>(EcaRuleId ruleId)
@@ -46,7 +47,7 @@ namespace EcaSystems.Core
             return true;
         }
 
-        // Storage operations only; do not infer cancellation or disposal policy.
+        // Storage operations only; do not infer lifecycle policy.
         public bool Remove(EcaRuleId ruleId) => _groups.Remove(ruleId);
         public void Clear() => _groups.Clear();
     }
