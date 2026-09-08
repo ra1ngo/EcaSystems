@@ -6,6 +6,6 @@ namespace EcaSystems.Core
     {
         void Register<TContext>(IEcaRule<TContext> rule);
         bool Unregister<TContext>(IEcaRule<TContext> rule);
-        IReadOnlyList<IEcaRule<TContext>> GetRulesForEvent<TContext>(IEcaEvent ecaEvent);
+        IReadOnlyList<IEcaRule> Rules { get; }
     }
 }
