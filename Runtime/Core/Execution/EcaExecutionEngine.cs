@@ -9,28 +9,28 @@ namespace EcaSystems.Core
         private readonly IEcaRuleSelector _ruleSelector;
         private readonly IEcaRuleChecker _ruleChecker;
         private readonly IEcaRuleExecutionRegistry _executionRegistry;
-        private readonly IEcaExecutionContextFactory _contextFactory;
+        private readonly IEcaCommandRunner _commandRunner;
         private readonly IEcaRuleRunner _ruleRunner;
 
-        public EcaExecutionEngine() : this(new EcaRuleRegistry()) {}
+        public EcaExecutionEngine(IEcaCommandRunner commandRunner) : this(new EcaRuleRegistry(), commandRunner) {}
 
-        private EcaExecutionEngine(IEcaRuleRegistry ruleRegistry)
+        private EcaExecutionEngine(IEcaRuleRegistry ruleRegistry, IEcaCommandRunner commandRunner)
             : this(ruleRegistry, new EcaRuleSelector(ruleRegistry), new EcaRuleChecker(),
-                new EcaRuleExecutionRegistry(), new EcaExecutionContextFactory(), new EcaRuleRunner()) {}
+                new EcaRuleExecutionRegistry(), commandRunner, new EcaRuleRunner()) {}
 
         public EcaExecutionEngine(IEcaRuleRegistry ruleRegistry, IEcaRuleSelector ruleSelector,
             IEcaRuleChecker ruleChecker, IEcaRuleExecutionRegistry executionRegistry,
-            IEcaExecutionContextFactory contextFactory, IEcaRuleRunner ruleRunner)
+            IEcaCommandRunner commandRunner, IEcaRuleRunner ruleRunner)
         {
             _ruleRegistry = ruleRegistry ?? throw new ArgumentNullException(nameof(ruleRegistry));
             _ruleSelector = ruleSelector ?? throw new ArgumentNullException(nameof(ruleSelector));
             _ruleChecker = ruleChecker ?? throw new ArgumentNullException(nameof(ruleChecker));
             _executionRegistry = executionRegistry ?? throw new ArgumentNullException(nameof(executionRegistry));
-            _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
+            _commandRunner = commandRunner ?? throw new ArgumentNullException(nameof(commandRunner));
             _ruleRunner = ruleRunner ?? throw new ArgumentNullException(nameof(ruleRunner));
         }
 
-        public void Register<TEventContext>(IEcaRule<EcaExecutionContext<TEventContext>> rule,
+        public void Register<TEventContext>(IEcaRule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>> rule,
             EcaRunMode runMode)
         {
             if (rule == null) throw new ArgumentNullException(nameof(rule));
@@ -46,7 +46,7 @@ namespace EcaSystems.Core
             }
         }
 
-        public bool Unregister<TEventContext>(IEcaRule<EcaExecutionContext<TEventContext>> rule)
+        public bool Unregister<TEventContext>(IEcaRule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>> rule)
         {
             if (!_ruleRegistry.Unregister(rule)) return false;
 
@@ -63,21 +63,20 @@ namespace EcaSystems.Core
         public void Fire<TEventContext>(EcaEvent<TEventContext> ecaEvent, TEventContext eventContext)
         {
             if (ecaEvent == null) throw new ArgumentNullException(nameof(ecaEvent));
-            var rules = _ruleSelector.ForEvent<EcaExecutionContext<TEventContext>>(ecaEvent);
-            var passed = new List<(EcaRuleExecutionGroup<TEventContext> Group,
-                EcaExecutionContext<TEventContext> Context)>(rules.Count);
+            var rules = _ruleSelector.ForEvent<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>>(ecaEvent);
+            var passed = new List<EcaRuleExecutionGroup<TEventContext>>(rules.Count);
 
             for (var i = 0; i < rules.Count; i++)
             {
                 var rule = rules[i];
                 var group = _executionRegistry.Get<TEventContext>(rule.Id);
-                var context = _contextFactory.Create(eventContext, group.State);
-                if (_ruleChecker.Check(rule, context)) passed.Add((group, context));
+                var context = new EcaExecutionConditionContext<TEventContext>(eventContext, group.State);
+                if (_ruleChecker.Check(rule, context)) passed.Add(group);
             }
 
             // All Conditions of this Fire have been checked before any Action starts.
             for (var i = 0; i < passed.Count; i++)
-                passed[i].Group.Fire(passed[i].Context);
+                passed[i].Fire(new EcaExecutionActionContext<TEventContext>(eventContext, passed[i].State, _commandRunner));
         }
     }
 }

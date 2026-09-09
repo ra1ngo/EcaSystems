@@ -24,12 +24,16 @@ namespace EcaSystems.Core
             _ruleRunner = ruleRunner ?? throw new ArgumentNullException(nameof(ruleRunner));
         }
 
-        public void Register<TContext>(IEcaRule<TContext> rule)
+        public void Register<TEventContext, TConditionContext, TActionContext>(IEcaRule<TEventContext, TConditionContext, TActionContext> rule)
+            where TConditionContext : IEcaConditionContext<TEventContext>
+            where TActionContext : IEcaActionContext<TEventContext>
         {
             _ruleRegistry.Register(rule);
         }
 
-        public bool Unregister<TContext>(IEcaRule<TContext> rule)
+        public bool Unregister<TEventContext, TConditionContext, TActionContext>(IEcaRule<TEventContext, TConditionContext, TActionContext> rule)
+            where TConditionContext : IEcaConditionContext<TEventContext>
+            where TActionContext : IEcaActionContext<TEventContext>
         {
             return _ruleRegistry.Unregister(rule);
         }
@@ -43,15 +47,17 @@ namespace EcaSystems.Core
         {
             if (ecaEvent == null) throw new ArgumentNullException(nameof(ecaEvent));
 
-            var context = new EcaContext<TEventContext>(eventContext);
-            var rules = _ruleSelector.ForEvent<EcaContext<TEventContext>>(ecaEvent);
-            var checkedRules = new List<IEcaRule<EcaContext<TEventContext>>>(rules.Count);
+            var context = new EcaConditionContext<TEventContext>(eventContext);
+            var rules = _ruleSelector.ForEvent<TEventContext, EcaConditionContext<TEventContext>, EcaActionContext<TEventContext>>(ecaEvent);
+            var checkedRules = new List<IEcaRule<TEventContext, EcaConditionContext<TEventContext>, EcaActionContext<TEventContext>>>(rules.Count);
             for (var i = 0; i < rules.Count; i++)
                 if (_ruleChecker.Check(rules[i], context)) checkedRules.Add(rules[i]);
 
+            var actionContext = new EcaActionContext<TEventContext>(eventContext);
+
             // Complete the condition phase before starting any action of this Fire.
             for (var i = 0; i < checkedRules.Count; i++)
-                _ = _ruleRunner.Run(checkedRules[i], context);
+                _ = _ruleRunner.Run(checkedRules[i], actionContext);
         }
     }
 }

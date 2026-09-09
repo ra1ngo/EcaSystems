@@ -11,6 +11,13 @@ namespace EcaSystems.Core
         private long _nextScopeId = 1;
         private bool _isDisposed;
 
+        private readonly IEcaCommandRunner _commandRunner;
+
+        public EcaScopeEngine(IEcaCommandRunner commandRunner)
+        {
+            _commandRunner = commandRunner ?? throw new ArgumentNullException(nameof(commandRunner));
+        }
+
         public int ScopeCount => _scopes.Count;
 
         public EcaScope CreateScope(string scopeId = null) => CreateScope(null, scopeId);
@@ -41,7 +48,7 @@ namespace EcaSystems.Core
             if (_scopes.ContainsKey(scopeId))
                 throw new InvalidOperationException($"Scope '{scopeId}' is already active.");
 
-            var scope = new EcaScope(this, scopeId, parent?.ScopeId);
+            var scope = new EcaScope(this, new EcaExecutionEngine(_commandRunner), scopeId, parent?.ScopeId);
             _scopes.Add(scopeId, scope);
             _children.Add(scopeId, new HashSet<EcaScope>());
             if (parent != null) _children[parent.ScopeId].Add(scope);

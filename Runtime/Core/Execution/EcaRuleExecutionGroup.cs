@@ -12,12 +12,12 @@ namespace EcaSystems.Core
         private long _nextExecutionId = 1;
 
         public EcaRuleId RuleId => Rule.Id;
-        public IEcaRule<EcaExecutionContext<TEventContext>> Rule { get; }
+        public IEcaRule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>> Rule { get; }
         public EcaRunMode RunMode { get; }
         public EcaRuleExecutionGroupState State { get; } = new();
         public IReadOnlyList<EcaRuleExecution<TEventContext>> Executions { get; }
 
-        public EcaRuleExecutionGroup(IEcaRule<EcaExecutionContext<TEventContext>> rule,
+        public EcaRuleExecutionGroup(IEcaRule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>> rule,
             EcaRunMode runMode, IEcaRuleRunner ruleRunner)
         {
             Rule = rule ?? throw new ArgumentNullException(nameof(rule));
@@ -28,7 +28,7 @@ namespace EcaSystems.Core
             Executions = _executions.AsReadOnly();
         }
 
-        public void Fire(EcaExecutionContext<TEventContext> context)
+        public void Fire(IEcaExecutionActionContext<TEventContext> context)
         {
             if (context == null) throw new ArgumentNullException(nameof(context));
             if (!ReferenceEquals(context.RuleExecutionGroupState, State))

@@ -10,9 +10,11 @@ namespace EcaSystems.Core
         IEcaEvent Event { get; }
     }
 
-    public interface IEcaRule<TContext> : IEcaRule
+    public interface IEcaRule<TEventContext, TConditionContext, TActionContext> : IEcaRule
+        where TConditionContext : IEcaConditionContext<TEventContext>
+        where TActionContext : IEcaActionContext<TEventContext>
     {
-        IEcaCondition<TContext> Condition { get; }
-        IEcaAction<TContext> Action { get; }
+        IEcaCondition<TConditionContext> Condition { get; }
+        IEcaAction<TActionContext> Action { get; }
     }
 }
