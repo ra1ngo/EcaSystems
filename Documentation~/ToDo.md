@@ -8,15 +8,17 @@
 - [x] Scope v1: собственные engines/registries, общая Rule по ссылке с независимыми GroupState/Limit, ScopeId/ParentScopeId, локальный Fire, каскадный Dispose без отмены Actions.
 - [x] Base context refactor: явные TEventContext, TConditionContext, TActionContext.
 - [x] Commands v1: registry, runner, bound API только для Action.
-- [x] Execution integration: все Conditions до bind Commands и Actions, контексты через new.
+- [x] Execution integration: все Conditions до допуска по Limit/Overlap, затем создание контекста через new и однократный bind вне конструктора, затем Action.
 - [x] Scope integration: общий CommandRunner при независимом состоянии scopes.
 
 ## 1. Архитектура Systems — следующий этап
 
-- [ ] Спроектировать интеграцию независимых Systems после Scope.
-- [ ] Определить предоставление Events, Conditions, Commands и расширений состояния контекста.
-- [ ] Использовать термин System, не Module.
-- [ ] Пересмотреть Commands API при необходимости и спроектировать SystemsState.
+- [ ] Спроектировать IEcaSystem как пассивный ECA-адаптер / набор exports: Events, Commands и State.
+- [ ] Не экспортировать Actions. Отдельные system-specific Conditions пока не нужны: Conditions принадлежат Rules и читают state через context.
+- [ ] Спроектировать SystemsState.
+- [ ] Спроектировать универсальное создание/hydration ConditionContext и ActionContext, чтобы Systems мог добавлять state/capabilities без повторного переписывания Execution/Scope API. Снять текущее ограничение точной пары execution contexts.
+- [ ] Пересмотреть Commands API на реальных сценариях Systems.
+- [ ] Использовать термин System, не Module. DI и размещение root engine остаются решением приложения вне framework.
 
 ## 2. TimeSystem
 

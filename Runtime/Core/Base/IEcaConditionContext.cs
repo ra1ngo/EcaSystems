@@ -2,6 +2,6 @@ namespace EcaSystems.Core
 {
     public interface IEcaConditionContext : IEcaContext { }
 
-    public interface IEcaConditionContext<out TEventContext>
+    public interface IEcaConditionContext<TEventContext>
         : IEcaConditionContext, IEcaContext<TEventContext> { }
 }

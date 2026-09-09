@@ -24,16 +24,14 @@ namespace EcaSystems.Core
             _ruleRunner = ruleRunner ?? throw new ArgumentNullException(nameof(ruleRunner));
         }
 
-        public void Register<TEventContext, TConditionContext, TActionContext>(IEcaRule<TEventContext, TConditionContext, TActionContext> rule)
-            where TConditionContext : IEcaConditionContext<TEventContext>
-            where TActionContext : IEcaActionContext<TEventContext>
+        public void Register<TEventContext>(
+            IEcaRule<TEventContext, EcaConditionContext<TEventContext>, EcaActionContext<TEventContext>> rule)
         {
             _ruleRegistry.Register(rule);
         }
 
-        public bool Unregister<TEventContext, TConditionContext, TActionContext>(IEcaRule<TEventContext, TConditionContext, TActionContext> rule)
-            where TConditionContext : IEcaConditionContext<TEventContext>
-            where TActionContext : IEcaActionContext<TEventContext>
+        public bool Unregister<TEventContext>(
+            IEcaRule<TEventContext, EcaConditionContext<TEventContext>, EcaActionContext<TEventContext>> rule)
         {
             return _ruleRegistry.Unregister(rule);
         }

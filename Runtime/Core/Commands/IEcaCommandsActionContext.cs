@@ -5,6 +5,6 @@ namespace EcaSystems.Core
         IEcaCommands Commands { get; }
     }
 
-    public interface IEcaCommandsActionContext<out TEventContext>
+    public interface IEcaCommandsActionContext<TEventContext>
         : IEcaCommandsActionContext, IEcaActionContext<TEventContext> { }
 }

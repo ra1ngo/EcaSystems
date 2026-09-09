@@ -20,7 +20,10 @@ EcaEvent — типизированная декларация с Id, а не C#
 - IEcaRule<TEventContext, TConditionContext, TActionContext>, EcaRule и EcaRuleConfig явно разделяют payload и две роли контекста; constraints связывают обе роли с одним TEventContext.
 - IEcaContext — общий marker; IEcaContext<TEventContext> предоставляет EventContext. IEcaConditionContext и IEcaActionContext задают разные роли. Префикс Base не вводится.
 - IEcaCondition<TContext>.Check(context) и IEcaAction<TContext>.Run(context) остаются простыми; у Run один аргумент, без Commands в контракте Action.
-- EcaEngine создаёт EcaConditionContext<TEventContext> и EcaActionContext<TEventContext>; Base не зависит от Commands. EcaContext остаётся общим хранилищем payload.
+- Простой EcaEngine v1 сам создаёт только EcaConditionContext<TEventContext> и EcaActionContext<TEventContext>; его Register/Unregister принимают ровно эту поддерживаемую пару. Base не зависит от Commands. EcaContext остаётся общим хранилищем payload.
+- Общие Rule-модель и RuleRegistry не ограничены стандартными контекстами EcaEngine. Универсальное создание произвольных контекстов требует отдельного проектирования Systems/hydration.
+- IEcaConditionContext<TEventContext>, IEcaActionContext<TEventContext> и наследующие их Commands/Execution role-интерфейсы invariant по TEventContext: роль строго связана с реальным payload Rule. Общий read-only IEcaContext<out TEventContext> остаётся covariant.
+- Selector проверяет Event.Id, точный payload и точную пару типов Condition/Action; неявного расширения DerivedEventContext до BaseEventContext нет.
 - EcaRuleChecker принимает только ConditionContext, EcaRuleRunner — только ActionContext. Selector выбирает Rule с указанной парой context types.
 - Вспомогательные классы находятся в Runtime/Core/Utils, namespace остаётся EcaSystems.Core.
 
@@ -40,6 +43,8 @@ Commands доступны только Action через IEcaCommandsActionConte
 - ID команды — string; пустые/пробельные ID и активные дубликаты отклоняются.
 - EcaCommandRegistry хранит heterogeneous Commands, поддерживает Register и Unregister(string commandId). Registry не привязывает контекст и не выполняет команды.
 - EcaCommandRunner использует registry и возвращает bound IEcaCommands через Bind(actionContext). Каждая привязка хранит свой контекст; общего изменяемого current context нет.
+- В Execution bind происходит после всех Conditions одного Fire и только после допуска конкретной Group по Limit/Overlap. Отклонённый Fire не создаёт ActionContext, Execution, не вызывает Bind и не расходует Limit.
+- Конструктор EcaExecutionActionContext не вызывает runner. Group сначала полностью создаёт контекст, затем привязывает Commands единственным internal вызовом; чтение Commands до привязки, null и повторная привязка отклоняются. Публичного setter нет.
 - Action вызывает `await context.Commands.Run("command.id", args)` и может последовательно вызвать много Commands. Контекст передаётся автоматически; Action не получает registry, runner или concrete Command.
 - Runner проверяет совместимость ActionContext и объявленного TArgs с типом аргументов команды. Совместимые производные типы и null для reference/nullable допускаются; object с неподходящим объявленным типом не выполняет неявное приведение.
 - Неизвестный ID, неверные context/args и null Task дают исключение с ID команды. Ошибка команды распространяется в Action и учитывается обычной моделью Failed.
@@ -50,9 +55,13 @@ Commands доступны только Action через IEcaCommandsActionConte
 
 Execution использует Rule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>>. Оба контекста предоставляют живой RuleExecutionGroupState, только ActionContext содержит Commands. Execution.Context хранит ActionContext.
 
-Fire сначала выбирает Rules, получает их Groups и создаёт через new EcaExecutionConditionContext для каждой проверки. После завершения всех Conditions создаёт через new EcaExecutionActionContext только для прошедших Rules; конструктор вызывает commandRunner.Bind(this), затем Group.Fire запускает Action. Даже bind не происходит до последней Condition; при исключении в Condition Action-фаза не начинается.
+Fire сначала выбирает Rules, получает их Groups и создаёт через new EcaExecutionConditionContext для каждой проверки. После завершения всех Conditions передаёт payload и общий runner в Group.Fire для прошедших Rules. Group проверяет Limit/Overlap, затем создаёт через new ActionContext, вызывает runner.Bind(context), сохраняет bound Commands, создаёт Execution и запускает Action. При исключении в Condition Action-фаза не начинается.
 
-Старая единая модель execution-контекста, EcaExecutionContextFactory и IEcaExecutionContextFactory удалены. Замена фабрики, универсальный ContextFactory и hydration отложены; сейчас контексты создаются напрямую через new.
+Порядок: все Conditions → допуск по Limit/Overlap → new ActionContext → Bind Commands → создание Execution → Action.
+
+Execution/Scope v1 создают конкретные execution contexts напрямую через new, поэтому public Register/Fire pipeline работает только с точной парой IEcaExecutionConditionContext<TEventContext> / IEcaExecutionActionContext<TEventContext>. Более богатые context types верхнего Systems-слоя автоматически не поддерживаются. Это сознательное временное ограничение, а не финальная модель расширения. Снять его нужно на следующем этапе Systems через универсальную инфраструктуру ContextFactory/hydration.
+
+Старая единая модель execution-контекста, EcaExecutionContextFactory и IEcaExecutionContextFactory удалены. Универсальный ContextFactory/hydration — обязательный вопрос следующего проектирования Systems; в текущем исправлении контексты создаются напрямую через new.
 
 Execution отслеживает конкретные, в том числе длительные, запуски Rule:
 
@@ -97,7 +106,7 @@ EcaScope — граница владения и времени жизни вок
 
 EcaScopeEngine принимает один общий IEcaCommandRunner. При создании Scope он создаёт EcaExecutionEngine с этим runner и передаёт engine во внутренний конструктор Scope. Все scopes используют один EcaCommandRunner/EcaCommandRegistry, сохраняя независимые RuleRegistry, ExecutionRegistry, Groups и GroupState. Scope не привязывает Commands и не знает concrete Commands.
 
-EcaScopeEngine — Core-координатор scopes, не static singleton. В будущей Unity/application composition root один его экземпляр будет зарегистрирован как DI singleton на весь проект. Core не зависит от DI или Unity; контейнер в этой итерации не реализован.
+EcaScopeEngine — Core-координатор scopes, не static singleton. EcaSystems не зависит от DI и не определяет способ хранения root engine. Приложение само выбирает время жизни и композицию: обычное поле, bootstrap, service locator, VContainer/Zenject или другой DI-контейнер. Это находится вне framework; DI не является выбранной архитектурой EcaSystems.
 
 - scopeEngine.CreateScope() создаёт root с ParentScopeId = null; неявный root/global/default Scope не создаётся.
 - scope.CreateScope() делегирует создание child координатору; ParentScopeId равен ScopeId родителя.
@@ -121,7 +130,7 @@ EcaRule<TEventContext, TConditionContext, TActionContext> — reference type. О
 
 ## Направление Systems и терминология
 
-Следующий отдельный этап — архитектура интеграции независимых Systems, предоставляющих Events, Conditions, Commands и расширения состояния контекста. Global State / переменные — отдельная System, не встроенная возможность Base. Первый конкретный пример — TimeSystem. При проектировании Systems нужно отдельно пересмотреть минимальный Commands API при необходимости. SystemsState, TimeSystem, EcaTimeSystem и EcaWaitCommand пока не реализуются.
+Следующий отдельный этап — архитектура интеграции независимых ECA Systems. Направление IEcaSystem — пассивный ECA-адаптер с exports Events + Commands + State. Systems не экспортируют Actions; отдельные system-specific Conditions на текущем направлении не обязательны. Conditions принадлежат Rules и читают нужное состояние из будущего hydrated context / SystemsState. Например, Condition читает EcaTimeState через context.State, а EcaTimeSystem предоставляет Events, Commands и State. Global State / переменные — отдельная System, не встроенная возможность Base. Первый конкретный пример — TimeSystem. При проектировании Systems нужно отдельно пересмотреть минимальный Commands API при необходимости. SystemsState, TimeSystem, EcaTimeSystem и EcaWaitCommand пока не реализуются.
 
 Используем System, не Module. Event — декларация; источник внешний. Rule — Event + необязательная Condition + одна Action. Execution — конкретный запуск. ExecutionGroup — активные executions и состояние одной Rule за время жизни группы. RunMode — Overlap + Limit. Scope — граница владения/времени жизни с локальным Fire. Commands — отдельный минимальный слой выполнения операций из Action.
 

@@ -2,7 +2,7 @@ using System;
 
 namespace EcaSystems.Core
 {
-    public interface IEcaExecutionActionContext<out TEventContext> : IEcaCommandsActionContext<TEventContext>
+    public interface IEcaExecutionActionContext<TEventContext> : IEcaCommandsActionContext<TEventContext>
     {
         EcaRuleExecutionGroupState RuleExecutionGroupState { get; }
     }
@@ -10,15 +10,25 @@ namespace EcaSystems.Core
     public sealed class EcaExecutionActionContext<TEventContext>
         : EcaActionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>
     {
-        public EcaRuleExecutionGroupState RuleExecutionGroupState { get; }
-        public IEcaCommands Commands { get; }
+        private IEcaCommands _commands;
 
-        public EcaExecutionActionContext(TEventContext eventContext,
-            EcaRuleExecutionGroupState ruleExecutionGroupState, IEcaCommandRunner commandRunner)
+        public EcaRuleExecutionGroupState RuleExecutionGroupState { get; }
+        public IEcaCommands Commands => _commands
+            ?? throw new InvalidOperationException("Commands are not bound to this action context.");
+
+        internal EcaExecutionActionContext(TEventContext eventContext,
+            EcaRuleExecutionGroupState ruleExecutionGroupState)
             : base(eventContext)
         {
             RuleExecutionGroupState = ruleExecutionGroupState ?? throw new ArgumentNullException(nameof(ruleExecutionGroupState));
-            Commands = (commandRunner ?? throw new ArgumentNullException(nameof(commandRunner))).Bind(this);
+        }
+
+        internal void BindCommands(IEcaCommands commands)
+        {
+            if (commands == null) throw new ArgumentNullException(nameof(commands));
+            if (_commands != null)
+                throw new InvalidOperationException("Commands are already bound to this action context.");
+            _commands = commands;
         }
     }
 }

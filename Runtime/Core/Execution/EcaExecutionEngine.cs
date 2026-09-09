@@ -76,7 +76,7 @@ namespace EcaSystems.Core
 
             // All Conditions of this Fire have been checked before any Action starts.
             for (var i = 0; i < passed.Count; i++)
-                passed[i].Fire(new EcaExecutionActionContext<TEventContext>(eventContext, passed[i].State, _commandRunner));
+                passed[i].Fire(eventContext, _commandRunner);
         }
     }
 }

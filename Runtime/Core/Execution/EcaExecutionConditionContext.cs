@@ -2,7 +2,7 @@ using System;
 
 namespace EcaSystems.Core
 {
-    public interface IEcaExecutionConditionContext<out TEventContext> : IEcaConditionContext<TEventContext>
+    public interface IEcaExecutionConditionContext<TEventContext> : IEcaConditionContext<TEventContext>
     {
         EcaRuleExecutionGroupState RuleExecutionGroupState { get; }
     }

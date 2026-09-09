@@ -28,11 +28,9 @@ namespace EcaSystems.Core
             Executions = _executions.AsReadOnly();
         }
 
-        public void Fire(IEcaExecutionActionContext<TEventContext> context)
+        public void Fire(TEventContext eventContext, IEcaCommandRunner commandRunner)
         {
-            if (context == null) throw new ArgumentNullException(nameof(context));
-            if (!ReferenceEquals(context.RuleExecutionGroupState, State))
-                throw new ArgumentException("Context must use this group's state.", nameof(context));
+            if (commandRunner == null) throw new ArgumentNullException(nameof(commandRunner));
 
             if (RunMode.Limit >= 0 && State.EcaRuleExecutionTotalStarted >= RunMode.Limit) return;
 
@@ -46,6 +44,10 @@ namespace EcaSystems.Core
                 default:
                     throw new NotSupportedException($"Overlap strategy '{RunMode.Overlap}' is not supported.");
             }
+
+            // Контекст и привязка нужны только после допуска по Limit/Overlap.
+            var context = new EcaExecutionActionContext<TEventContext>(eventContext, State);
+            context.BindCommands(commandRunner.Bind(context));
 
             var execution = new EcaRuleExecution<TEventContext>(_nextExecutionId++, Rule, context);
             _executions.Add(execution);

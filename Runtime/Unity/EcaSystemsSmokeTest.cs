@@ -25,8 +25,10 @@ namespace EcaSystems.Unity
             TestBaseChecksAllConditionsBeforeActions();
             TestDuplicateRuleId();
             TestBaseContextSplit();
+            await TestGenericRegistryAndVariance();
             await TestCommandsRegistry();
             await TestCommandsOrderAndScopes();
+            await TestBindAcceptance();
 
             await TestExecutionIgnore();
             await TestExecutionAllow();
@@ -703,7 +705,7 @@ namespace EcaSystems.Unity
                 var group = new EcaRuleExecutionGroup<TestEventContext>(rule, mode, new EcaRuleRunner());
                 for (var i = 0; i < 4; i++)
                 {
-                    group.Fire(new EcaExecutionActionContext<TestEventContext>(new TestEventContext(i), group.State, commandRunner));
+                    group.Fire(new TestEventContext(i), commandRunner);
                     var execution = group.Executions.Count > 0 ? group.Executions[0] : null;
                     action.CompleteAll();
                     await WaitUntil(() => group.Executions.Count == 0);
@@ -722,20 +724,20 @@ namespace EcaSystems.Unity
             {
                 var group = new EcaRuleExecutionGroup<TestEventContext>(limitedRule,
                     new EcaRunMode(overlap, 2), new EcaRuleRunner());
-                var context = new EcaExecutionActionContext<TestEventContext>(new TestEventContext(0), group.State, commandRunner);
-                group.Fire(context);
-                group.Fire(context);
-                group.Fire(context);
+                var eventContext = new TestEventContext(0);
+                group.Fire(eventContext, commandRunner);
+                group.Fire(eventContext, commandRunner);
+                group.Fire(eventContext, commandRunner);
                 var active = overlap == EcaOverlap.Ignore ? 1 : 2;
                 Expect(overlap + ": active Fire respects overlap and limit",
                     group.Executions.Count == active && group.State.EcaRuleExecutionTotalStarted == active);
                 gate.CompleteAll();
                 await WaitUntil(() => group.Executions.Count == 0);
-                group.Fire(context);
+                group.Fire(eventContext, commandRunner);
                 Expect(overlap + ": ignored Fire does not consume limit", group.State.EcaRuleExecutionTotalStarted == 2);
                 gate.CompleteAll();
                 await WaitUntil(() => group.Executions.Count == 0);
-                group.Fire(context);
+                group.Fire(eventContext, commandRunner);
                 Expect(overlap + ": exhausted limit prevents execution", group.Executions.Count == 0 &&
                     group.State.EcaRuleExecutionTotalFinished == 2);
             }
@@ -761,7 +763,7 @@ namespace EcaSystems.Unity
             var action = new ExecutionGateAction<TestEventContext>();
             var rule = CreateExecutionRule("failure.status", ecaEvent, action);
             var group = new EcaRuleExecutionGroup<TestEventContext>(rule, new EcaRunMode(EcaOverlap.Ignore), new EcaRuleRunner());
-            group.Fire(new EcaExecutionActionContext<TestEventContext>(new TestEventContext(1), group.State, new EcaCommandRunner(new EcaCommandRegistry())));
+            group.Fire(new TestEventContext(1), new EcaCommandRunner(new EcaCommandRegistry()));
             var execution = group.Executions[0];
             var error = new InvalidOperationException("Expected asynchronous failure.");
             action.FailAll(error);
@@ -771,7 +773,7 @@ namespace EcaSystems.Unity
             Expect("Failure balances counters", group.State.EcaRuleExecutionTotalStarted == 1 &&
                 group.State.EcaRuleExecutionTotalFinished == 1);
 
-            group.Fire(new EcaExecutionActionContext<TestEventContext>(new TestEventContext(2), group.State, new EcaCommandRunner(new EcaCommandRegistry())));
+            group.Fire(new TestEventContext(2), new EcaCommandRunner(new EcaCommandRegistry()));
             execution = group.Executions[0];
             var interrupted = new OperationCanceledException("User Action failure.");
             action.FailAll(interrupted);
@@ -1071,6 +1073,106 @@ namespace EcaSystems.Unity
                     }));
         }
 
+        private async Task TestGenericRegistryAndVariance()
+        {
+            var evt = new EcaEvent<TestEventContext>("custom.context", "Custom context");
+            var action = new BaseCountingAction<TestEventContext>();
+            var rule = new EcaRule<TestEventContext, CustomConditionContext, CustomActionContext>(
+                new EcaRuleConfig<TestEventContext, CustomConditionContext, CustomActionContext>
+                {
+                    Id = "custom.rule", Name = "Custom rule", Event = evt, Action = action,
+                    Condition = new DelegateEcaCondition<CustomConditionContext>(context => context.EventContext.Value == 17)
+                });
+            var registry = new EcaRuleRegistry();
+            registry.Register(rule);
+            var selector = new EcaRuleSelector(registry);
+            var selected = selector.ForEvent<TestEventContext, CustomConditionContext, CustomActionContext>(evt);
+            Expect("Общий Registry хранит Rule с пользовательской парой контекстов",
+                selected.Count == 1 && ReferenceEquals(selected[0], rule));
+            Expect("Общий Checker проверяет пользовательский ConditionContext",
+                new EcaRuleChecker().Check(rule, new CustomConditionContext(new TestEventContext(17))));
+            await new EcaRuleRunner().Run(rule, new CustomActionContext(new TestEventContext(17)));
+            Expect("Общий Runner выполняет пользовательский ActionContext", action.LastValue == 17);
+            ExpectThrows("Selector отклоняет другую пару role contexts", () =>
+                selector.ForEvent<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>(evt));
+            Expect("Selector проверяет Event.Id", selector.ForEvent<TestEventContext, CustomConditionContext, CustomActionContext>(
+                new EcaEvent<TestEventContext>("other", "Other")).Count == 0);
+            ExpectThrows("Selector не расширяет payload до object", () =>
+                selector.ForEvent<object, EcaConditionContext<object>, EcaActionContext<object>>(evt));
+            Expect("Общий Registry удаляет пользовательскую Rule", registry.Unregister(rule));
+
+            Expect("Все role-интерфейсы invariant по payload",
+                !typeof(IEcaConditionContext<object>).IsAssignableFrom(typeof(IEcaConditionContext<string>)) &&
+                !typeof(IEcaActionContext<object>).IsAssignableFrom(typeof(IEcaActionContext<string>)) &&
+                !typeof(IEcaCommandsActionContext<object>).IsAssignableFrom(typeof(IEcaCommandsActionContext<string>)) &&
+                !typeof(IEcaExecutionConditionContext<object>).IsAssignableFrom(typeof(IEcaExecutionConditionContext<string>)) &&
+                !typeof(IEcaExecutionActionContext<object>).IsAssignableFrom(typeof(IEcaExecutionActionContext<string>)));
+            Expect("Read-only IEcaContext сохраняет covariance",
+                typeof(IEcaContext<object>).IsAssignableFrom(typeof(IEcaContext<string>)));
+        }
+
+        private sealed class CustomConditionContext : EcaConditionContext<TestEventContext>
+        {
+            public CustomConditionContext(TestEventContext context) : base(context) { }
+        }
+
+        private sealed class CustomActionContext : EcaActionContext<TestEventContext>
+        {
+            public CustomActionContext(TestEventContext context) : base(context) { }
+        }
+
+        private async Task TestBindAcceptance()
+        {
+            foreach (var overlap in new[] { EcaOverlap.Ignore, EcaOverlap.Allow })
+            foreach (var limit in new[] { 0, 2 })
+            {
+                var checks = 0;
+                var runner = new RecordingCommandRunner(new EcaCommandRunner(new EcaCommandRegistry()), new List<string>());
+                var rules = new EcaRuleRegistry();
+                var groups = new EcaRuleExecutionRegistry();
+                var engine = new EcaExecutionEngine(rules, new EcaRuleSelector(rules), new EcaRuleChecker(),
+                    groups, runner, new EcaRuleRunner());
+                var evt = new EcaEvent<TestEventContext>("bind.acceptance", "Bind acceptance");
+                var action = new ExecutionGateAction<TestEventContext>();
+                var rule = CreateExecutionRule("bind.acceptance", evt, action,
+                    new DelegateEcaCondition<IEcaExecutionConditionContext<TestEventContext>>(_ => { checks++; return true; }));
+                engine.Register(rule, new EcaRunMode(overlap, limit));
+                var group = groups.Get<TestEventContext>(rule.Id);
+                runner.OnBind = context =>
+                {
+                    var typed = (IEcaExecutionActionContext<TestEventContext>)context;
+                    Expect("Runner получает подготовленные payload и GroupState",
+                        typed.EventContext.Value == 42 && ReferenceEquals(typed.RuleExecutionGroupState, group.State));
+                    ExpectThrows("До завершения Bind чтение Commands явно отклоняется", () => { _ = typed.Commands; });
+                };
+                engine.Fire(evt, new TestEventContext(42));
+                var first = limit == 0 ? 0 : 1;
+                Expect(overlap + ": первый Fire привязывает только принятый execution",
+                    checks == 1 && runner.BindCount == first && action.RunCount == first &&
+                    group.Executions.Count == first && group.State.EcaRuleExecutionTotalStarted == first);
+                if (first == 1)
+                    Expect("Опубликованный execution уже имеет Commands", group.Executions[0].Context.Commands != null);
+                engine.Fire(evt, new TestEventContext(42));
+                var active = limit == 0 ? 0 : overlap == EcaOverlap.Ignore ? 1 : 2;
+                Expect(overlap + ": повторный Fire проверяет Condition без лишнего Bind",
+                    checks == 2 && runner.BindCount == active && action.RunCount == active &&
+                    group.Executions.Count == active && group.State.EcaRuleExecutionTotalStarted == active);
+                action.CompleteAll();
+                await WaitUntil(() => group.Executions.Count == 0);
+                engine.Fire(evt, new TestEventContext(42));
+                var total = limit == 0 ? 0 : 2;
+                Expect(overlap + ": после завершения Ignore снова разрешает Bind, исчерпанный Limit блокирует",
+                    checks == 3 && runner.BindCount == total && action.RunCount == total &&
+                    group.State.EcaRuleExecutionTotalStarted == total);
+                action.CompleteAll();
+                await WaitUntil(() => group.Executions.Count == 0);
+                engine.Fire(evt, new TestEventContext(42));
+                Expect(overlap + ": Bind ровно один раз на фактический запуск",
+                    checks == 4 && runner.BindCount == total && group.Executions.Count == 0 &&
+                    group.State.EcaRuleExecutionTotalStarted == total && group.State.EcaRuleExecutionTotalFinished == total);
+            }
+        }
+
         private async Task TestCommandsRegistry()
         {
             var registry = new EcaCommandRegistry();
@@ -1217,11 +1319,13 @@ namespace EcaSystems.Unity
             private readonly IEcaCommandRunner _runner;
             private readonly List<string> _log;
             public int BindCount { get; private set; }
+            public Action<IEcaActionContext> OnBind { get; set; }
             public RecordingCommandRunner(IEcaCommandRunner runner, List<string> log) { _runner = runner; _log = log; }
             public IEcaCommands Bind(IEcaActionContext context)
             {
                 BindCount++;
                 _log.Add("bind");
+                OnBind?.Invoke(context);
                 return _runner.Bind(context);
             }
         }
