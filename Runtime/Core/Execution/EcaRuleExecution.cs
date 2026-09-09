@@ -7,14 +7,14 @@ namespace EcaSystems.Core
     {
         public long Id { get; }
         public EcaRuleId RuleId => Rule.Id;
-        public IEcaRule<EcaExecutionContext<TEventContext>> Rule { get; }
-        public EcaExecutionContext<TEventContext> Context { get; }
+        public IEcaRule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>> Rule { get; }
+        public IEcaExecutionActionContext<TEventContext> Context { get; }
         public EcaRuleExecutionStatus Status { get; private set; }
         public Exception Exception { get; private set; }
 
         internal EcaRuleExecution(long id,
-            IEcaRule<EcaExecutionContext<TEventContext>> rule,
-            EcaExecutionContext<TEventContext> context)
+            IEcaRule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>> rule,
+            IEcaExecutionActionContext<TEventContext> context)
         {
             Id = id;
             Rule = rule ?? throw new ArgumentNullException(nameof(rule));

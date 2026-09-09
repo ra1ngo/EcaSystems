@@ -4,6 +4,8 @@ namespace EcaSystems.Core
 {
     public interface IEcaRuleSelector
     {
-        IReadOnlyList<IEcaRule<TContext>> ForEvent<TContext>(IEcaEvent ecaEvent);
+        IReadOnlyList<IEcaRule<TEventContext, TConditionContext, TActionContext>> ForEvent<TEventContext, TConditionContext, TActionContext>(IEcaEvent ecaEvent)
+            where TConditionContext : IEcaConditionContext<TEventContext>
+            where TActionContext : IEcaActionContext<TEventContext>;
     }
 }

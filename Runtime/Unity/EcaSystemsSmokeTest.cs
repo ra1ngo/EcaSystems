@@ -11,8 +11,12 @@ namespace EcaSystems.Unity
         private int _passed;
         private int _failed;
 
-        private async void Start()
+        private async void Start() => await RunTests();
+
+        public async Task RunTests()
         {
+            _passed = 0;
+            _failed = 0;
             Debug.Log("=== EcaSystems Smoke Tests ===");
 
             TestBaseEmptyContext();
@@ -20,6 +24,11 @@ namespace EcaSystems.Unity
             TestBaseConditionFalse();
             TestBaseChecksAllConditionsBeforeActions();
             TestDuplicateRuleId();
+            TestBaseContextSplit();
+            await TestGenericRegistryAndVariance();
+            await TestCommandsRegistry();
+            await TestCommandsOrderAndScopes();
+            await TestBindAcceptance();
 
             await TestExecutionIgnore();
             await TestExecutionAllow();
@@ -56,8 +65,8 @@ namespace EcaSystems.Unity
 
             var action = new BaseCountingAction<EcaEventContextEmpty>();
 
-            var rule = new EcaRule<EcaContext<EcaEventContextEmpty>>(
-                new EcaRuleConfig<EcaContext<EcaEventContextEmpty>>
+            var rule = new EcaRule<EcaEventContextEmpty, EcaConditionContext<EcaEventContextEmpty>, EcaActionContext<EcaEventContextEmpty>>(
+                new EcaRuleConfig<EcaEventContextEmpty, EcaConditionContext<EcaEventContextEmpty>, EcaActionContext<EcaEventContextEmpty>>
                 {
                     Id = "test.base.empty.rule",
                     Name = "Base Empty Rule",
@@ -102,8 +111,8 @@ namespace EcaSystems.Unity
 
             var action = new BaseCountingAction<TestEventContext>();
 
-            var rule = new EcaRule<EcaContext<TestEventContext>>(
-                new EcaRuleConfig<EcaContext<TestEventContext>>
+            var rule = new EcaRule<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>(
+                new EcaRuleConfig<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>
                 {
                     Id = "test.base.context.rule",
                     Name = "Base Context Rule",
@@ -139,12 +148,12 @@ namespace EcaSystems.Unity
             var action = new BaseCountingAction<TestEventContext>();
 
             var condition =
-                new DelegateEcaCondition<EcaContext<TestEventContext>>(
+                new DelegateEcaCondition<EcaConditionContext<TestEventContext>>(
                     _ => false
                 );
 
-            var rule = new EcaRule<EcaContext<TestEventContext>>(
-                new EcaRuleConfig<EcaContext<TestEventContext>>
+            var rule = new EcaRule<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>(
+                new EcaRuleConfig<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>
                 {
                     Id = "test.base.condition-false.rule",
                     Name = "Condition False Rule",
@@ -181,8 +190,8 @@ namespace EcaSystems.Unity
             var sharedState = new SharedState();
 
             var firstRule =
-                new EcaRule<EcaContext<TestEventContext>>(
-                    new EcaRuleConfig<EcaContext<TestEventContext>>
+                new EcaRule<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>(
+                    new EcaRuleConfig<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>
                     {
                         Id = "test.base.condition-order.first",
                         Name = "First Rule",
@@ -195,8 +204,8 @@ namespace EcaSystems.Unity
                 new BaseCountingAction<TestEventContext>();
 
             var secondRule =
-                new EcaRule<EcaContext<TestEventContext>>(
-                    new EcaRuleConfig<EcaContext<TestEventContext>>
+                new EcaRule<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>(
+                    new EcaRuleConfig<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>
                     {
                         Id = "test.base.condition-order.second",
                         Name = "Second Rule",
@@ -237,8 +246,8 @@ namespace EcaSystems.Unity
             );
 
             var rule1 =
-                new EcaRule<EcaContext<TestEventContext>>(
-                    new EcaRuleConfig<EcaContext<TestEventContext>>
+                new EcaRule<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>(
+                    new EcaRuleConfig<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>
                     {
                         Id = "same.rule.id",
                         Name = "Rule One",
@@ -248,8 +257,8 @@ namespace EcaSystems.Unity
                 );
 
             var rule2 =
-                new EcaRule<EcaContext<TestEventContext>>(
-                    new EcaRuleConfig<EcaContext<TestEventContext>>
+                new EcaRule<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>(
+                    new EcaRuleConfig<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>
                     {
                         Id = "same.rule.id",
                         Name = "Rule Two",
@@ -295,7 +304,7 @@ namespace EcaSystems.Unity
                 new EcaRuleSelector(ruleRegistry),
                 ruleChecker,
                 executionRegistry,
-                new EcaExecutionContextFactory(),
+                new EcaCommandRunner(new EcaCommandRegistry()),
                 ruleRunner
             );
 
@@ -311,10 +320,8 @@ namespace EcaSystems.Unity
                 new ExecutionGateAction<TestEventContext>();
 
             var rule =
-                new EcaRule<EcaExecutionContext<TestEventContext>>(
-                    new EcaRuleConfig<
-                        EcaExecutionContext<TestEventContext>
-                    >
+                new EcaRule<TestEventContext, IEcaExecutionConditionContext<TestEventContext>, IEcaExecutionActionContext<TestEventContext>>(
+                    new EcaRuleConfig<TestEventContext, IEcaExecutionConditionContext<TestEventContext>, IEcaExecutionActionContext<TestEventContext>>
                     {
                         Id = "test.execution.ignore.rule",
                         Name = "Execution Ignore Rule",
@@ -468,7 +475,7 @@ namespace EcaSystems.Unity
                 new EcaRuleSelector(ruleRegistry),
                 ruleChecker,
                 executionRegistry,
-                new EcaExecutionContextFactory(),
+                new EcaCommandRunner(new EcaCommandRegistry()),
                 ruleRunner
             );
 
@@ -481,10 +488,8 @@ namespace EcaSystems.Unity
                 new ExecutionGateAction<TestEventContext>();
 
             var rule =
-                new EcaRule<EcaExecutionContext<TestEventContext>>(
-                    new EcaRuleConfig<
-                        EcaExecutionContext<TestEventContext>
-                    >
+                new EcaRule<TestEventContext, IEcaExecutionConditionContext<TestEventContext>, IEcaExecutionActionContext<TestEventContext>>(
+                    new EcaRuleConfig<TestEventContext, IEcaExecutionConditionContext<TestEventContext>, IEcaExecutionActionContext<TestEventContext>>
                     {
                         Id = "test.execution.allow.rule",
                         Name = "Execution Allow Rule",
@@ -579,7 +584,7 @@ namespace EcaSystems.Unity
                 new EcaRuleSelector(ruleRegistry),
                 ruleChecker,
                 executionRegistry,
-                new EcaExecutionContextFactory(),
+                new EcaCommandRunner(new EcaCommandRegistry()),
                 ruleRunner
             );
 
@@ -589,10 +594,8 @@ namespace EcaSystems.Unity
             );
 
             var rule =
-                new EcaRule<EcaExecutionContext<TestEventContext>>(
-                    new EcaRuleConfig<
-                        EcaExecutionContext<TestEventContext>
-                    >
+                new EcaRule<TestEventContext, IEcaExecutionConditionContext<TestEventContext>, IEcaExecutionActionContext<TestEventContext>>(
+                    new EcaRuleConfig<TestEventContext, IEcaExecutionConditionContext<TestEventContext>, IEcaExecutionActionContext<TestEventContext>>
                     {
                         Id = "test.execution.failed.rule",
                         Name = "Execution Failed Rule",
@@ -643,13 +646,13 @@ namespace EcaSystems.Unity
         // =====================================================================
 
 
-        private static EcaRule<EcaExecutionContext<TEventContext>> CreateExecutionRule<TEventContext>(
+        private static EcaRule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>> CreateExecutionRule<TEventContext>(
             string id, EcaEvent<TEventContext> ecaEvent,
-            IEcaAction<EcaExecutionContext<TEventContext>> action,
-            IEcaCondition<EcaExecutionContext<TEventContext>> condition = null)
+            IEcaAction<IEcaExecutionActionContext<TEventContext>> action,
+            IEcaCondition<IEcaExecutionConditionContext<TEventContext>> condition = null)
         {
-            return new EcaRule<EcaExecutionContext<TEventContext>>(
-                new EcaRuleConfig<EcaExecutionContext<TEventContext>>
+            return new EcaRule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>>(
+                new EcaRuleConfig<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>>
                 {
                     Id = id, Name = id, Event = ecaEvent, Action = action, Condition = condition
                 });
@@ -660,16 +663,16 @@ namespace EcaSystems.Unity
             var registry = new EcaRuleRegistry();
             var groups = new EcaRuleExecutionRegistry();
             var engine = new EcaExecutionEngine(registry, new EcaRuleSelector(registry),
-                new EcaRuleChecker(), groups, new EcaExecutionContextFactory(), new EcaRuleRunner());
+                new EcaRuleChecker(), groups, new EcaCommandRunner(new EcaCommandRegistry()), new EcaRuleRunner());
             var ecaEvent = new EcaEvent<TestEventContext>("test.execution.order", "Order");
             var first = new ExecutionGateAction<TestEventContext>();
             var second = new ExecutionGateAction<TestEventContext>();
             var rejected = new ExecutionGateAction<TestEventContext>();
             var firstRule = CreateExecutionRule("order.first", ecaEvent, first);
             var secondRule = CreateExecutionRule("order.second", ecaEvent, second,
-                new DelegateEcaCondition<EcaExecutionContext<TestEventContext>>(_ => first.RunCount == 0));
+                new DelegateEcaCondition<IEcaExecutionConditionContext<TestEventContext>>(_ => first.RunCount == 0));
             var rejectedRule = CreateExecutionRule("order.false", ecaEvent, rejected,
-                new DelegateEcaCondition<EcaExecutionContext<TestEventContext>>(_ => false));
+                new DelegateEcaCondition<IEcaExecutionConditionContext<TestEventContext>>(_ => false));
             engine.Register(firstRule, new EcaRunMode(EcaOverlap.Allow));
             engine.Register(secondRule, new EcaRunMode(EcaOverlap.Allow));
             engine.Register(rejectedRule, new EcaRunMode(EcaOverlap.Allow));
@@ -693,7 +696,7 @@ namespace EcaSystems.Unity
         private async Task TestRunModes()
         {
             var ecaEvent = new EcaEvent<TestEventContext>("test.limit", "Limit");
-            var factory = new EcaExecutionContextFactory();
+            var commandRunner = new EcaCommandRunner(new EcaCommandRegistry());
             foreach (var limit in new[] { -1, 0, 1, 2 })
             {
                 var action = new ExecutionGateAction<TestEventContext>();
@@ -702,7 +705,7 @@ namespace EcaSystems.Unity
                 var group = new EcaRuleExecutionGroup<TestEventContext>(rule, mode, new EcaRuleRunner());
                 for (var i = 0; i < 4; i++)
                 {
-                    group.Fire(factory.Create(new TestEventContext(i), group.State));
+                    group.Fire(new TestEventContext(i), commandRunner);
                     var execution = group.Executions.Count > 0 ? group.Executions[0] : null;
                     action.CompleteAll();
                     await WaitUntil(() => group.Executions.Count == 0);
@@ -721,20 +724,20 @@ namespace EcaSystems.Unity
             {
                 var group = new EcaRuleExecutionGroup<TestEventContext>(limitedRule,
                     new EcaRunMode(overlap, 2), new EcaRuleRunner());
-                var context = factory.Create(new TestEventContext(0), group.State);
-                group.Fire(context);
-                group.Fire(context);
-                group.Fire(context);
+                var eventContext = new TestEventContext(0);
+                group.Fire(eventContext, commandRunner);
+                group.Fire(eventContext, commandRunner);
+                group.Fire(eventContext, commandRunner);
                 var active = overlap == EcaOverlap.Ignore ? 1 : 2;
                 Expect(overlap + ": active Fire respects overlap and limit",
                     group.Executions.Count == active && group.State.EcaRuleExecutionTotalStarted == active);
                 gate.CompleteAll();
                 await WaitUntil(() => group.Executions.Count == 0);
-                group.Fire(context);
+                group.Fire(eventContext, commandRunner);
                 Expect(overlap + ": ignored Fire does not consume limit", group.State.EcaRuleExecutionTotalStarted == 2);
                 gate.CompleteAll();
                 await WaitUntil(() => group.Executions.Count == 0);
-                group.Fire(context);
+                group.Fire(eventContext, commandRunner);
                 Expect(overlap + ": exhausted limit prevents execution", group.Executions.Count == 0 &&
                     group.State.EcaRuleExecutionTotalFinished == 2);
             }
@@ -747,8 +750,8 @@ namespace EcaSystems.Unity
             var checks = 0;
             var blockedAction = new ExecutionGateAction<TestEventContext>();
             var blockedRule = CreateExecutionRule("limit.zero.conditions", ecaEvent, blockedAction,
-                new DelegateEcaCondition<EcaExecutionContext<TestEventContext>>(_ => { checks++; return true; }));
-            var engine = new EcaExecutionEngine();
+                new DelegateEcaCondition<IEcaExecutionConditionContext<TestEventContext>>(_ => { checks++; return true; }));
+            var engine = new EcaExecutionEngine(new EcaCommandRunner(new EcaCommandRegistry()));
             engine.Register(blockedRule, new EcaRunMode(EcaOverlap.Allow, 0));
             engine.Fire(ecaEvent, new TestEventContext(0));
             Expect("Conditions run before zero limit is applied", checks == 1 && blockedAction.RunCount == 0);
@@ -760,7 +763,7 @@ namespace EcaSystems.Unity
             var action = new ExecutionGateAction<TestEventContext>();
             var rule = CreateExecutionRule("failure.status", ecaEvent, action);
             var group = new EcaRuleExecutionGroup<TestEventContext>(rule, new EcaRunMode(EcaOverlap.Ignore), new EcaRuleRunner());
-            group.Fire(new EcaExecutionContextFactory().Create(new TestEventContext(1), group.State));
+            group.Fire(new TestEventContext(1), new EcaCommandRunner(new EcaCommandRegistry()));
             var execution = group.Executions[0];
             var error = new InvalidOperationException("Expected asynchronous failure.");
             action.FailAll(error);
@@ -770,7 +773,7 @@ namespace EcaSystems.Unity
             Expect("Failure balances counters", group.State.EcaRuleExecutionTotalStarted == 1 &&
                 group.State.EcaRuleExecutionTotalFinished == 1);
 
-            group.Fire(new EcaExecutionContextFactory().Create(new TestEventContext(2), group.State));
+            group.Fire(new TestEventContext(2), new EcaCommandRunner(new EcaCommandRegistry()));
             execution = group.Executions[0];
             var interrupted = new OperationCanceledException("User Action failure.");
             action.FailAll(interrupted);
@@ -784,7 +787,7 @@ namespace EcaSystems.Unity
             var rules = new EcaRuleRegistry();
             var groups = new EcaRuleExecutionRegistry();
             var engine = new EcaExecutionEngine(rules, new EcaRuleSelector(rules),
-                new EcaRuleChecker(), groups, new EcaExecutionContextFactory(), new EcaRuleRunner());
+                new EcaRuleChecker(), groups, new EcaCommandRunner(new EcaCommandRegistry()), new EcaRuleRunner());
             var ecaEvent = new EcaEvent<TestEventContext>("test.unregister", "Unregister");
             var oldAction = new ExecutionGateAction<TestEventContext>();
             var oldRule = CreateExecutionRule("unregister.rule", ecaEvent, oldAction);
@@ -872,23 +875,23 @@ namespace EcaSystems.Unity
                 () => groups.TryGet<EcaEventContextEmpty>(rule.Id, out _));
             Expect("TryGet returns false for missing group", !groups.TryGet<TestEventContext>("missing", out _));
             var engine = new EcaExecutionEngine(registry, selector, new EcaRuleChecker(),
-                groups, new EcaExecutionContextFactory(), ruleRunner);
+                groups, new EcaCommandRunner(new EcaCommandRegistry()), ruleRunner);
             ExpectThrows("Registration rejects overlap mismatch", () => engine.Register(rule, new EcaRunMode(EcaOverlap.Ignore)));
             Expect("Failed group registration rolls back Rule registration", registry.Rules.Count == 0);
             engine.Register(rule, new EcaRunMode(EcaOverlap.Allow));
             Expect("Registration can succeed after rollback", registry.Rules.Count == 1);
             ExpectThrows("Selector rejects incompatible full Context",
-                () => selector.ForEvent<EcaContext<TestEventContext>>(ecaEvent));
+                () => selector.ForEvent<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>(ecaEvent));
             var conflictingEvent = new EcaEvent<EcaEventContextEmpty>("validation", "Conflicting event");
             ExpectThrows("Selector rejects EventId collision with incompatible payload",
-                () => selector.ForEvent<EcaContext<EcaEventContextEmpty>>(conflictingEvent));
+                () => selector.ForEvent<EcaEventContextEmpty, EcaConditionContext<EcaEventContextEmpty>, EcaActionContext<EcaEventContextEmpty>>(conflictingEvent));
             Expect("Registry exposes a read-only collection",
                 ((ICollection<IEcaRule>)registry.Rules).IsReadOnly);
         }
 
         private void TestScopeLifetime()
         {
-            var engine = new EcaScopeEngine();
+            var engine = new EcaScopeEngine(new EcaCommandRunner(new EcaCommandRegistry()));
             Expect("Scope engine starts empty", engine.ScopeCount == 0);
             var root = engine.CreateScope("scope-1");
             var child = root.CreateScope("child");
@@ -946,7 +949,7 @@ namespace EcaSystems.Unity
         {
             foreach (var overlap in new[] { EcaOverlap.Ignore, EcaOverlap.Allow })
             {
-                using var engine = new EcaScopeEngine();
+                using var engine = new EcaScopeEngine(new EcaCommandRunner(new EcaCommandRegistry()));
                 var a = engine.CreateScope();
                 var b = engine.CreateScope();
                 var evt = new EcaEvent<TestEventContext>("scope.shared", "Shared");
@@ -989,7 +992,7 @@ namespace EcaSystems.Unity
 
         private async Task TestScopeLocalFire()
         {
-            using var engine = new EcaScopeEngine();
+            using var engine = new EcaScopeEngine(new EcaCommandRunner(new EcaCommandRegistry()));
             var parent = engine.CreateScope();
             var child = parent.CreateScope();
             var evt = new EcaEvent<EcaEventContextEmpty>("scope.local", "Local");
@@ -1009,7 +1012,7 @@ namespace EcaSystems.Unity
 
         private async Task TestScopeRunningDispose()
         {
-            using var engine = new EcaScopeEngine();
+            using var engine = new EcaScopeEngine(new EcaCommandRunner(new EcaCommandRegistry()));
             var parent = engine.CreateScope();
             var scope = parent.CreateScope("running");
             var evt = new EcaEvent<TestEventContext>("scope.running", "Running");
@@ -1035,6 +1038,311 @@ namespace EcaSystems.Unity
             action.CompleteAll();
             await WaitUntil(() => action.ExecutionGroupStates[1].EcaRuleExecutionTotalFinished == 1);
             Expect("Action finishes naturally after engine Dispose", replacement.IsDisposed && engine.ScopeCount == 0);
+        }
+
+        private void TestBaseContextSplit()
+        {
+            var evt = new EcaEvent<TestEventContext>("split", "Split");
+            var payload = new TestEventContext(73);
+            var action = new BaseCountingAction<TestEventContext>();
+            var seen = 0;
+            var rule = new EcaRule<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>(
+                new EcaRuleConfig<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>
+                {
+                    Id = "split", Name = "Split", Event = evt, Action = action,
+                    Condition = new DelegateEcaCondition<EcaConditionContext<TestEventContext>>(context =>
+                    {
+                        seen = context.EventContext.Value;
+                        return true;
+                    })
+                });
+            var engine = new EcaEngine();
+            engine.Register(rule);
+            engine.Fire(evt, payload);
+            Expect("Разные Base contexts получают один payload", seen == 73 && action.LastValue == 73);
+            Expect("Condition не предоставляет Commands",
+                !typeof(IEcaCommandsActionContext).IsAssignableFrom(typeof(EcaConditionContext<TestEventContext>)) &&
+                !typeof(IEcaCommandsActionContext).IsAssignableFrom(typeof(EcaExecutionConditionContext<TestEventContext>)) &&
+                typeof(EcaExecutionConditionContext<TestEventContext>).GetProperty("Commands") == null &&
+                typeof(IEcaExecutionConditionContext<TestEventContext>).GetProperty("Commands") == null);
+            ExpectException<ArgumentException>("Rule проверяет явный тип payload", () =>
+                new EcaRule<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>(
+                    new EcaRuleConfig<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>
+                    {
+                        Id = "wrong", Name = "Wrong", Event = new EcaEvent<int>("wrong", "Wrong"), Action = action
+                    }));
+        }
+
+        private async Task TestGenericRegistryAndVariance()
+        {
+            var evt = new EcaEvent<TestEventContext>("custom.context", "Custom context");
+            var action = new BaseCountingAction<TestEventContext>();
+            var rule = new EcaRule<TestEventContext, CustomConditionContext, CustomActionContext>(
+                new EcaRuleConfig<TestEventContext, CustomConditionContext, CustomActionContext>
+                {
+                    Id = "custom.rule", Name = "Custom rule", Event = evt, Action = action,
+                    Condition = new DelegateEcaCondition<CustomConditionContext>(context => context.EventContext.Value == 17)
+                });
+            var registry = new EcaRuleRegistry();
+            registry.Register(rule);
+            var selector = new EcaRuleSelector(registry);
+            var selected = selector.ForEvent<TestEventContext, CustomConditionContext, CustomActionContext>(evt);
+            Expect("Общий Registry хранит Rule с пользовательской парой контекстов",
+                selected.Count == 1 && ReferenceEquals(selected[0], rule));
+            Expect("Общий Checker проверяет пользовательский ConditionContext",
+                new EcaRuleChecker().Check(rule, new CustomConditionContext(new TestEventContext(17))));
+            await new EcaRuleRunner().Run(rule, new CustomActionContext(new TestEventContext(17)));
+            Expect("Общий Runner выполняет пользовательский ActionContext", action.LastValue == 17);
+            ExpectThrows("Selector отклоняет другую пару role contexts", () =>
+                selector.ForEvent<TestEventContext, EcaConditionContext<TestEventContext>, EcaActionContext<TestEventContext>>(evt));
+            Expect("Selector проверяет Event.Id", selector.ForEvent<TestEventContext, CustomConditionContext, CustomActionContext>(
+                new EcaEvent<TestEventContext>("other", "Other")).Count == 0);
+            ExpectThrows("Selector не расширяет payload до object", () =>
+                selector.ForEvent<object, EcaConditionContext<object>, EcaActionContext<object>>(evt));
+            Expect("Общий Registry удаляет пользовательскую Rule", registry.Unregister(rule));
+
+            Expect("Все role-интерфейсы invariant по payload",
+                !typeof(IEcaConditionContext<object>).IsAssignableFrom(typeof(IEcaConditionContext<string>)) &&
+                !typeof(IEcaActionContext<object>).IsAssignableFrom(typeof(IEcaActionContext<string>)) &&
+                !typeof(IEcaCommandsActionContext<object>).IsAssignableFrom(typeof(IEcaCommandsActionContext<string>)) &&
+                !typeof(IEcaExecutionConditionContext<object>).IsAssignableFrom(typeof(IEcaExecutionConditionContext<string>)) &&
+                !typeof(IEcaExecutionActionContext<object>).IsAssignableFrom(typeof(IEcaExecutionActionContext<string>)));
+            Expect("Read-only IEcaContext сохраняет covariance",
+                typeof(IEcaContext<object>).IsAssignableFrom(typeof(IEcaContext<string>)));
+        }
+
+        private sealed class CustomConditionContext : EcaConditionContext<TestEventContext>
+        {
+            public CustomConditionContext(TestEventContext context) : base(context) { }
+        }
+
+        private sealed class CustomActionContext : EcaActionContext<TestEventContext>
+        {
+            public CustomActionContext(TestEventContext context) : base(context) { }
+        }
+
+        private async Task TestBindAcceptance()
+        {
+            foreach (var overlap in new[] { EcaOverlap.Ignore, EcaOverlap.Allow })
+            foreach (var limit in new[] { 0, 2 })
+            {
+                var checks = 0;
+                var runner = new RecordingCommandRunner(new EcaCommandRunner(new EcaCommandRegistry()), new List<string>());
+                var rules = new EcaRuleRegistry();
+                var groups = new EcaRuleExecutionRegistry();
+                var engine = new EcaExecutionEngine(rules, new EcaRuleSelector(rules), new EcaRuleChecker(),
+                    groups, runner, new EcaRuleRunner());
+                var evt = new EcaEvent<TestEventContext>("bind.acceptance", "Bind acceptance");
+                var action = new ExecutionGateAction<TestEventContext>();
+                var rule = CreateExecutionRule("bind.acceptance", evt, action,
+                    new DelegateEcaCondition<IEcaExecutionConditionContext<TestEventContext>>(_ => { checks++; return true; }));
+                engine.Register(rule, new EcaRunMode(overlap, limit));
+                var group = groups.Get<TestEventContext>(rule.Id);
+                runner.OnBind = context =>
+                {
+                    var typed = (IEcaExecutionActionContext<TestEventContext>)context;
+                    Expect("Runner получает подготовленные payload и GroupState",
+                        typed.EventContext.Value == 42 && ReferenceEquals(typed.RuleExecutionGroupState, group.State));
+                    ExpectThrows("До завершения Bind чтение Commands явно отклоняется", () => { _ = typed.Commands; });
+                };
+                engine.Fire(evt, new TestEventContext(42));
+                var first = limit == 0 ? 0 : 1;
+                Expect(overlap + ": первый Fire привязывает только принятый execution",
+                    checks == 1 && runner.BindCount == first && action.RunCount == first &&
+                    group.Executions.Count == first && group.State.EcaRuleExecutionTotalStarted == first);
+                if (first == 1)
+                    Expect("Опубликованный execution уже имеет Commands", group.Executions[0].Context.Commands != null);
+                engine.Fire(evt, new TestEventContext(42));
+                var active = limit == 0 ? 0 : overlap == EcaOverlap.Ignore ? 1 : 2;
+                Expect(overlap + ": повторный Fire проверяет Condition без лишнего Bind",
+                    checks == 2 && runner.BindCount == active && action.RunCount == active &&
+                    group.Executions.Count == active && group.State.EcaRuleExecutionTotalStarted == active);
+                action.CompleteAll();
+                await WaitUntil(() => group.Executions.Count == 0);
+                engine.Fire(evt, new TestEventContext(42));
+                var total = limit == 0 ? 0 : 2;
+                Expect(overlap + ": после завершения Ignore снова разрешает Bind, исчерпанный Limit блокирует",
+                    checks == 3 && runner.BindCount == total && action.RunCount == total &&
+                    group.State.EcaRuleExecutionTotalStarted == total);
+                action.CompleteAll();
+                await WaitUntil(() => group.Executions.Count == 0);
+                engine.Fire(evt, new TestEventContext(42));
+                Expect(overlap + ": Bind ровно один раз на фактический запуск",
+                    checks == 4 && runner.BindCount == total && group.Executions.Count == 0 &&
+                    group.State.EcaRuleExecutionTotalStarted == total && group.State.EcaRuleExecutionTotalFinished == total);
+            }
+        }
+
+        private async Task TestCommandsRegistry()
+        {
+            var registry = new EcaCommandRegistry();
+            var runner = new EcaCommandRunner(registry);
+            var received = new List<IEcaActionContext>();
+            var command = new TestCommand<IEcaActionContext, int>("record", (context, value) =>
+            {
+                received.Add(context);
+                return Task.CompletedTask;
+            });
+            registry.Register(command);
+            ExpectThrows("Дубликат string Command ID отклонён", () => registry.Register(
+                new TestCommand<IEcaActionContext, string>("record", (_, __) => Task.CompletedTask)));
+            foreach (var id in new[] { null, "", " \t" })
+                ExpectException<ArgumentException>("Пустой Command ID отклонён", () => registry.Register(
+                    new TestCommand<IEcaActionContext, int>(id, (_, __) => Task.CompletedTask)));
+            ExpectException<ArgumentNullException>("Bind null отклонён", () => runner.Bind(null));
+            var contextA = new EcaActionContext<int>(1);
+            var contextB = new EcaActionContext<string>("B");
+            var boundA = runner.Bind(contextA);
+            var boundB = runner.Bind(contextB);
+            await boundA.Run("record", 1);
+            await boundB.Run("record", 2);
+            await boundA.Run("record", 3);
+            Expect("Каждый bound API сохраняет свой current context", received.Count == 3 &&
+                ReferenceEquals(received[0], contextA) && ReferenceEquals(received[1], contextB) &&
+                ReferenceEquals(received[2], contextA));
+            ExpectCommandError<InvalidOperationException>("Неизвестный ID", "missing", () => boundA.Run("missing", 1));
+            ExpectCommandError<ArgumentException>("Неверный тип args", "record", () => boundA.Run("record", "wrong"));
+            ExpectCommandError<ArgumentException>("Несовместимый null args", "record", () => boundA.Run<string>("record", null));
+            registry.Register(new TestCommand<IEcaActionContext<string>, string>("text", (_, __) => Task.CompletedTask));
+            ExpectCommandError<InvalidOperationException>("Несовместимый ActionContext", "text", () => boundA.Run("text", "value"));
+            await boundB.Run<string>("text", null);
+            Expect("Допустимый null reference args передан", true);
+            registry.Register(new TestCommand<IEcaActionContext, int?>("nullable", (_, __) => Task.CompletedTask));
+            await boundA.Run<int?>("nullable", null);
+            await boundA.Run<int?>("nullable", 5);
+            Expect("Nullable args допускают значение и null", true);
+            Expect("Unregister удаляет Command", registry.Unregister("record") && !registry.Unregister("record"));
+            ExpectCommandError<InvalidOperationException>("Старый bound API видит Unregister", "record", () => boundA.Run("record", 1));
+            registry.Register(command);
+            await boundA.Run("record", 4);
+            Expect("ID доступен для повторной регистрации", received.Count == 4);
+            registry.Register(new TestCommand<IEcaActionContext, int>("null-task", (_, __) => null));
+            ExpectCommandError<InvalidOperationException>("Null Task диагностируется", "null-task", () => boundA.Run("null-task", 1));
+        }
+
+        private async Task TestCommandsOrderAndScopes()
+        {
+            var log = new List<string>();
+            var registry = new EcaCommandRegistry();
+            var runner = new RecordingCommandRunner(new EcaCommandRunner(registry), log);
+            var received = new List<IEcaExecutionActionContext<TestEventContext>>();
+            registry.Register(new TestCommand<IEcaExecutionActionContext<TestEventContext>, string>("record", (context, label) =>
+            {
+                received.Add(context);
+                log.Add(label);
+                return Task.CompletedTask;
+            }));
+            var evt = new EcaEvent<TestEventContext>("commands.order", "Order");
+            using var scopes = new EcaScopeEngine(runner);
+            var a = scopes.CreateScope();
+            var b = scopes.CreateScope();
+            var actionA = new CommandsTestAction("A", log);
+            var actionB = new CommandsTestAction("B", log);
+            var ruleA = CreateExecutionRule("A", evt, actionA,
+                new DelegateEcaCondition<IEcaExecutionConditionContext<TestEventContext>>(context =>
+                {
+                    log.Add("condition A");
+                    Expect("Condition получает payload до bind", context.EventContext.Value == 42 && runner.BindCount == 0);
+                    return true;
+                }));
+            var ruleB = CreateExecutionRule("B", evt, actionB,
+                new DelegateEcaCondition<IEcaExecutionConditionContext<TestEventContext>>(_ =>
+                {
+                    log.Add("condition B");
+                    return true;
+                }));
+            var rejected = CreateExecutionRule("rejected", evt, new CommandsTestAction("rejected", log),
+                new DelegateEcaCondition<IEcaExecutionConditionContext<TestEventContext>>(_ =>
+                {
+                    log.Add("condition rejected");
+                    return false;
+                }));
+            a.Register(ruleA, new EcaRunMode(EcaOverlap.Allow, 1));
+            a.Register(ruleB, new EcaRunMode(EcaOverlap.Allow, 1));
+            a.Register(rejected, new EcaRunMode(EcaOverlap.Allow));
+            a.Fire(evt, new TestEventContext(42));
+            Expect("Все Conditions до любого bind, Action и Command", string.Join(",", log) ==
+                "condition A,condition B,condition rejected,bind,action A,A1,A2,bind,action B,B1,B2");
+            Expect("False Condition не вызывает bind", runner.BindCount == 2);
+            Expect("Command автоматически получает точный ActionContext и payload", received.Count == 4 &&
+                ReferenceEquals(received[0], actionA.Contexts[0]) && ReferenceEquals(received[1], actionA.Contexts[0]) &&
+                ReferenceEquals(received[2], actionB.Contexts[0]) && received[0].EventContext.Value == 42);
+            b.Register(ruleB, new EcaRunMode(EcaOverlap.Allow, 1));
+            b.Fire(evt, new TestEventContext(99));
+            Expect("Общая Command работает во втором Scope", received.Count == 6 && received[4].EventContext.Value == 99);
+            Expect("Одна Rule имеет независимые GroupState и Limit", actionB.Contexts.Count == 2 &&
+                !ReferenceEquals(actionB.Contexts[0].RuleExecutionGroupState, actionB.Contexts[1].RuleExecutionGroupState) &&
+                actionB.Contexts[0].RuleExecutionGroupState.EcaRuleExecutionTotalStarted == 1 &&
+                actionB.Contexts[1].RuleExecutionGroupState.EcaRuleExecutionTotalStarted == 1);
+            a.Unregister(ruleB);
+            b.Fire(evt, new TestEventContext(100));
+            Expect("Unregister в A не сбрасывает Limit в B", received.Count == 6 && b.Unregister(ruleB));
+
+            // Следующая Command должна дождаться завершения предыдущей, включая async-паузу.
+            var gate = new TaskCompletionSource<bool>();
+            registry.Register(new TestCommand<IEcaActionContext, int>("gate", (_, __) => gate.Task));
+            var completed = false;
+            var bound = runner.Bind(new EcaActionContext<int>(0));
+            async Task Sequence()
+            {
+                await bound.Run("gate", 0);
+                await bound.Run("nullable", 0);
+                completed = true;
+            }
+            registry.Register(new TestCommand<IEcaActionContext, int>("nullable", (_, __) => Task.CompletedTask));
+            var sequence = Sequence();
+            Expect("Последовательность ожидает async Command", !completed);
+            gate.SetResult(true);
+            await sequence;
+            Expect("Следующая Command запускается после завершения предыдущей", completed);
+        }
+
+        private void ExpectCommandError<TException>(string name, string commandId, Action action)
+            where TException : Exception
+        {
+            try { action(); }
+            catch (TException error) { Expect(name, error.Message.Contains(commandId)); return; }
+            Expect(name, false);
+        }
+
+        private sealed class TestCommand<TContext, TArgs> : IEcaCommand<TContext, TArgs>
+            where TContext : IEcaActionContext
+        {
+            private readonly Func<TContext, TArgs, Task> _run;
+            public string Id { get; }
+            public TestCommand(string id, Func<TContext, TArgs, Task> run) { Id = id; _run = run; }
+            public Task Run(TContext context, TArgs args) => _run(context, args);
+        }
+
+        private sealed class RecordingCommandRunner : IEcaCommandRunner
+        {
+            private readonly IEcaCommandRunner _runner;
+            private readonly List<string> _log;
+            public int BindCount { get; private set; }
+            public Action<IEcaActionContext> OnBind { get; set; }
+            public RecordingCommandRunner(IEcaCommandRunner runner, List<string> log) { _runner = runner; _log = log; }
+            public IEcaCommands Bind(IEcaActionContext context)
+            {
+                BindCount++;
+                _log.Add("bind");
+                OnBind?.Invoke(context);
+                return _runner.Bind(context);
+            }
+        }
+
+        private sealed class CommandsTestAction : IEcaAction<IEcaExecutionActionContext<TestEventContext>>
+        {
+            private readonly string _label;
+            private readonly List<string> _log;
+            public List<IEcaExecutionActionContext<TestEventContext>> Contexts { get; } = new();
+            public CommandsTestAction(string label, List<string> log) { _label = label; _log = log; }
+            public async Task Run(IEcaExecutionActionContext<TestEventContext> context)
+            {
+                Contexts.Add(context);
+                _log.Add("action " + _label);
+                await context.Commands.Run("record", _label + "1");
+                await context.Commands.Run("record", _label + "2");
+            }
         }
 
         private void ExpectException<TException>(string name, Action action) where TException : Exception
@@ -1130,7 +1438,7 @@ namespace EcaSystems.Unity
         // =====================================================================
 
         private sealed class FlagMustBeFalseCondition
-            : IEcaCondition<EcaContext<TestEventContext>>
+            : IEcaCondition<EcaConditionContext<TestEventContext>>
         {
             private readonly SharedState _state;
 
@@ -1141,7 +1449,7 @@ namespace EcaSystems.Unity
             }
 
             public bool Check(
-                EcaContext<TestEventContext> context)
+                EcaConditionContext<TestEventContext> context)
             {
                 return !_state.Value;
             }
@@ -1152,13 +1460,13 @@ namespace EcaSystems.Unity
         // =====================================================================
 
         private sealed class BaseCountingAction<TEventContext>
-            : IEcaAction<EcaContext<TEventContext>>
+            : IEcaAction<EcaActionContext<TEventContext>>
         {
             public int RunCount { get; private set; }
             public int LastValue { get; private set; }
 
             public Task Run(
-                EcaContext<TEventContext> context)
+                EcaActionContext<TEventContext> context)
             {
                 RunCount++;
 
@@ -1173,7 +1481,7 @@ namespace EcaSystems.Unity
         }
 
         private sealed class SetFlagAction
-            : IEcaAction<EcaContext<TestEventContext>>
+            : IEcaAction<EcaActionContext<TestEventContext>>
         {
             private readonly SharedState _state;
 
@@ -1184,7 +1492,7 @@ namespace EcaSystems.Unity
             }
 
             public Task Run(
-                EcaContext<TestEventContext> context)
+                EcaActionContext<TestEventContext> context)
             {
                 _state.Value = true;
 
@@ -1197,12 +1505,12 @@ namespace EcaSystems.Unity
         // =====================================================================
 
         private sealed class ExecutionRecordingCondition<TEventContext>
-            : IEcaCondition<EcaExecutionContext<TEventContext>>
+            : IEcaCondition<IEcaExecutionConditionContext<TEventContext>>
         {
             public List<ExecutionRecord> Records { get; } = new();
 
             public bool Check(
-                EcaExecutionContext<TEventContext> context)
+                IEcaExecutionConditionContext<TEventContext> context)
             {
                 Records.Add(
                     new ExecutionRecord(
@@ -1222,7 +1530,7 @@ namespace EcaSystems.Unity
         // =====================================================================
 
         private sealed class ExecutionGateAction<TEventContext>
-            : IEcaAction<EcaExecutionContext<TEventContext>>
+            : IEcaAction<IEcaExecutionActionContext<TEventContext>>
         {
             private readonly List<TaskCompletionSource<bool>> _gates = new();
 
@@ -1233,7 +1541,7 @@ namespace EcaSystems.Unity
             public List<EcaRuleExecutionGroupState> ExecutionGroupStates { get; } = new();
 
             public Task Run(
-                EcaExecutionContext<TEventContext> context)
+                IEcaExecutionActionContext<TEventContext> context)
             {
                 RunCount++;
 
@@ -1274,10 +1582,10 @@ namespace EcaSystems.Unity
         }
 
         private sealed class ExecutionThrowingAction<TEventContext>
-            : IEcaAction<EcaExecutionContext<TEventContext>>
+            : IEcaAction<IEcaExecutionActionContext<TEventContext>>
         {
             public Task Run(
-                EcaExecutionContext<TEventContext> context)
+                IEcaExecutionActionContext<TEventContext> context)
             {
                 throw new InvalidOperationException(
                     "Intentional smoke-test exception."

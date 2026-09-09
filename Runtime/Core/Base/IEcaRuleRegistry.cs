@@ -4,8 +4,12 @@ namespace EcaSystems.Core
 {
     public interface IEcaRuleRegistry
     {
-        void Register<TContext>(IEcaRule<TContext> rule);
-        bool Unregister<TContext>(IEcaRule<TContext> rule);
+        void Register<TEventContext, TConditionContext, TActionContext>(IEcaRule<TEventContext, TConditionContext, TActionContext> rule)
+            where TConditionContext : IEcaConditionContext<TEventContext>
+            where TActionContext : IEcaActionContext<TEventContext>;
+        bool Unregister<TEventContext, TConditionContext, TActionContext>(IEcaRule<TEventContext, TConditionContext, TActionContext> rule)
+            where TConditionContext : IEcaConditionContext<TEventContext>
+            where TActionContext : IEcaActionContext<TEventContext>;
         IReadOnlyList<IEcaRule> Rules { get; }
     }
 }

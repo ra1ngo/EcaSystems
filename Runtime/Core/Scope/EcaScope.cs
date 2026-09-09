@@ -5,15 +5,16 @@ namespace EcaSystems.Core
     public sealed class EcaScope : IDisposable
     {
         private readonly EcaScopeEngine _owner;
-        private EcaExecutionEngine _executionEngine = new();
+        private EcaExecutionEngine _executionEngine;
 
         public string ScopeId { get; }
         public string ParentScopeId { get; }
         public bool IsDisposed { get; private set; }
 
-        internal EcaScope(EcaScopeEngine owner, string scopeId, string parentScopeId)
+        internal EcaScope(EcaScopeEngine owner, EcaExecutionEngine executionEngine, string scopeId, string parentScopeId)
         {
             _owner = owner;
+            _executionEngine = executionEngine ?? throw new ArgumentNullException(nameof(executionEngine));
             ScopeId = scopeId;
             ParentScopeId = parentScopeId;
         }
@@ -24,14 +25,14 @@ namespace EcaSystems.Core
             return _owner.CreateScope(this, scopeId);
         }
 
-        public void Register<TEventContext>(IEcaRule<EcaExecutionContext<TEventContext>> rule,
+        public void Register<TEventContext>(IEcaRule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>> rule,
             EcaRunMode runMode)
         {
             ThrowIfDisposed();
             _executionEngine.Register(rule, runMode);
         }
 
-        public bool Unregister<TEventContext>(IEcaRule<EcaExecutionContext<TEventContext>> rule)
+        public bool Unregister<TEventContext>(IEcaRule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>> rule)
         {
             ThrowIfDisposed();
             return _executionEngine.Unregister(rule);

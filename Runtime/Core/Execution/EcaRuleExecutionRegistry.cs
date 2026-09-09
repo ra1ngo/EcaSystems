@@ -8,7 +8,7 @@ namespace EcaSystems.Core
     {
         private readonly Dictionary<EcaRuleId, IEcaRuleExecutionGroup> _groups = new();
 
-        public void Register<TEventContext>(IEcaRule<EcaExecutionContext<TEventContext>> rule,
+        public void Register<TEventContext>(IEcaRule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>> rule,
             EcaRunMode runMode, IEcaRuleRunner ruleRunner)
         {
             if (rule == null) throw new ArgumentNullException(nameof(rule));

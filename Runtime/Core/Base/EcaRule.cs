@@ -3,16 +3,18 @@ using EcaRuleId = System.String;
 
 namespace EcaSystems.Core
 {
-    public sealed class EcaRule<TContext> : IEcaRule<TContext>
+    public sealed class EcaRule<TEventContext, TConditionContext, TActionContext> : IEcaRule<TEventContext, TConditionContext, TActionContext>
+        where TConditionContext : IEcaConditionContext<TEventContext>
+        where TActionContext : IEcaActionContext<TEventContext>
     {
         public EcaRuleId Id { get; }
         public string Name { get; }
         public string Description { get; }
         public IEcaEvent Event { get; }
-        public IEcaCondition<TContext> Condition { get; }
-        public IEcaAction<TContext> Action { get; }
+        public IEcaCondition<TConditionContext> Condition { get; }
+        public IEcaAction<TActionContext> Action { get; }
 
-        public EcaRule(EcaRuleConfig<TContext> config)
+        public EcaRule(EcaRuleConfig<TEventContext, TConditionContext, TActionContext> config)
         {
             if (config == null) throw new ArgumentNullException(nameof(config));
             if (string.IsNullOrWhiteSpace(config.Id)) throw new ArgumentException("Rule id cannot be empty.", nameof(config));
@@ -20,13 +22,12 @@ namespace EcaSystems.Core
             if (config.Event == null) throw new ArgumentNullException(nameof(config.Event));
             if (config.Action == null) throw new ArgumentNullException(nameof(config.Action));
 
-            var ruleEventContextType = EcaContextType.GetEventContextType<TContext>();
+            var ruleEventContextType = typeof(TEventContext);
 
             if (ruleEventContextType != config.Event.EventContextType)
             {
                 throw new ArgumentException(
-                    $"Rule context '{typeof(TContext)}' contains event context type " +
-                    $"'{ruleEventContextType}', but event '{config.Event.Id}' expects " +
+                    $"Rule payload type '{ruleEventContextType}', but event '{config.Event.Id}' expects " +
                     $"'{config.Event.EventContextType}'.",
                     nameof(config)
                 );

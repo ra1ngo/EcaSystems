@@ -16,11 +16,13 @@ namespace EcaSystems.Core
             Rules = _rules.AsReadOnly();
         }
 
-        public void Register<TContext>(IEcaRule<TContext> rule)
+        public void Register<TEventContext, TConditionContext, TActionContext>(IEcaRule<TEventContext, TConditionContext, TActionContext> rule)
+            where TConditionContext : IEcaConditionContext<TEventContext>
+            where TActionContext : IEcaActionContext<TEventContext>
         {
             if (rule == null) throw new ArgumentNullException(nameof(rule));
 
-            ValidateRuleContext<TContext>(rule.Event);
+            ValidateRuleContext<TEventContext>(rule.Event);
 
             if (!_registeredRuleIds.Add(rule.Id)) throw new InvalidOperationException($"Rule with id '{rule.Id}' is already registered.");
 
@@ -35,7 +37,9 @@ namespace EcaSystems.Core
             }
         }
 
-        public bool Unregister<TContext>(IEcaRule<TContext> rule)
+        public bool Unregister<TEventContext, TConditionContext, TActionContext>(IEcaRule<TEventContext, TConditionContext, TActionContext> rule)
+            where TConditionContext : IEcaConditionContext<TEventContext>
+            where TActionContext : IEcaActionContext<TEventContext>
         {
             if (rule == null) throw new ArgumentNullException(nameof(rule));
             if (!_rules.Remove(rule)) return false;
@@ -43,16 +47,15 @@ namespace EcaSystems.Core
             return true;
         }
 
-        private static void ValidateRuleContext<TContext>(IEcaEvent ecaEvent)
+        private static void ValidateRuleContext<TEventContext>(IEcaEvent ecaEvent)
         {
-            var eventContextType = EcaContextType.GetEventContextType<TContext>();
+            var eventContextType = typeof(TEventContext);
 
             if (eventContextType == ecaEvent.EventContextType)
                 return;
 
             throw new InvalidOperationException(
-                $"Context '{typeof(TContext)}' contains event context type " +
-                $"'{eventContextType}', but event '{ecaEvent.Id}' expects " +
+                $"Rule payload type '{eventContextType}', but event '{ecaEvent.Id}' expects " +
                 $"'{ecaEvent.EventContextType}'."
             );
         }
