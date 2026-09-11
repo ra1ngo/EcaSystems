@@ -48,6 +48,8 @@ namespace EcaSystems.Core
             if (_scopes.ContainsKey(scopeId))
                 throw new InvalidOperationException($"Scope '{scopeId}' is already active.");
 
+            /* Общую Rule можно регистрировать по ссылке, но engines/registries и
+               GroupState принадлежат каждому Scope отдельно; общий только CommandRunner. */
             var scope = new EcaScope(this, new EcaExecutionEngine(_commandRunner), scopeId, parent?.ScopeId);
             _scopes.Add(scopeId, scope);
             _children.Add(scopeId, new HashSet<EcaScope>());

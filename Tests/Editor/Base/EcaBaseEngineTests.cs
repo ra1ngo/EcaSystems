@@ -10,14 +10,14 @@ using static EcaSystems.Tests.Support.AsyncAssert;
 namespace EcaSystems.Tests
 {
     [TestFixture]
-    public sealed class EcaEngineTests : AsyncTestFixture
+    public sealed class EcaBaseEngineTests : AsyncTestFixture
     {
         [Test]
         public void Fire_EmptyContext_RunsUntilUnregistered()
         {
 
 
-            var engine = new EcaEngine();
+            var engine = new EcaBaseEngine();
 
             var testEvent = new EcaEvent<EcaEventContextEmpty>(
                 "test.base.empty",
@@ -55,7 +55,7 @@ namespace EcaSystems.Tests
         {
 
 
-            var engine = new EcaEngine();
+            var engine = new EcaBaseEngine();
 
             var testEvent = new EcaEvent<TestEventContext>(
                 "test.base.context",
@@ -89,7 +89,7 @@ namespace EcaSystems.Tests
         {
 
 
-            var engine = new EcaEngine();
+            var engine = new EcaBaseEngine();
 
             var testEvent = new EcaEvent<TestEventContext>(
                 "test.base.condition-false",
@@ -129,7 +129,7 @@ namespace EcaSystems.Tests
         {
 
 
-            var engine = new EcaEngine();
+            var engine = new EcaBaseEngine();
 
             var testEvent = new EcaEvent<TestEventContext>(
                 "test.base.condition-order",
@@ -182,7 +182,7 @@ namespace EcaSystems.Tests
         {
 
 
-            var engine = new EcaEngine();
+            var engine = new EcaBaseEngine();
 
             var testEvent = new EcaEvent<TestEventContext>(
                 "test.base.duplicate",
@@ -244,7 +244,7 @@ namespace EcaSystems.Tests
                         return true;
                     })
                 });
-            var engine = new EcaEngine();
+            var engine = new EcaBaseEngine();
             engine.Register(rule);
             engine.Fire(evt, payload);
             Assert.That(seen == 73 && action.LastValue == 73, Is.True, "Разные Base contexts получают один payload");

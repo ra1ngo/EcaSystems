@@ -3,19 +3,24 @@ using System.Collections.Generic;
 
 namespace EcaSystems.Core
 {
-    public sealed class EcaEngine
+    /* Минимальный самостоятельный engine поверх Base: клиент может использовать
+       его напрямую, когда достаточно простого ECA. Это также reference implementation
+       Base pipeline; Execution/Scope используют собственную runtime-инфраструктуру.
+       Отдельное существование engine и дублирование orchestration с
+       EcaExecutionEngine нужно пересмотреть после architecture checkpoint. */
+    public sealed class EcaBaseEngine
     {
         private readonly IEcaRuleRegistry _ruleRegistry;
         private readonly IEcaRuleSelector _ruleSelector;
         private readonly IEcaRuleChecker _ruleChecker;
         private readonly IEcaRuleRunner _ruleRunner;
 
-        public EcaEngine(): this(new EcaRuleRegistry(), new EcaRuleChecker(), new EcaRuleRunner()) {}
+        public EcaBaseEngine(): this(new EcaRuleRegistry(), new EcaRuleChecker(), new EcaRuleRunner()) {}
 
-        public EcaEngine(IEcaRuleRegistry ruleRegistry, IEcaRuleChecker ruleChecker, IEcaRuleRunner ruleRunner)
+        public EcaBaseEngine(IEcaRuleRegistry ruleRegistry, IEcaRuleChecker ruleChecker, IEcaRuleRunner ruleRunner)
             : this(ruleRegistry, new EcaRuleSelector(ruleRegistry), ruleChecker, ruleRunner) {}
 
-        public EcaEngine(IEcaRuleRegistry ruleRegistry, IEcaRuleSelector ruleSelector,
+        public EcaBaseEngine(IEcaRuleRegistry ruleRegistry, IEcaRuleSelector ruleSelector,
             IEcaRuleChecker ruleChecker, IEcaRuleRunner ruleRunner)
         {
             _ruleRegistry = ruleRegistry ?? throw new ArgumentNullException(nameof(ruleRegistry));
@@ -53,7 +58,8 @@ namespace EcaSystems.Core
 
             var actionContext = new EcaActionContext<TEventContext>(eventContext);
 
-            // Complete the condition phase before starting any action of this Fire.
+            /* Все Conditions одного Fire проверены до любой Action:
+               изменения из Actions не влияют на отбор Rules этого Fire. */
             for (var i = 0; i < checkedRules.Count; i++)
                 _ = _ruleRunner.Run(checkedRules[i], actionContext);
         }

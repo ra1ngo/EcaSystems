@@ -13,13 +13,13 @@
 
 `EcaSystems.Editor.Tests.asmdef` ссылается на фактическую assembly `EcaSystems.Core`, включает только Editor и использует `optionalUnityReferences: ["TestAssemblies"]`.
 
-Основная масса Core-сценариев — EditMode: `[TestFixture]`, `[Test]`, при необходимости `[TestCase]` и `async Task`. Controlled Actions завершаются явно; ограниченное ожидание продолжений Task не зависит от кадров. TearDown освобождает управляемые Actions и при падении проверки. Reflection используется только для недоступного извне начального Pending и внутреннего Bind guard; production API для этого не расширяется.
+Основная масса Core-сценариев — EditMode: `[TestFixture]`, `[Test]`, при необходимости `[TestCase]` и `async Task`. Controlled Actions завершаются явно; ограниченное ожидание продолжений Task не зависит от кадров. TearDown освобождает управляемые Actions и при падении проверки. Reflection используется для недоступного извне начального Pending, внутреннего Bind guard и проверки generic type contracts; production API для этого не расширяется.
 
 PlayMode нужен для PlayerLoop, frames/coroutines, MonoBehaviour lifecycle, scenes и будущих Unity adapters/TimeSystem/Wait. Сейчас таких сценариев нет, поэтому Runtime test assembly и placeholder tests не создаются. С первым настоящим lifecycle-тестом добавятся `Tests/Runtime/Unity/` и `EcaSystems.Runtime.Tests.asmdef` с runtime reference и `TestAssemblies`.
 
 ## Локальный запуск
 
-1. Открыть Unity-проект с установленным EcaSystems и Unity Test Framework. CI использует Unity **6000.5.6f1**.
+1. Открыть Unity-проект с установленным EcaSystems и Unity Test Framework. CI использует Unity **6000.3.19f1**; локально для checkpoint доступна **6000.5.6f1**.
 2. В **проектном** `Packages/manifest.json` добавить `"testables": ["com.ecasystems.framework"]` рядом с `dependencies`. Не добавлять `testables` в package.json EcaSystems. Это отдельная настройка Sandbox; его файлы эта миграция не меняет.
 3. Открыть **Window → General → Test Runner**, вкладку **EditMode**, выбрать `EcaSystems.Editor.Tests` и **Run All**.
 4. Смотреть ошибки в Test Runner; результат можно экспортировать в XML.
@@ -28,24 +28,34 @@ PlayMode нужен для PlayerLoop, frames/coroutines, MonoBehaviour lifecycl
 
 ## GitHub Actions
 
-Workflow: [tests.yml](../.github/workflows/tests.yml). Unity **6000.5.6f1**, лицензия **Personal**, `game-ci/unity-test-runner@v4`, Linux runner. CI — authoritative автоматическая проверка PR; наличие workflow не означает, что первый CI run уже прошёл.
+Workflow: [tests.yml](../.github/workflows/tests.yml), имя **Tests**, job **Unity EditMode**. Unity **6000.3.19f1**, `game-ci/unity-test-runner@v4`, Linux runner. CI — authoritative автоматическая проверка PR. Recovery-срез до checkpoint сообщает прошлый CI результат 31/31 passed; это не результат новой ветки.
 
-Checkout выполняется в `EcaSystemsPackage`. `packageMode: true` и `projectPath: EcaSystemsPackage` обходят ограничение GameCI для package в корне checkout. GameCI создаёт временный Unity project и включает проверяемый package в его manifest/testables. В package manifest не добавляются зависимости на тестовый framework или `testables`.
+Checkout выполняется в корень. Шаг Prepare package for GameCI копирует пакет в `_ci/EcaSystemsPackage`, исключая `.git`, `.github`, `_ci` и каталоги результатов. `packageMode: true` и `projectPath: _ci/EcaSystemsPackage` обходят ограничение package в корне checkout. GameCI создаёт временный Unity project. В package manifest не добавляются зависимости на тестовый framework или `testables`.
 
-Матрица: **EditMode + PlayMode**, `fail-fast: false`. PlayMode пока не содержит тестов; это не доказательство lifecycle coverage. UTF 1.7.0 возвращает успешный код для пустого suite. Если версия UTF в GameCI обработает пустой suite иначе, временно оставить только EditMode и вернуть PlayMode с первым настоящим тестом, без fake test.
+Сейчас один **EditMode** job, без матрицы и без PlayMode job. PlayMode tests отсутствуют; job следует добавить вместе с первым настоящим Unity lifecycle-сценарием, без placeholder tests.
 
 Триггеры: `pull_request`, `push` только в `main`, `workflow_dispatch`. Обычный push feature-ветки сам не запускает CI: пользователь открывает PR вручную. Branch protection не меняется.
 
 Workflow читает только имена secrets `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`; значения не хранятся в repo и не выводятся. Personal license должна быть подготовлена владельцем репозитория. `GITHUB_TOKEN` используется для check results; permissions ограничены `contents: read`, `checks: write`. PR из fork не получает Unity secrets автоматически.
 
-Результаты смотреть в PR checks и **Actions → Unity tests → run → Artifacts**: `unity-EditMode-results`, `unity-PlayMode-results` содержат test results и logs. Upload выполняется с `if: always()`, включая неуспешный запуск; если Unity не смог создать файлы, upload сообщит об их отсутствии. Generated artifacts не коммитятся.
+Результаты смотреть в PR checks (**EcaSystems EditMode Tests**) и **Actions → Tests → run → Artifacts**: `unity-editmode-results` содержит test results и logs из `artifacts/EditMode`. Upload выполняется с `if: always()`, включая неуспешный запуск; если Unity не смог создать файлы, upload сообщит об их отсутствии. Generated artifacts не коммитятся.
 
-Coverage instrumentation выключен (`coverageEnabled: false`), Code Coverage package не добавлен в repository/package manifest. Ограничение upstream: текущий [CLI-скрипт packageMode](https://github.com/game-ci/cli/blob/main/dist/platforms/ubuntu/steps/test.sh) всё равно добавляет `com.unity.testtools.codecoverage` во временный project manifest, независимо от этого флага. Поэтому запрет установки пакета внутри GameCI полностью не обеспечивается штатным input; собственный fork/patch GameCI эта итерация не вводит. Coverage, performance tests и optional required checks/branch protection — отдельные будущие улучшения.
+Input `coverageEnabled` в текущем workflow **не задан**. Code Coverage package не добавлен в repository/package manifest, но это не гарантирует отключение coverage во временном проекте GameCI. По recovery-срезу прошлая попытка `coverageEnabled: false` породила несовместимый CLI flag `--no-coverageEnabled`, после чего input убрали; прошлый CI сообщил 31/31 passed вместе с ошибкой генерации coverage report. Workflow в checkpoint не менялся. Coverage, performance tests и optional required checks/branch protection остаются отдельными улучшениями.
 
-## Проверка bootstrap-миграции
+## История bootstrap-миграции
 
 Все 22 исходных сценария и internal binding guard перенесены; с дополнительными проверками — 31 NUnit case. Отдельная компиляция Core и tests с C# 9 и установленной Unity NUnit assembly прошла без ошибок/предупреждений; один дополнительный NUnit run вне Unity: 31 passed, 0 failed. Это не замена Unity CI.
 
-Единственная локальная попытка Unity 6000.5.6f1 обнаружила два обращения к internal constructor из test assembly и остановилась до выполнения tests. Они исправлены посредством reflection; после этого прошла проверка раздельной компиляции и NUnit вне Unity. Повторный Unity run намеренно не выполнялся. Окончательные discovery/run в GameCI подтвердит PR; первый CI run пока не заявляется зелёным.
+Во время bootstrap локальная попытка Unity 6000.5.6f1 обнаружила два обращения к internal constructor из test assembly и остановилась до выполнения tests. Они исправлены посредством reflection; тогда повторный Unity run не выполнялся. Более поздний recovery-срез сообщает CI 31/31 passed на 6000.3.19f1.
 
 Настройка основана на [GameCI Test runner v4](https://game.ci/docs/github/test-runner/) и [входных параметрах action](https://github.com/game-ci/unity-test-runner/blob/v4/action.yml).
+
+## Проверки architecture checkpoint — 2026-09-11
+
+- Раздельная компиляция Core и Editor tests с C# 9 через локальный .NET SDK: успешно. Использован существующий игнорируемый проект .validation~, новый тестовый стек в репозиторий не добавлялся.
+- NUnit вне Unity с установленной Unity NUnit assembly: **37 passed, 0 failed, 0 skipped**.
+- Один локальный Unity **6000.5.6f1** batchmode EditMode run в подготовленном .validation~/UnityProject: **37 passed, 0 failed, 0 skipped**, результат XML — Passed. Это другая версия и среда, чем Linux/GameCI CI на 6000.3.19f1.
+- Сохранены 31 прежний case; добавлены 6 cases для общего живого Execution state, наследования/variance и разделения ролей, ScopeState lifetime/повторного ID и валидации ID.
+- ScopeState внутри runtime-контекстов не тестируется как реализованная возможность: wiring отсутствует и явно отложен в Context/ToDo. Существующие integration tests продолжают проверять локальный Fire, независимость GroupState/Limit и Dispose без отмены Actions.
+
+В этой ветке PlayMode и удалённый GameCI не запускались. Push feature-ветки не запускает workflow автоматически; PR создаёт пользователь.

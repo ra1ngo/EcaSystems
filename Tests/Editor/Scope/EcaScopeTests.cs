@@ -13,6 +13,30 @@ namespace EcaSystems.Tests
     public sealed class EcaScopeTests : AsyncTestFixture
     {
         [Test]
+        public void State_BelongsToScopeLifetimeEvenWhenIdIsReused()
+        {
+            using var engine = new EcaScopeEngine(new EcaCommandRunner(new EcaCommandRegistry()));
+            var root = engine.CreateScope("root");
+            var child = root.CreateScope();
+            var oldState = root.State;
+            Assert.That(oldState.ScopeId, Is.EqualTo(root.ScopeId));
+            Assert.That(child.State.ScopeId, Is.EqualTo(child.ScopeId));
+            Assert.That(child.State, Is.Not.SameAs(oldState));
+            root.Dispose();
+            var replacement = engine.CreateScope("root");
+            Assert.That(replacement.State, Is.Not.SameAs(oldState));
+            Assert.That(oldState.ScopeId, Is.EqualTo(replacement.State.ScopeId));
+        }
+
+        [TestCase(null)]
+        [TestCase("")]
+        [TestCase(" \t")]
+        public void State_RejectsMissingIdentity(string scopeId)
+        {
+            Assert.Throws<ArgumentException>(() => new EcaScopeState(scopeId));
+        }
+
+        [Test]
         public void Dispose_ManagesHierarchyIdentityAndClosedOperations()
         {
             var engine = new EcaScopeEngine(new EcaCommandRunner(new EcaCommandRegistry()));

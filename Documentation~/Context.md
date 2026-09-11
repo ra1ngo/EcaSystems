@@ -4,7 +4,7 @@
 
 EcaSystems — Unity-first UPM-фреймворк для взаимодействия независимых Systems через ECA. Core не зависит от Unity; Base пригоден как самостоятельный минимальный ECA-слой. Base context refactor, Commands v1 и их интеграция в Execution/Scope завершены.
 
-Здесь зафиксированы актуальные согласованные решения. [ToDo.md](ToDo.md) содержит необходимые этапы до первого полноценного применения, [Roadmap.md](Roadmap.md) — необязательные будущие возможности. Документы Architecture/ сохраняют историю обсуждений и могут содержать устаревшие решения; они не переопределяют этот контекст. Постоянные архитектурные документы проекта ведутся на русском языке; имена API не переводятся.
+Здесь зафиксированы актуальные согласованные решения. [ToDo.md](ToDo.md) содержит необходимые этапы до первого полноценного применения, [Roadmap.md](Roadmap.md) — необязательные будущие возможности. Документы Documentation~/Architecture/ сохраняют историю обсуждений: [MentalTests](Architecture/MentalTests.md) и [полный recovery snapshot](Architecture/EcaSystems-context-recovery-full-2026-09-11.md) могут содержать устаревшие решения и не переопределяют актуальные документы. [Короткий recovery](EcaSystems-context-recovery-2026-09-11.md) остаётся актуальным кратким срезом; более новые решения имеют приоритет. Постоянные архитектурные документы проекта ведутся на русском языке; имена API не переводятся.
 
 ## Архитектура Base
 
@@ -20,8 +20,8 @@ EcaEvent — типизированная декларация с Id, а не C#
 - IEcaRule<TEventContext, TConditionContext, TActionContext>, EcaRule и EcaRuleConfig явно разделяют payload и две роли контекста; constraints связывают обе роли с одним TEventContext.
 - IEcaContext — общий marker; IEcaContext<TEventContext> предоставляет EventContext. IEcaConditionContext и IEcaActionContext задают разные роли. Префикс Base не вводится.
 - IEcaCondition<TContext>.Check(context) и IEcaAction<TContext>.Run(context) остаются простыми; у Run один аргумент, без Commands в контракте Action.
-- Простой EcaEngine v1 сам создаёт только EcaConditionContext<TEventContext> и EcaActionContext<TEventContext>; его Register/Unregister принимают ровно эту поддерживаемую пару. Base не зависит от Commands. EcaContext остаётся общим хранилищем payload.
-- Общие Rule-модель и RuleRegistry не ограничены стандартными контекстами EcaEngine. Универсальное создание произвольных контекстов отложено на этап улучшения кода; ContextFactory/hydration не блокирует проектирование Systems.
+- EcaBaseEngine (прежнее имя EcaEngine) — самостоятельный минимальный engine и reference implementation Base pipeline, а не root engine проекта. Execution/Scope используют свою инфраструктуру. Он сам создаёт только EcaConditionContext<TEventContext> и EcaActionContext<TEventContext>; Register/Unregister принимают ровно эту пару. Base не зависит от Commands. EcaContext остаётся общим хранилищем payload. Дублирование orchestration с Execution требует последующего review.
+- Общие Rule-модель и RuleRegistry не ограничены стандартными контекстами EcaBaseEngine. Универсальная ContextFactory/hydration не обязательна и не выбрана; конкретный механизм создания/расширения более богатых context types нужно определить до полноценного Systems runtime (см. «ScopeState и граница runtime wiring»).
 - IEcaConditionContext<TEventContext>, IEcaActionContext<TEventContext> и наследующие их Commands/Execution role-интерфейсы invariant по TEventContext: роль строго связана с реальным payload Rule. Общий read-only IEcaContext<out TEventContext> остаётся covariant.
 - Selector проверяет Event.Id, точный payload и точную пару типов Condition/Action; неявного расширения DerivedEventContext до BaseEventContext нет.
 - EcaRuleChecker принимает только ConditionContext, EcaRuleRunner — только ActionContext. Selector выбирает Rule с указанной парой context types.
@@ -53,15 +53,15 @@ Commands доступны только Action через IEcaCommandsActionConte
 
 ## Execution v1
 
-Execution использует Rule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>>. Оба контекста предоставляют живой RuleExecutionGroupState, только ActionContext содержит Commands. Execution.Context хранит ActionContext.
+Execution использует Rule<TEventContext, IEcaExecutionConditionContext<TEventContext>, IEcaExecutionActionContext<TEventContext>>. Общий IEcaExecutionContext<TEventContext> : IEcaContext<TEventContext> объявляет живой RuleExecutionGroupState. Condition/Action интерфейсы наследуют этот контракт и соответствующую Base/Commands роль, сохраняя invariance по payload. Только ActionContext содержит Commands. Execution.Context хранит ActionContext. Это общий контракт данных, а не возвращение удалённого единого concrete execution-контекста.
 
 Fire сначала выбирает Rules, получает их Groups и создаёт через new EcaExecutionConditionContext для каждой проверки. После завершения всех Conditions передаёт payload и общий runner в Group.Fire для прошедших Rules. Group проверяет Limit/Overlap, затем создаёт через new ActionContext, вызывает runner.Bind(context), сохраняет bound Commands, создаёт Execution и запускает Action. При исключении в Condition Action-фаза не начинается.
 
 Порядок: все Conditions → допуск по Limit/Overlap → new ActionContext → Bind Commands → создание Execution → Action.
 
-Execution/Scope v1 создают конкретные execution contexts напрямую через new, поэтому public Register/Fire pipeline работает только с точной парой IEcaExecutionConditionContext<TEventContext> / IEcaExecutionActionContext<TEventContext>. Более богатые context types верхнего Systems-слоя автоматически не поддерживаются. Это сознательное временное ограничение, а не финальная модель расширения. Универсальный ContextFactory/hydration отложен на этап улучшения кода и не является текущим блокером Systems; пока контексты создаются напрямую через new.
+Execution/Scope v1 создают конкретные execution contexts напрямую через new, поэтому public Register/Fire pipeline работает только с точной парой IEcaExecutionConditionContext<TEventContext> / IEcaExecutionActionContext<TEventContext>. Более богатые context types верхнего Systems-слоя автоматически не поддерживаются. Это сознательное временное ограничение, а не финальная модель расширения. Решение о создании/расширении контекстов необходимо до полноценного Systems runtime; оно не обязано быть универсальной ContextFactory/hydration.
 
-Старая единая модель execution-контекста, EcaExecutionContextFactory и IEcaExecutionContextFactory удалены. Универсальный ContextFactory/hydration — отложенное улучшение, не блокер Systems; контексты пока создаются напрямую через new.
+Старая единая concrete модель execution-контекста, EcaExecutionContextFactory и IEcaExecutionContextFactory удалены. Универсальная фабрика не вводится в checkpoint; способ расширения контекстов нужно рассмотреть вместе с архитектурой capabilities.
 
 Execution отслеживает конкретные, в том числе длительные, запуски Rule:
 
@@ -128,18 +128,48 @@ EcaRule<TEventContext, TConditionContext, TActionContext> — reference type. О
 
 Внешний API Rule в основном immutable/get-only. Однако вложенные Action/Condition могут быть изменяемыми объектами: изменение их внутреннего состояния видно всем scopes, использующим общую Rule. Присваивание локальной переменной speechRule = newRule не заменяет ранее зарегистрированный объект. API клонирования/копирования нет.
 
-## Направление Systems и терминология
+### ScopeState и граница runtime wiring
 
-Следующий отдельный этап — архитектура интеграции независимых ECA Systems. Направление IEcaSystem — пассивный ECA-адаптер с exports Events + Commands + State. Systems не экспортируют Actions; отдельные system-specific Conditions на текущем направлении не обязательны. Conditions принадлежат Rules и читают нужное состояние из будущего hydrated context / SystemsState. Например, Condition читает EcaTimeState через context.State, а EcaTimeSystem предоставляет Events, Commands и State. Global State / переменные — отдельная System, не встроенная возможность Base. Первый конкретный пример — TimeSystem. При проектировании Systems нужно отдельно пересмотреть минимальный Commands API при необходимости. SystemsState, TimeSystem, EcaTimeSystem и EcaWaitCommand пока не реализуются.
+EcaScopeState находится в Runtime/Core/Scope и содержит только get-only ScopeId. EcaScope.State владеет этим объектом, а ScopeId делегирует чтение ему. Каждый Scope, включая повторную регистрацию того же ID после Dispose, получает новый State; старый объект остаётся пригодным для чтения. State не содержит EcaScope, engine или сервисов. У конструктора State null/пустой/пробельный ID недопустим; генерация ID остаётся задачей EcaScopeEngine.
+
+IEcaScopeContext<TEventContext> : IEcaExecutionContext<TEventContext> добавляет ScopeState и остаётся invariant. Направление расширения данных: Base → Execution → Scope → Systems → будущие слои. Отдельные Scope Condition/Action contracts и concrete contexts пока не вводятся.
+
+**ScopeState ещё не доступен из контекстов реального Scope.Fire.** Scope делегирует ExecutionEngine, который выбирает точные execution-role типы и создаёт EcaExecutionConditionContext, а Group создаёт EcaExecutionActionContext через new. Локальное добавление ScopeState в эти типы создало бы зависимость нижнего Execution от Scope. Корректное расширение создания и выбора контекстов оставлено следующей архитектурной итерации; универсальной ContextFactory/hydration и временного service environment нет. Наличие IEcaScopeContext не означает поддержку его в Register/Fire pipeline.
+
+Конкретный механизм создания/расширения более богатых context types ещё не выбран, но его необходимо определить до полноценного Systems runtime: Scope уже требует ScopeState, а Systems позже должен добавить SystemState. Универсальная hydration/factory система при этом не обязательна. Временный service locator или скрытый runtime service внутри data context не решают эту архитектурную проблему и не допускаются как обход ограничения.
+
+### Будущая команда Fire Event
+
+Принята same-scope семантика: будущая команда Fire Event, вызванная из Action, по умолчанию должна испускать Event в том же Scope, где выполняется текущая Action. Explicit cross-scope targeting может быть рассмотрен позднее (см. развитие Scope в Roadmap). Это договорённость о поведении, а не выбор механизма routing или способа доступа к Scope; Fire Event в текущем PR не реализуется.
+
+## Две оси архитектуры перед Systems
+
+Вертикальная ось — feature/layer enrichment: Base, Commands, Execution, Scope, Systems и возможный Inspection/Debug. Это практические блоки проекта, не строгая линейная Clean Architecture. До MVP по возможности сохраняем понятную структуру папок.
+
+Горизонтальная ось — самостоятельные capabilities/concepts: Events, Conditions, Actions, Commands, State, Rules, Context, Execution. Развитие отдельной возможности не должно требовать прохождения всего runtime через одну композиционную сущность.
+
+Rule полезен как декларативная/authoring композиция Event + optional Condition + Action. Однако текущие routing/storage/execution слишком сосредоточены на Rule как центральном runtime primitive. Следующий шаг — сравнить текущий RuleSelector-based runtime с Event → bindings/subscriptions, определить связь Event ↔ Rule/Condition/Action ↔ Execution и проверить её на Fire Event/routing без циклического ownership. EventDispatcher/EventBus/EventRuntime пока не выбраны, текущий runtime не заменён.
+
+System рассматривается как ECA-адаптер независимой игровой системы, организационная сущность и ownership boundary. Events, Commands и State должны оставаться самостоятельными возможностями, а не существовать только через System как центральный runtime container. Events + Commands + State и возможные Condition Queries — направление интеграции, не окончательный IEcaSystem API. Conditions/Actions должны развиваться самостоятельно; старая формулировка «system-specific Conditions не нужны» больше не является принятым ограничением.
+
+Context задуман как носитель данных. Bound Commands внутри ActionContext могут смешивать данные и runtime services. Commands v1 пока сохранён; после следующей архитектурной итерации нужно критически пересмотреть это решение вместе с context enrichment/hydration. Engine, Scope, dispatcher, registries и runners в новые Context/State не добавляются.
+
+Global State / Variables планируется отдельной system/capability. Сейчас SystemState предполагается глобальным как первый простой этап, но это не финальная модель. После Global Variables нужно спроектировать scope-aware/hierarchical SystemState: global → child → grandchild/local, inheritance/lookup/override. Scoped SystemState сейчас не реализуется и не тождественен минимальному EcaScopeState.
+
+### Структура будущих готовых Systems пакета
+
+Готовые системы самого пакета предполагается размещать рядом с Runtime/Core, в Runtime/Systems. Каждая может быть разделена на `Runtime/Systems/<System>/Core` — самостоятельный функционал системы, и `Runtime/Systems/<System>/Eca` — адаптер/мост к EcaSystems. Будущие примеры — Time и Global Variables / Global State; сейчас они не реализуются.
+
+Эта договорённость относится к готовым системам пакета. Сторонние и клиентские Unity-системы могут иметь любую архитектуру и расположение файлов; ECA-модуль служит адаптером к ним и не требует такой структуры от внешнего кода.
 
 Используем System, не Module. Event — декларация; источник внешний. Rule — Event + необязательная Condition + одна Action. Execution — конкретный запуск. ExecutionGroup — активные executions и состояние одной Rule за время жизни группы. RunMode — Overlap + Limit. Scope — граница владения/времени жизни с локальным Fire. Commands — отдельный минимальный слой выполнения операций из Action.
 
 ## Следующий шаг
 
-Base context refactor, Commands v1 и их интеграция в Execution/Scope завершены. Следующий этап в ToDo — архитектура Systems; в этой итерации она не реализуется. Будущие возможности Execution и межскоуповая маршрутизация требуют отдельного согласования.
+Ближайший этап — архитектурный refactor перед Systems по двум осям выше. Только после него возвращаемся к Events + Systems implementation, затем TimeSystem/Wait и Global Variables. Checkpoint не реализует EventRegistry, Fire Event Command, dispatcher/bus, новую Rule/Event runtime-модель или Systems. DI и размещение root engine остаются решением приложения.
 
 ## Тестовая инфраструктура
 
-Unity Test Framework + NUnit; Core проверяется преимущественно в EditMode. PlayMode — только для Unity lifecycle. Тесты вынесены из production Runtime в Tests/Editor; старый smoke-компонент и его .NET harness удалены после переноса сценариев. GitHub Actions автоматически запускает матрицу EditMode/PlayMode на PR и push main с Unity 6000.5.6f1, Personal и GameCI packageMode. PlayMode пока пустой. CI — authoritative проверка; первый зелёный run нужно подтвердить в PR. Подробности — [Testing.md](Testing.md).
+Unity Test Framework + NUnit; Core проверяется в EditMode. GitHub Actions запускает один EditMode job на Unity 6000.3.19f1 через GameCI packageMode с копией пакета в _ci/EcaSystemsPackage. Триггеры: PR, push main, workflow_dispatch. PlayMode job отсутствует до появления lifecycle-сценариев. Coverage input не задан; отсутствие input не гарантирует отключение coverage внутри GameCI. Recovery-срез сообщает о предыдущем CI результате 31/31, а не о проверке этой ветки. CI остаётся authoritative проверкой; фактические проверки checkpoint — в [Testing.md](Testing.md).
 
 Rule shortcut API обязательно нужен позже; factory-style Rule API стоит рассмотреть. Оба направления не блокируют текущий этап и сейчас не реализуются.

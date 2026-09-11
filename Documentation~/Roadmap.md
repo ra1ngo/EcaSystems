@@ -38,7 +38,7 @@ Group уже предоставляет публичный IReadOnlyList Executi
 Scope v1: hierarchy определяет только время жизни; Fire всегда local-only. Следующие варианты не являются выбранной архитектурой:
 
 - [ ] Маршрутизация событий между scopes при появлении реального сценария.
-- [ ] Явный Fire в нескольких scopes как отдельный вариант.
+- [ ] Явный Fire в нескольких scopes и explicit cross-scope targeting как отдельные варианты routing; по умолчанию будущая команда Fire Event из Action работает в том же Scope (принятое поведение описано в [Context.md](Context.md)).
 - [ ] Автоматический parent bubbling — только при подтверждённой необходимости.
 - [ ] Global event bus как отдельная возможная архитектура для сравнения.
 - [ ] Оптимизация через shared RuleRegistry для большого числа однотипных scopes, только после измерений.
@@ -55,8 +55,10 @@ Scope v1: hierarchy определяет только время жизни; Fir
 ## Диагностика циклического / повторно входящего Fire
 
 - [ ] Диагностировать Event A → Action → Event A и более длинные циклы.
-- [ ] Рассмотреть отслеживание цепочки событий и настраиваемые ограничения глубины.
+- [ ] Рассмотреть event/execution trace, nested fire depth diagnostics и настраиваемые ограничения глубины, включая A → B → A.
 - [ ] Сначала диагностировать, затем ограничивать, сохраняя допустимые сложные цепочки.
+
+- [ ] Optional bridge/callback: внутренний ECA Fire при необходимости дополнительно испускает внешнее классическое событие/callback/event bus notification. Межскоуповый routing учтён в разделе развития Scope.
 
 ## Расширение Overlap
 
@@ -88,9 +90,9 @@ Scope v1: hierarchy определяет только время жизни; Fir
 - [ ] Тесты свойств будущих политик и тесты диагностики циклов.
 - [ ] Профилирование, измерения и диагностика забытых регистраций/утечек жизненного цикла.
 
-## Развитие контекстов и Commands после Systems
+## Создание контекстов до Systems runtime и дальнейшее развитие Commands
 
-Универсальный ContextFactory/hydration отложен на этап улучшения кода и не является текущим блокером Systems. Контексты пока создаются напрямую через new. Ниже — будущие возможности, требующие отдельного проектирования.
+Контексты пока создаются напрямую через new. Механизм context creation/enrichment необходимо определить до полноценного Systems runtime: Scope уже требует ScopeState, а Systems позже добавит SystemState. Это текущая архитектурная задача из [ToDo.md](ToDo.md), а не улучшение только после Systems. Универсальная ContextFactory/hydration не обязательна и не выбрана. Ниже — отдельные будущие улучшения контекстов и Commands, требующие своего проектирования.
 
 - [ ] Генерируемый/типизированный API контекстов.
 - [ ] Расширенные providers/extensions для hydration.
@@ -99,15 +101,41 @@ Scope v1: hierarchy определяет только время жизни; Fir
 - [ ] Более строгий CommandId/key вместо string.
 - [ ] Метаданные команд для визуального программирования.
 - [ ] Сериализация аргументов команд.
-- [ ] Возможный пересмотр Commands runtime после архитектуры Systems.
+- [ ] После следующей архитектурной итерации пересмотреть Commands runtime и bound Commands как service внутри ActionContext совместно с context enrichment/hydration.
 
 Эти направления не расширяют текущую v1: результаты команд, cancellation, DI и генерация API сейчас не добавляются.
 
 ## Тестирование и удобство Rule API
 
-- [ ] Code coverage отдельной итерацией; сейчас выключен.
-- [ ] Performance tests после измерений и реальных сценариев.
+- [ ] Code coverage отдельной итерацией: input coverageEnabled сейчас не задан, GameCI может включать coverage во временном проекте; отключение не гарантируется.
 - [ ] Optional required CI checks / branch protection после стабилизации CI, по решению владельца.
 - [ ] Rule shortcut API обязательно нужен позже; не текущий blocker.
 - [ ] Рассмотреть factory-style Rule API.
-- [ ] ContextFactory/hydration как улучшение кода, не блокер Systems.
+- [ ] Универсальный ContextFactory/hydration как возможное улучшение кода после выбора модели контекстов.
+
+## Расширение Condition / Action
+
+- [ ] Condition Queries: стандартизованные read/query capabilities, в том числе предоставляемые ECA-адаптерами игровых систем.
+- [ ] Blueprint-style Sequence / flow composition как самостоятельный Action/flow primitive. Это отдельная идея, не общий пункт Sequences среди execution policies выше.
+- [ ] Gates в духе Unreal Blueprint Gate: open / close / toggle и контролируемый пропуск execution. Ответственный слой (Actions, Commands или будущий flow/program layer) пока не определён.
+- [ ] Развивать Condition и Action как самостоятельные concepts, не только как детали текущего Rule runtime.
+
+## Управление Systems
+
+- [ ] Возможность отключить все Commands конкретной EcaSystem.
+- [ ] Возможность отключить EcaSystem целиком.
+- [ ] Хранить ownership exports явно, а не выводить только из namespace/string prefix.
+- [ ] Отдельно спроектировать namespaces для Command/Event IDs и возможные stable IDs/GUIDs.
+
+## State
+
+- [ ] Scoped/hierarchical SystemState после Global State/Variables: inheritance, lookup, override по global → child → grandchild/local scopes. Этап отражён в ToDo; глобальный SystemState допустим как первый простой шаг, но не финальная модель.
+
+## Технический долг и архитектурное review
+
+- [ ] Пересмотреть дублирование orchestration EcaBaseEngine / EcaExecutionEngine и роль самостоятельного Base engine.
+- [ ] Base async failure handling: fire-and-forget Task в EcaBaseEngine не имеет полноценной observability/error policy. Execution observability/history учтены в разделах инспекции и отладки выше.
+- [ ] Определить threading contract Core; main-thread/single-thread orchestration для Unity — вероятное направление, ещё не принятое решение.
+- [ ] Event ID ↔ EventContext type canonical contract и future EventRegistry validation.
+
+Ergonomics generic Rule/Context API учтена в разделах развития контекстов и удобства Rule API; пересмотр Commands как service — в разделе контекстов/Commands. Эти вопросы не означают реализацию нового runtime в checkpoint.

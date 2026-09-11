@@ -1,5 +1,7 @@
 # EcaSystems — Mental Architecture Tests
 
+> **Исторический архитектурный документ (historical architecture document).** Содержит устаревшие решения и не является source of truth. Актуальные решения: [Context.md](../Context.md). Историческое имя EcaEngine сохранено; позднее он был переименован в EcaBaseEngine.
+
 > Status: architecture checkpoint before implementation of `EcaEngine`.
 >
 > This document records mental tests of the current EcaSystems Core model, including passed scenarios, deferred features, edge cases, and implementation constraints discovered during testing.
