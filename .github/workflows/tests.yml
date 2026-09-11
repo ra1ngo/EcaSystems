@@ -62,7 +62,7 @@ jobs:
         with:
           packageMode: true
           projectPath: _ci/EcaSystemsPackage
-          unityVersion: 6000.5.6f1
+          unityVersion: 6000.3.19f1
           testMode: EditMode
 
           githubToken: ${{ secrets.GITHUB_TOKEN }}
