@@ -39,7 +39,6 @@ jobs:
           testMode: ${{ matrix.testMode }}
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           checkName: Unity ${{ matrix.testMode }} results
-          coverageEnabled: false
           artifactsPath: artifacts/${{ matrix.testMode }}
       - name: Upload test results and logs
         if: always()
