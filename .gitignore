@@ -1,0 +1,8 @@
+# Local validation projects and generated test output
+.validation~/
+artifacts/
+TestResults/
+CodeCoverage/
+# Outputs left by the retired local smoke harness
+Tests~/SmokeTests/bin/
+Tests~/SmokeTests/obj/

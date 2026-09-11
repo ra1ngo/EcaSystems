@@ -90,7 +90,7 @@ Scope v1: hierarchy определяет только время жизни; Fir
 
 ## Развитие контекстов и Commands после Systems
 
-Базовая универсальная ContextFactory/hydration, необходимая для расширения контекстов Systems, относится к обязательному следующему Systems design в [ToDo.md](ToDo.md). Ниже — дополнительные возможности после базового решения.
+Универсальный ContextFactory/hydration отложен на этап улучшения кода и не является текущим блокером Systems. Контексты пока создаются напрямую через new. Ниже — будущие возможности, требующие отдельного проектирования.
 
 - [ ] Генерируемый/типизированный API контекстов.
 - [ ] Расширенные providers/extensions для hydration.
@@ -102,3 +102,12 @@ Scope v1: hierarchy определяет только время жизни; Fir
 - [ ] Возможный пересмотр Commands runtime после архитектуры Systems.
 
 Эти направления не расширяют текущую v1: результаты команд, cancellation, DI и генерация API сейчас не добавляются.
+
+## Тестирование и удобство Rule API
+
+- [ ] Code coverage отдельной итерацией; сейчас выключен.
+- [ ] Performance tests после измерений и реальных сценариев.
+- [ ] Optional required CI checks / branch protection после стабилизации CI, по решению владельца.
+- [ ] Rule shortcut API обязательно нужен позже; не текущий blocker.
+- [ ] Рассмотреть factory-style Rule API.
+- [ ] ContextFactory/hydration как улучшение кода, не блокер Systems.

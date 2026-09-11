@@ -21,7 +21,7 @@ EcaEvent — типизированная декларация с Id, а не C#
 - IEcaContext — общий marker; IEcaContext<TEventContext> предоставляет EventContext. IEcaConditionContext и IEcaActionContext задают разные роли. Префикс Base не вводится.
 - IEcaCondition<TContext>.Check(context) и IEcaAction<TContext>.Run(context) остаются простыми; у Run один аргумент, без Commands в контракте Action.
 - Простой EcaEngine v1 сам создаёт только EcaConditionContext<TEventContext> и EcaActionContext<TEventContext>; его Register/Unregister принимают ровно эту поддерживаемую пару. Base не зависит от Commands. EcaContext остаётся общим хранилищем payload.
-- Общие Rule-модель и RuleRegistry не ограничены стандартными контекстами EcaEngine. Универсальное создание произвольных контекстов требует отдельного проектирования Systems/hydration.
+- Общие Rule-модель и RuleRegistry не ограничены стандартными контекстами EcaEngine. Универсальное создание произвольных контекстов отложено на этап улучшения кода; ContextFactory/hydration не блокирует проектирование Systems.
 - IEcaConditionContext<TEventContext>, IEcaActionContext<TEventContext> и наследующие их Commands/Execution role-интерфейсы invariant по TEventContext: роль строго связана с реальным payload Rule. Общий read-only IEcaContext<out TEventContext> остаётся covariant.
 - Selector проверяет Event.Id, точный payload и точную пару типов Condition/Action; неявного расширения DerivedEventContext до BaseEventContext нет.
 - EcaRuleChecker принимает только ConditionContext, EcaRuleRunner — только ActionContext. Selector выбирает Rule с указанной парой context types.
@@ -59,9 +59,9 @@ Fire сначала выбирает Rules, получает их Groups и со
 
 Порядок: все Conditions → допуск по Limit/Overlap → new ActionContext → Bind Commands → создание Execution → Action.
 
-Execution/Scope v1 создают конкретные execution contexts напрямую через new, поэтому public Register/Fire pipeline работает только с точной парой IEcaExecutionConditionContext<TEventContext> / IEcaExecutionActionContext<TEventContext>. Более богатые context types верхнего Systems-слоя автоматически не поддерживаются. Это сознательное временное ограничение, а не финальная модель расширения. Снять его нужно на следующем этапе Systems через универсальную инфраструктуру ContextFactory/hydration.
+Execution/Scope v1 создают конкретные execution contexts напрямую через new, поэтому public Register/Fire pipeline работает только с точной парой IEcaExecutionConditionContext<TEventContext> / IEcaExecutionActionContext<TEventContext>. Более богатые context types верхнего Systems-слоя автоматически не поддерживаются. Это сознательное временное ограничение, а не финальная модель расширения. Универсальный ContextFactory/hydration отложен на этап улучшения кода и не является текущим блокером Systems; пока контексты создаются напрямую через new.
 
-Старая единая модель execution-контекста, EcaExecutionContextFactory и IEcaExecutionContextFactory удалены. Универсальный ContextFactory/hydration — обязательный вопрос следующего проектирования Systems; в текущем исправлении контексты создаются напрямую через new.
+Старая единая модель execution-контекста, EcaExecutionContextFactory и IEcaExecutionContextFactory удалены. Универсальный ContextFactory/hydration — отложенное улучшение, не блокер Systems; контексты пока создаются напрямую через new.
 
 Execution отслеживает конкретные, в том числе длительные, запуски Rule:
 
@@ -137,3 +137,9 @@ EcaRule<TEventContext, TConditionContext, TActionContext> — reference type. О
 ## Следующий шаг
 
 Base context refactor, Commands v1 и их интеграция в Execution/Scope завершены. Следующий этап в ToDo — архитектура Systems; в этой итерации она не реализуется. Будущие возможности Execution и межскоуповая маршрутизация требуют отдельного согласования.
+
+## Тестовая инфраструктура
+
+Unity Test Framework + NUnit; Core проверяется преимущественно в EditMode. PlayMode — только для Unity lifecycle. Тесты вынесены из production Runtime в Tests/Editor; старый smoke-компонент и его .NET harness удалены после переноса сценариев. GitHub Actions автоматически запускает матрицу EditMode/PlayMode на PR и push main с Unity 6000.5.6f1, Personal и GameCI packageMode. PlayMode пока пустой. CI — authoritative проверка; первый зелёный run нужно подтвердить в PR. Подробности — [Testing.md](Testing.md).
+
+Rule shortcut API обязательно нужен позже; factory-style Rule API стоит рассмотреть. Оба направления не блокируют текущий этап и сейчас не реализуются.
