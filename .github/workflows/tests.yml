@@ -1,4 +1,4 @@
-name: Unity tests
+name: Tests
 
 on:
   pull_request:
@@ -11,21 +11,48 @@ permissions:
   contents: read
   checks: write
 
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  tests:
-    name: Unity ${{ matrix.testMode }}
+  editmode:
+    name: Unity EditMode
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        # PlayMode currently has no lifecycle scenarios; do not add fake tests.
-        testMode: [EditMode, PlayMode]
+
     steps:
-      - uses: actions/checkout@v4
-        with:
-          path: EcaSystemsPackage
-      - name: Run package tests
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # GameCI packageMode не умеет нормально тестировать package,
+      # если package является корнем git-репозитория.
+      #
+      # Поэтому оставляем обычный checkout в root,
+      # а для CI создаём временную копию package в подпапке.
+      - name: Prepare package for GameCI
+        shell: bash
+        run: |
+          mkdir -p _ci/EcaSystemsPackage
+
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='_ci' \
+            --exclude='artifacts' \
+            --exclude='TestResults' \
+            --exclude='CodeCoverage' \
+            ./ _ci/EcaSystemsPackage/
+
+      - name: Verify package
+        shell: bash
+        run: |
+          test -f _ci/EcaSystemsPackage/package.json
+
+          echo "Package prepared:"
+          ls -la _ci/EcaSystemsPackage
+
+      - name: Run Unity EditMode tests
         id: tests
         uses: game-ci/unity-test-runner@v4
         env:
@@ -34,16 +61,19 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           packageMode: true
-          projectPath: EcaSystemsPackage
+          projectPath: _ci/EcaSystemsPackage
           unityVersion: 6000.5.6f1
-          testMode: ${{ matrix.testMode }}
+          testMode: EditMode
+
           githubToken: ${{ secrets.GITHUB_TOKEN }}
-          checkName: Unity ${{ matrix.testMode }} results
-          artifactsPath: artifacts/${{ matrix.testMode }}
+          checkName: EcaSystems EditMode Tests
+
+          artifactsPath: artifacts/EditMode
+
       - name: Upload test results and logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: unity-${{ matrix.testMode }}-results
-          path: ${{ steps.tests.outputs.artifactsPath || format('artifacts/{0}', matrix.testMode) }}
+          name: unity-editmode-results
+          path: ${{ steps.tests.outputs.artifactsPath }}
           if-no-files-found: warn
