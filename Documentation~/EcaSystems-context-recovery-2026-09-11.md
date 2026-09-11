@@ -4,6 +4,8 @@
 
 Этот recovery-файл обновлён после checkpoint. Актуальные решения определяет [Context.md](Context.md), ближайшие этапы — [ToDo.md](ToDo.md), будущие возможности — [Roadmap.md](Roadmap.md). Прежний порядок «Systems → EventRegistry → Fire Event Command» больше не является согласованным планом реализации.
 
+[Полный исторический recovery snapshot](Architecture/EcaSystems-context-recovery-full-2026-09-11.md) сохранён отдельно из base/main; он может содержать устаревшие решения и не переопределяет этот краткий срез и более новые решения.
+
 ## Проект и текущий код
 
 EcaSystems — Unity-first UPM framework для связи независимых игровых систем через ECA. Core не зависит от Unity. Репозиторий: [ra1ngo/EcaSystems](https://github.com/ra1ngo/EcaSystems). Корень репозитория одновременно является корнем package.
@@ -26,6 +28,8 @@ EcaScope.State хранит отдельный EcaScopeState только с get
 
 IEcaScopeContext<TEventContext> наследует IEcaExecutionContext<TEventContext> и добавляет ScopeState. Это подготовленный контракт, **не runtime wiring**. Scope.Fire по-прежнему поддерживает точную пару Execution role types; ExecutionEngine и Group создают конкретные контексты через new. Добавлять Scope-зависимость вниз в Execution или временный factory/service environment нельзя. Создание/выбор расширенных контекстов оставлены следующей архитектурной итерации. Универсальная ContextFactory/hydration не выбрана.
 
+Механизм создания/расширения контекстов необходимо определить до полноценного Systems runtime: Scope уже требует ScopeState, Systems позже добавит SystemState. Универсальная фабрика не обязательна; временный service locator или скрытый runtime service внутри data context недопустимы.
+
 ## Ближайшая архитектурная работа перед Systems
 
 Вертикальная ось — features/layers: Base, Commands, Execution, Scope, Systems, возможный Inspection/Debug. Это не строгая линейная Clean Architecture; понятную структуру папок желательно сохранить до MVP.
@@ -34,9 +38,13 @@ IEcaScopeContext<TEventContext> наследует IEcaExecutionContext<TEventCo
 
 Определить relation Event ↔ Rule/Condition/Action ↔ Execution и проверить её на Fire Event/routing без cyclic dependencies. EventDispatcher/EventBus/EventRuntime пока не выбраны. System — организационный адаптер и ownership boundary; Events/Commands/State не должны существовать только через System как центральный runtime container.
 
+Для будущей команды Fire Event уже принято: вызов из Action по умолчанию испускает Event в том же Scope, где выполняется Action. Explicit cross-scope targeting — возможное дальнейшее расширение. Реализация Fire Event сейчас не добавляется.
+
 Context предполагается носителем данных. Bound Commands в ActionContext могут смешивать данные и сервисы; текущий API сохранён, но после следующей архитектурной итерации его нужно пересмотреть совместно с context enrichment/hydration. Новые Context/State не получают сервисы.
 
 Только после этого возвращаемся к Events + Systems implementation, затем TimeSystem/Wait и Global Variables как отдельной system/capability. SystemState сейчас предполагается глобальным первым этапом. После Global State/Variables нужно отдельно определить hierarchical/scoped lookup, inheritance и override: global → child → grandchild/local. Это не минимальный EcaScopeState.
+
+Готовые Systems пакета предполагаются рядом с Runtime/Core: `Runtime/Systems/<System>/Core` для самостоятельного функционала и `Runtime/Systems/<System>/Eca` для адаптера. Примеры — Time и Global Variables / Global State. Внешние/клиентские Unity-системы могут иметь любую структуру; ECA-модуль лишь адаптирует их.
 
 ## Границы checkpoint
 

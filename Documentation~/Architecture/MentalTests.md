@@ -1,8 +1,8 @@
 # EcaSystems — Mental Architecture Tests
 
-> **Исторический архитектурный документ (historical architecture document).** Содержит устаревшие решения и не является source of truth. Актуальные решения: [Context.md](../Context.md). Название минимального engine обновлено до EcaBaseEngine; остальные рассуждения сохранены как история.
+> **Исторический архитектурный документ (historical architecture document).** Содержит устаревшие решения и не является source of truth. Актуальные решения: [Context.md](../Context.md). Историческое имя EcaEngine сохранено; позднее он был переименован в EcaBaseEngine.
 
-> Status: architecture checkpoint before implementation of `EcaBaseEngine`.
+> Status: architecture checkpoint before implementation of `EcaEngine`.
 >
 > This document records mental tests of the current EcaSystems Core model, including passed scenarios, deferred features, edge cases, and implementation constraints discovered during testing.
 
@@ -30,7 +30,7 @@ The original event may come from anywhere outside EcaSystems:
 - network event
 - arbitrary application code
 
-An adapter reports the occurrence to EcaSystems through `EcaBaseEngine.Fire(event, context)`.
+An adapter reports the occurrence to EcaSystems through `EcaEngine.Fire(event, context)`.
 
 For events without data, use `EcaEventContextEmpty`.
 
@@ -107,7 +107,7 @@ Likely responsibilities:
 - cancellation
 - possibly exception/error information
 
-### `EcaBaseEngine`
+### `EcaEngine`
 
 Central runtime service.
 
@@ -134,7 +134,7 @@ External event
     ↓
 adapter
     ↓
-EcaBaseEngine.Fire(Event, immutable Context)
+EcaEngine.Fire(Event, immutable Context)
     ↓
 find Rules by EventId
     ↓
@@ -226,11 +226,11 @@ This is intentional. Rules react to an event; they are not procedural steps in a
 41. **Action throws/faults** — 🟡 error policy required. Execution becomes `Failed`; failure of Rule A must not prevent unrelated Rule B from executing.
 42. **Action is cancelled** — ✅ PASS architecturally. Execution becomes `Cancelled`.
 43. **Rule is unregistered while its Action is running** — 🟡 policy not yet fixed. Likely: block new executions and cancel current ones.
-44. **Duplicate Rule registration** — 🟡 validation required. Prefer unique Rule IDs per `EcaBaseEngine`.
+44. **Duplicate Rule registration** — 🟡 validation required. Prefer unique Rule IDs per `EcaEngine`.
 
 ## 8. External Event Integration
 
-45. **C# event** — ✅ PASS. Adapter handler calls `EcaBaseEngine.Fire`.
+45. **C# event** — ✅ PASS. Adapter handler calls `EcaEngine.Fire`.
 46. **Unity callback** — ✅ PASS. `Start`, `OnTriggerEnter`, `OnCollisionEnter`, etc. can call `Fire` through an adapter.
 47. **`UnityEvent`** — ✅ PASS. Listener calls `Fire`.
 48. **Third-party callback API** — ✅ PASS. Any callback can report an EcaEvent to the Engine.
@@ -303,7 +303,7 @@ The current model instead uses one programmable async Action. Ordinary C# owns p
 The original event exists outside EcaSystems. Integration code reports it with:
 
 ```text
-EcaBaseEngine.Fire(EcaEvent, immutable Context)
+EcaEngine.Fire(EcaEvent, immutable Context)
 ```
 
 This keeps Core independent of C# events, Unity callbacks, UnityEvent, and third-party event APIs.
@@ -349,7 +349,7 @@ Persistent Rule state may become justified later by DoOnce, DoN, save/load, Even
 
 Each `EcaRuleExecution` should instead have its own cancellation source/token. This also naturally supports future `Overlap.Reset`.
 
-## 7. Main implementation concerns before/during `EcaBaseEngine`
+## 7. Main implementation concerns before/during `EcaEngine`
 
 1. Event ID collision validation.
 2. Rule ID duplicate validation.
@@ -385,7 +385,7 @@ IEcaAction<TContext>
 EcaRuleExecution<TContext>
     one concrete reaction execution
 
-EcaBaseEngine
+EcaEngine
     Rule registry
     Event routing
     two-phase Condition/Action dispatch
@@ -409,4 +409,4 @@ Deferred concepts remain additive layers rather than requirements of Core:
 - execution middleware
 - `Reset` / `Queue` overlap modes
 
-This document is the architecture baseline immediately before implementation of `EcaBaseEngine`.
+This document is the architecture baseline immediately before implementation of `EcaEngine`.
