@@ -5,6 +5,9 @@ using EcaRuleId = System.String;
 
 namespace EcaSystems.Core
 {
+    /* Rule — общая декларация, Group — runtime одной регистрации этой Rule.
+       State живой: Condition и Action видят одни счётчики, а новая регистрация
+       получает независимые счётчики и lifetime Limit. Executions содержит только активные запуски. */
     public sealed class EcaRuleExecutionGroup<TEventContext> : IEcaRuleExecutionGroup
     {
         private readonly List<EcaRuleExecution<TEventContext>> _executions = new();
@@ -45,7 +48,8 @@ namespace EcaSystems.Core
                     throw new NotSupportedException($"Overlap strategy '{RunMode.Overlap}' is not supported.");
             }
 
-            // Контекст и привязка нужны только после допуска по Limit/Overlap.
+            /* Отклонённый Fire не создаёт контекст и не вызывает Bind:
+               сервисы привязываются только для фактически допущенного запуска. */
             var context = new EcaExecutionActionContext<TEventContext>(eventContext, State);
             context.BindCommands(commandRunner.Bind(context));
 

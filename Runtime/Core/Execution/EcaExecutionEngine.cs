@@ -74,7 +74,8 @@ namespace EcaSystems.Core
                 if (_ruleChecker.Check(rule, context)) passed.Add(group);
             }
 
-            // All Conditions of this Fire have been checked before any Action starts.
+            /* Двухфазный Fire: исключение в Condition прерывает отбор до любой Action.
+               Допуск Group и привязка Commands начинаются только после всех проверок. */
             for (var i = 0; i < passed.Count; i++)
                 passed[i].Fire(eventContext, _commandRunner);
         }

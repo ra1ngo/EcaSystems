@@ -4,12 +4,12 @@
 
 | Исходный метод | NUnit fixture / test | Уровень |
 | --- | --- | --- |
-| `TestBaseEmptyContext` | `EcaEngineTests.Fire_EmptyContext_RunsUntilUnregistered` | unit / layer |
-| `TestBaseEventContext` | `EcaEngineTests.Fire_PassesEventContextToAction` | unit / layer |
-| `TestBaseConditionFalse` | `EcaEngineTests.Fire_FalseCondition_PreventsAction` | unit / layer |
-| `TestBaseChecksAllConditionsBeforeActions` | `EcaEngineTests.Fire_ChecksAllConditionsBeforeAnyAction` | unit / layer |
-| `TestDuplicateRuleId` | `EcaEngineTests.Register_DuplicateRuleId_Throws` | unit / layer |
-| `TestBaseContextSplit` | `EcaEngineTests.Fire_SeparatesConditionAndActionContexts` | unit / layer |
+| `TestBaseEmptyContext` | `EcaBaseEngineTests.Fire_EmptyContext_RunsUntilUnregistered` | unit / layer |
+| `TestBaseEventContext` | `EcaBaseEngineTests.Fire_PassesEventContextToAction` | unit / layer |
+| `TestBaseConditionFalse` | `EcaBaseEngineTests.Fire_FalseCondition_PreventsAction` | unit / layer |
+| `TestBaseChecksAllConditionsBeforeActions` | `EcaBaseEngineTests.Fire_ChecksAllConditionsBeforeAnyAction` | unit / layer |
+| `TestDuplicateRuleId` | `EcaBaseEngineTests.Register_DuplicateRuleId_Throws` | unit / layer |
+| `TestBaseContextSplit` | `EcaBaseEngineTests.Fire_SeparatesConditionAndActionContexts` | unit / layer |
 | `TestGenericRegistryAndVariance` | `EcaRuleRegistryTests.Registry_CustomContexts_PreservesExactRolesAndVariance` | unit / layer |
 | `TestExecutionIgnore` | `EcaExecutionEngineTests.Fire_OverlapIgnore_TracksOnlyAcceptedExecutions` | unit / layer |
 | `TestExecutionAllow` | `EcaExecutionEngineTests.Fire_OverlapAllow_SharesLiveStateAcrossConcurrentExecutions` | unit / layer |

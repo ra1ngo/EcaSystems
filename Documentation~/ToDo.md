@@ -13,15 +13,20 @@
 
 - [x] Нормальная тестовая инфраструктура Unity Test Framework + NUnit.
 - [x] Полная миграция meaningful сценариев старого smoke test в EditMode.
-- [x] GitHub Actions CI: Unity 6000.5.6f1 / Personal / packageMode; первый зелёный run подтвердить после открытия PR.
+- [x] GitHub Actions CI: один EditMode job, Unity 6000.3.19f1 / GameCI packageMode, копия пакета в _ci/EcaSystemsPackage; прошлый recovery-срез сообщает 31/31 passed.
+- [x] Architecture checkpoint: EcaBaseEngine, общий Execution context contract, EcaScopeState и Scope context contract; runtime wiring ScopeState явно отложен.
 
-## 1. Архитектура Systems — следующий этап
+## 1. Архитектурный refactor перед Systems — следующий этап
 
-- [ ] Спроектировать IEcaSystem как пассивный ECA-адаптер / набор exports: Events, Commands и State.
-- [ ] Не экспортировать Actions. Отдельные system-specific Conditions пока не нужны: Conditions принадлежат Rules и читают state через context.
-- [ ] Спроектировать SystemsState.
-- [ ] Пересмотреть Commands API на реальных сценариях Systems.
-- [ ] Использовать термин System, не Module. DI и размещение root engine остаются решением приложения вне framework.
+- [ ] Определить две оси: layers/features (Base, Commands, Execution, Scope, Systems, возможный Inspection/Debug) × самостоятельные capabilities (Events, Conditions, Actions, Commands, State, Rules, Context, Execution). Это не строгая линейная Clean Architecture; сохранить понятную структуру до MVP.
+- [ ] Пересмотреть Rule-centric runtime: сохранить Rule как декларативную/authoring композицию, сравнить RuleSelector с Event → bindings/subscriptions.
+- [ ] Определить relation Event ↔ Rule/Condition/Action ↔ Execution.
+- [ ] Спроектировать Fire Event/routing без запутанного ownership и циклических зависимостей; EventDispatcher/EventBus/EventRuntime пока не выбирать.
+- [ ] Рассматривать System как адаптер и ownership boundary, а не центральный runtime container Events/Commands/State. Не закреплять прежнее предположение, что отдельные Condition Queries не нужны.
+- [ ] Сохранить расширение Context по слоям; решить создание и выбор расширенных контекстов для ScopeState. Текущий Scope.Fire поддерживает только точные Execution role types; контракт Scope ещё не означает runtime wiring.
+- [ ] После следующей архитектурной итерации пересмотреть bound Commands как service внутри data context совместно с context enrichment/hydration, сохранив текущий Commands v1 до решения.
+- [ ] После этого вернуться к Events + Systems implementation: интеграционная поверхность Events, Commands, State, возможные Condition Queries; SystemState сначала предполагается глобальным.
+- [ ] Использовать термин System, не Module. DI и размещение root engine остаются решением приложения.
 
 ## 2. TimeSystem
 
@@ -31,7 +36,11 @@
 
 - [ ] Спроектировать как отдельную System, а не встроенную возможность Base.
 
-## 4. Интеграция Unity и удобство пакета
+## 4. Scope-aware / hierarchical SystemState
+
+- [ ] После Global State/Variables спроектировать global → child → grandchild/local scopes: inheritance, lookup и override semantics. Сейчас SystemState предполагается глобальным; scoped state не реализован. Это отдельная возможность, не EcaScopeState с ScopeId.
+
+## 5. Интеграция Unity и удобство пакета
 
 - [ ] Добавить необходимые обёртки и интеграционные тесты Scope/Systems.
 - [ ] Проверить применение UPM-пакета в реальном игровом сценарии.
@@ -40,6 +49,4 @@ Cancellation, Reset, Queue, плавный Unregister и маршрутизац�
 
 ## Позже: удобство API и улучшение кода
 
-- [ ] Rule shortcut API обязательно нужен позже; это не текущий blocker.
-- [ ] Рассмотреть factory-style Rule API отдельно, после текущей итерации.
-- [ ] Универсальный ContextFactory/hydration отложен на этап улучшения кода, не блокирует Systems. Контексты пока создаются напрямую через new.
+Rule shortcut/factory API и универсальный ContextFactory/hydration учтены в [Roadmap.md](Roadmap.md). Универсальная фабрика не является заранее выбранным решением для ScopeState; архитектурный вопрос расширения контекстов входит в этап 1.

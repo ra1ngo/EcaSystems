@@ -7,7 +7,8 @@ namespace EcaSystems.Core
         private readonly EcaScopeEngine _owner;
         private EcaExecutionEngine _executionEngine;
 
-        public string ScopeId { get; }
+        public EcaScopeState State { get; }
+        public string ScopeId => State.ScopeId;
         public string ParentScopeId { get; }
         public bool IsDisposed { get; private set; }
 
@@ -15,7 +16,7 @@ namespace EcaSystems.Core
         {
             _owner = owner;
             _executionEngine = executionEngine ?? throw new ArgumentNullException(nameof(executionEngine));
-            ScopeId = scopeId;
+            State = new EcaScopeState(scopeId);
             ParentScopeId = parentScopeId;
         }
 
@@ -38,6 +39,8 @@ namespace EcaSystems.Core
             return _executionEngine.Unregister(rule);
         }
 
+        /* Иерархия определяет владение и lifetime. Fire локален:
+           ни родитель, ни потомки автоматически не получают событие. */
         public void Fire(EcaEvent<EcaEventContextEmpty> ecaEvent)
         {
             ThrowIfDisposed();
@@ -55,7 +58,8 @@ namespace EcaSystems.Core
             if (IsDisposed) return;
             IsDisposed = true;
             _owner.DisposeScope(this);
-            // Запущенные Actions удерживают свои группы и завершаются самостоятельно.
+            /* Dispose закрывает регистрации, но не может принудительно остановить Task.
+               Запущенные Actions удерживают свои группы и завершаются самостоятельно. */
             _executionEngine = null;
         }
 
