@@ -1,0 +1,79 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  editmode:
+    name: Unity EditMode
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # GameCI packageMode не умеет нормально тестировать package,
+      # если package является корнем git-репозитория.
+      #
+      # Поэтому оставляем обычный checkout в root,
+      # а для CI создаём временную копию package в подпапке.
+      - name: Prepare package for GameCI
+        shell: bash
+        run: |
+          mkdir -p _ci/EcaSystemsPackage
+
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='_ci' \
+            --exclude='artifacts' \
+            --exclude='TestResults' \
+            --exclude='CodeCoverage' \
+            ./ _ci/EcaSystemsPackage/
+
+      - name: Verify package
+        shell: bash
+        run: |
+          test -f _ci/EcaSystemsPackage/package.json
+
+          echo "Package prepared:"
+          ls -la _ci/EcaSystemsPackage
+
+      - name: Run Unity EditMode tests
+        id: tests
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          packageMode: true
+          projectPath: _ci/EcaSystemsPackage
+          unityVersion: 6000.3.19f1
+          testMode: EditMode
+
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: EcaSystems EditMode Tests
+
+          artifactsPath: artifacts/EditMode
+
+      - name: Upload test results and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-editmode-results
+          path: ${{ steps.tests.outputs.artifactsPath }}
+          if-no-files-found: warn
