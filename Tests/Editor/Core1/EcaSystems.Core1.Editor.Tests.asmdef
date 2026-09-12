@@ -1,0 +1,7 @@
+{
+  "name": "EcaSystems.Core1.Editor.Tests",
+  "references": ["EcaSystems.Core1"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": []
+}

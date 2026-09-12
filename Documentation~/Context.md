@@ -6,7 +6,46 @@ EcaSystems — Unity-first UPM-фреймворк для взаимодейст�
 
 Здесь зафиксированы актуальные согласованные решения. [ToDo.md](ToDo.md) содержит необходимые этапы до первого полноценного применения, [Roadmap.md](Roadmap.md) — необязательные будущие возможности. Документы Documentation~/Architecture/ сохраняют историю обсуждений: [MentalTests](Architecture/MentalTests.md) и [полный recovery snapshot](Architecture/EcaSystems-context-recovery-full-2026-09-11.md) могут содержать устаревшие решения и не переопределяют актуальные документы. [Короткий recovery](EcaSystems-context-recovery-2026-09-11.md) остаётся актуальным кратким срезом; более новые решения имеют приоритет. Постоянные архитектурные документы проекта ведутся на русском языке; имена API не переводятся.
 
-## Архитектура Base
+## Core1 Base prototype — 2026-09-12
+
+Новая архитектура строится параллельно в `Runtime/Core1`, namespace `EcaSystems.Core1`, отдельная assembly `EcaSystems.Core1`. Вертикальная ось временно называется `A`; `A/Abstractions` — плоская папка из семи файлов контрактов, `A/Base` содержит runtime Base, `Utils` — `EcaEventStateEmpty` (readonly struct без Value). Core1 пока содержит только Abstractions + Base. Старый `Runtime/Core` и его тесты не изменены и остаются рабочей reference implementation до отдельного решения о миграции. Разделы ниже про Commands/Execution/Scope описывают именно старый Core.
+
+Event — только декларация с Id, Name, Description, EventStateType; `IEcaEvent<TEventState>` invariant. Rule = **1 Event + optional Condition + 1 Action**, хранит прямые ссылки. Condition/Action — программные executable declarations: собственные metadata и `Check(state, runnerContext)` / `Task Run(state, runnerContext)`. Concrete EcaCondition/EcaAction и ActionRegistry/ConditionRegistry не добавлены; registries для них нужны только при реальном use case.
+
+`RuleState` = runtime data; `RunnerContext` = infrastructure/services. Base `EcaRuleState<T>` содержит только EventState, без Rule, engine, services, статусов или ExecutionState. Один объект State создаётся на Rule одного Fire и передаётся в обе роли; между Rules и Fire объекты State различаются. Сам payload не копируется и предполагается логически неизменяемым. Marker runner-context interfaces разделяют роли; два trivial infrastructure objects создаются непосредственно в RuleRunner. ConditionRunner и ActionRunner независимы, не знают Rule и не соединены событиями.
+
+### Типовая модель и граница стирания типов
+
+Полный контракт `IEcaRule<TEventState, TRuleState, TConditionRunnerContext, TActionRunnerContext>` связывает `TRuleState : IEcaRuleState<TEventState>` с executable contracts обеих ролей. `EcaRule<TEventState>` скрывает три стандартных Base-параметра; non-generic EcaEvent/EcaRule используют EcaEventStateEmpty. Condition/Action contravariant по State и RunnerContext; read-only RuleState covariant по EventState. Сам Rule invariant: нельзя подменить State, который конкретная Action не умеет принимать.
+
+Engine получает `IEcaRuleRunner` с non-generic `CreateRun(rule, occurrence)`, `Check(run)`, `RunAction(run)` и хранит только opaque `IEcaRuleRun`. Внутри Base runner:
+
+1. Dispatcher создаёт internal `EcaEventOccurrence<T>`. Публичный non-generic EcaEventOccurrence предоставляет generic `Accept<TResult>(IEcaEventOccurrenceVisitor<TResult>)`; visitor имеет `Visit<T>(IEcaEvent<T>, T)`. Он переносит объявленный T без object payload, dynamic или reflection.
+2. На каждый CreateRun создаётся отдельный internal CreateRequest с Rule и владельцем runner. Его Visit<T> вызывает `CreateTyped<T>` владельца. Там проверяются Event.Id, точный EventStateType и `is IEcaRule<T, EcaRuleState<T>, IEcaConditionRunnerContext, IEcaActionRunnerContext>`. Неподдерживаемая специализация отклоняется при создании всех runs, до первой Condition.
+3. Internal `RuleRun<T>` хранит typed Rule и новый `EcaRuleState<T>`, а его non-generic основа — owner и ссылку на stateless `RunBridge<T>`. На token нет Check/Run/Accept или lifecycle/status. Он не выполняет сам себя; инфраструктура bridge не попадает в RuleState.
+4. Check/RunAction проверяют владельца token и обращаются к bridge, который восстанавливает конкретный `RuleRun<T>` и передаёт его обратно generic-методам RuleRunner. Только RuleRunner решает optional Condition и вызывает независимые ConditionRunner/ActionRunner. Один singleton bridge на закрытый T не хранит State/Rule; runs нигде не кешируются.
+
+Это небольшой компромисс C# type system: из non-generic interface нельзя восстановить неизвестный generic-параметр для вызова generic-метода. Нужны visitor при входе и internal bridge при выходе из opaque token; явное приведение внутри bridge безопасно, поскольку конструктор закрытого внутреннего типа RuleRun<T> всегда связывает его с RunBridge<T>. Внешний/чужой token отвергается до приведения. Нет dynamic, MakeGenericType, MethodInfo.Invoke или reflection execution. Rule остаётся декларацией, RuleRun — пассивным token. Visitor и IEcaRuleRun/IEcaRuleRunner публичны в **Base**, а конкретные occurrence/request/token/bridge скрыты: это позволяет следующему слою из другой assembly реализовать свой runner. Registries/runners/dispatcher не перенесены в Abstractions.
+
+Один EcaBaseEngine обработал Rules для custom reference payload, int, nullable int и EcaEventStateEmpty. Отдельный тест из другой assembly подменяет runner, создаёт производный State и свою infrastructure, сохраняя тот же engine и порядок Create1 → Create2 → Check1 → Check2 → Action1 → Action2. Это проверка seam, не реализация Execution. Base runner сам не создаёт произвольные производные State; ответственность лежит на заменяющем runner. StateBuilder/ContextFactory не вводятся.
+
+### Регистрации, dispatch и порядок фаз
+
+EventRegistry явно заполняется извне до Rules/Fire. Duplicate Event Id отклоняется, включая конфликт типов. Идентичность Event = Id + точный объявленный EventStateType: другая декларация с тем же Id/type допустима при Fire, отдельная повторная регистрация — нет. Metadata custom declarations должны оставаться стабильными после регистрации. Typed boundaries проверяют соответствие metadata и generic-контракта. Неверный EventState обычно невозможно передать благодаря generic Fire; dishonest custom Event и конфликт Id/type отклоняются runtime-проверками. Fire никогда не регистрирует Event.
+
+RuleRegistry хранит прямые Rules, требует известный Event и Action, отвергает повторный RuleId. GetByEvent возвращает снимок в порядке регистрации. Unregister удаляет по instance; изменения registry во время Condition/Action влияют на последующие Fire, включая вложенные, но не меняют уже выбранный снимок внешнего Fire.
+
+EventDispatcher знает только EventRegistry. `Fired` — обычное синхронное C# event `Action<EcaEventOccurrence>` без queue/pendingEvents, deferred processing и async Channel. Engine подписывается при композиции; Dispose только отписывает его, не закрывает Dispatcher и не отменяет Actions. Runtime-компоненты создаются явно и соединяются через конструктор engine; Fire вызывается на Dispatcher.
+
+Engine владеет pipeline: выбрать Rules → **создать все RuleRun** → **проверить все Conditions** → **запустить Actions прошедших runs**. Invariant `ALL CONDITIONS → ALL ACTIONS` действует на один Fire одного engine. Исключение при CreateRun/Condition прерывает этот Fire до любых его Actions. Отсутствующая Condition = true; синхронное исключение из Action прерывает оставшиеся Actions. Как в старом Base, возвращённые Task не ожидаются: незавершённые/failed Task не блокируют следующий запуск, отдельная async error policy не добавлена.
+
+Nested Fire immediate/reentrant. Проверенный trace: `Check A1 → Check A2 → Action A starts → Check B1 → Check B2 → Action B1:nested → Action B2 → Action A continues → Action A2`. Синхронный B pipeline проходит до возврата в A; завершения асинхронной B Action ждать не нужно. Повторный Fire того же Event тоже имеет отдельные State и stack-local списки. Если пользователь вызывает Fire из Condition, nested Actions могут выполниться до оставшихся **внешних** Conditions; invariant остаётся локальным каждому invocation, не всей рекурсивной цепочке. Неограниченная рекурсия пока не диагностируется и может переполнить стек.
+
+### Следующий Execution layer
+
+После validation Base нужно обсудить reuse **того же EcaBaseEngine** через другой RuleRunner/RuleState, не копировать Fire pipeline. Остаются: расширенная State-модель и её создание; размещение group data и допуска Overlap/Limit после всех Conditions; наблюдение завершения/ошибок Task; время жизни данных и unregister; состав RunnerContext и будущий доступ к Commands/Scope. Lifecycle/status, ExecutionState, cancellation, Commands integration, Execution/Scope/Systems в Core1 не реализованы. Будущий `EcaRunMode → EcaExecutionMode` относится только к Execution. Возможный Group layer между Execution и Scope и queued/deferred Event processing как optional future execution policy — в Roadmap.
+
+## Архитектура Base существующего Runtime/Core
 
 Внешний источник → EcaEvent<TEventContext> → Fire → Rules → Conditions → Actions.
 
@@ -148,11 +187,11 @@ IEcaScopeContext<TEventContext> : IEcaExecutionContext<TEventContext> добав
 
 Горизонтальная ось — самостоятельные capabilities/concepts: Events, Conditions, Actions, Commands, State, Rules, Context, Execution. Развитие отдельной возможности не должно требовать прохождения всего runtime через одну композиционную сущность.
 
-Rule полезен как декларативная/authoring композиция Event + optional Condition + Action. Однако текущие routing/storage/execution слишком сосредоточены на Rule как центральном runtime primitive. Следующий шаг — сравнить текущий RuleSelector-based runtime с Event → bindings/subscriptions, определить связь Event ↔ Rule/Condition/Action ↔ Execution и проверить её на Fire Event/routing без циклического ownership. EventDispatcher/EventBus/EventRuntime пока не выбраны, текущий runtime не заменён.
+Rule полезен как декларативная/authoring композиция Event + optional Condition + Action. Core1 проверяет разделение деклараций, регистрации Event, синхронного EventDispatcher и независимых runners; выбранная Base-модель описана выше. Старый runtime не заменён. Более широкие subscriptions/bindings и ownership Systems требуют отдельного проектирования после Execution reuse.
 
 System рассматривается как ECA-адаптер независимой игровой системы, организационная сущность и ownership boundary. Events, Commands и State должны оставаться самостоятельными возможностями, а не существовать только через System как центральный runtime container. Events + Commands + State и возможные Condition Queries — направление интеграции, не окончательный IEcaSystem API. Conditions/Actions должны развиваться самостоятельно; старая формулировка «system-specific Conditions не нужны» больше не является принятым ограничением.
 
-Context задуман как носитель данных. Bound Commands внутри ActionContext могут смешивать данные и runtime services. Commands v1 пока сохранён; после следующей архитектурной итерации нужно критически пересмотреть это решение вместе с context enrichment/hydration. Engine, Scope, dispatcher, registries и runners в новые Context/State не добавляются.
+Старый Context задуман как носитель данных; bound Commands внутри ActionContext смешивают данные и runtime services. Commands v1 сохранён. В Core1 разделение явно выражено через RuleState = data и RunnerContext = infrastructure. Способ доступа к Commands следующего слоя ещё не выбран; engine, Scope, dispatcher, registries и runners в RuleState не добавляются.
 
 Global State / Variables планируется отдельной system/capability. Сейчас SystemState предполагается глобальным как первый простой этап, но это не финальная модель. После Global Variables нужно спроектировать scope-aware/hierarchical SystemState: global → child → grandchild/local, inheritance/lookup/override. Scoped SystemState сейчас не реализуется и не тождественен минимальному EcaScopeState.
 
@@ -166,10 +205,10 @@ Global State / Variables планируется отдельной system/capabi
 
 ## Следующий шаг
 
-Ближайший этап — архитектурный refactor перед Systems по двум осям выше. Только после него возвращаемся к Events + Systems implementation, затем TimeSystem/Wait и Global Variables. Checkpoint не реализует EventRegistry, Fire Event Command, dispatcher/bus, новую Rule/Event runtime-модель или Systems. DI и размещение root engine остаются решением приложения.
+Текущая итерация — validation Core1 Base; после неё обсуждаем Execution reuse of BaseEngine. Затем возвращаемся к Scope/Events/Systems implementation, TimeSystem/Wait и Global Variables. EventRegistry и синхронный dispatcher реализованы только в Core1 Base; Fire Event Command и Systems отсутствуют. DI и размещение root engine остаются решением приложения.
 
 ## Тестовая инфраструктура
 
 Unity Test Framework + NUnit; Core проверяется в EditMode. GitHub Actions запускает один EditMode job на Unity 6000.3.19f1 через GameCI packageMode с копией пакета в _ci/EcaSystemsPackage. Триггеры: PR, push main, workflow_dispatch. PlayMode job отсутствует до появления lifecycle-сценариев. Coverage input не задан; отсутствие input не гарантирует отключение coverage внутри GameCI. Recovery-срез сообщает о предыдущем CI результате 31/31, а не о проверке этой ветки. CI остаётся authoritative проверкой; фактические проверки checkpoint — в [Testing.md](Testing.md).
 
-Rule shortcut API обязательно нужен позже; factory-style Rule API стоит рассмотреть. Оба направления не блокируют текущий этап и сейчас не реализуются.
+Core1 уже содержит минимальные Base/empty Rule shortcuts; дальнейшая ergonomics и factory-style Rule API остаются возможностями Roadmap.

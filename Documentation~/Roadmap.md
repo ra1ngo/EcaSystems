@@ -2,6 +2,8 @@
 
 Эти возможности не блокируют первое практическое применение. Обязательные этапы — в [ToDo.md](ToDo.md), согласованные решения — в [Context.md](Context.md). Execution v1, Scope v1, Base context refactor и Commands v1 завершены. Ниже перечислены нереализованные возможности, требующие отдельного проектирования и практических сценариев. Документ ведётся на русском языке.
 
+Core1 Base создан параллельно старому Core: A/Abstractions плоский, RuleState = data, RunnerContext = infrastructure, RuleRun скрывает типы от BaseEngine. В prototype уже выбран синхронный classic C# event dispatcher с immediate/reentrant Fire; ALL CONDITIONS → ALL ACTIONS принадлежит BaseEngine. Следующий обязательный шаг — обсуждение его reuse через новый Execution RuleRunner/RuleState (ToDo), без копирования pipeline. Возможности ниже не реализованы этим prototype.
+
 ## Расширенное выполнение
 
 Произвольный C# Task нельзя универсально принудительно остановить и продолжить с произвольного места. Кооперативный запрос не гарантирует остановку Action.Run или предметную очистку.
@@ -11,6 +13,8 @@
 - [ ] Проверить модель на реальном сценарии, включая основу для сохранения/загрузки.
 - [ ] При необходимости отдельно определить контракты прерывания и очистки.
 - [ ] Рассматривать Queue и Reset как возможные будущие возможности, не обязательные стандартные режимы.
+- [ ] Queued/deferred **Event processing** как optional future execution policy. Это отдельно от overlap Queue: Core1 Base сейчас не имеет queue/pendingEvents и сохраняет immediate/reentrant Fire.
+- [ ] Оценить отдельный Group layer между Execution и Scope при реальном use case. Сейчас группа существует внутри старого Execution v1; Core1 Group не реализован.
 - [ ] Оценить Priority, Retry, Timeout, MaxConcurrency, Dependencies, Sequences и Parallel при наличии оснований.
 - [ ] Для каждой возможности отдельно определить ответственный слой; заранее не расширять минимальную Execution v1.
 
@@ -58,7 +62,7 @@ Scope v1: hierarchy определяет только время жизни; Fir
 - [ ] Рассмотреть event/execution trace, nested fire depth diagnostics и настраиваемые ограничения глубины, включая A → B → A.
 - [ ] Сначала диагностировать, затем ограничивать, сохраняя допустимые сложные цепочки.
 
-- [ ] Optional bridge/callback: внутренний ECA Fire при необходимости дополнительно испускает внешнее классическое событие/callback/event bus notification. Межскоуповый routing учтён в разделе развития Scope.
+- [ ] Дополнительные adapters/event bus notifications при реальном use case. Core1 Dispatcher уже предоставляет обычное синхронное Fired event; межскоуповый routing учтён в разделе развития Scope.
 
 ## Расширение Overlap
 
@@ -92,7 +96,7 @@ Scope v1: hierarchy определяет только время жизни; Fir
 
 ## Создание контекстов до Systems runtime и дальнейшее развитие Commands
 
-Контексты пока создаются напрямую через new. Механизм context creation/enrichment необходимо определить до полноценного Systems runtime: Scope уже требует ScopeState, а Systems позже добавит SystemState. Это текущая архитектурная задача из [ToDo.md](ToDo.md), а не улучшение только после Systems. Универсальная ContextFactory/hydration не обязательна и не выбрана. Ниже — отдельные будущие улучшения контекстов и Commands, требующие своего проектирования.
+В старом Core контексты создаются напрямую через new. В Core1 конкретный RuleRunner создаёт State, а RunnerContext отдельно содержит infrastructure; StateBuilder/ContextFactory отсутствуют. Расширение данных и инфраструктуры следующих Execution/Scope/Systems слоёв нужно определить до Systems runtime (ToDo). Универсальная ContextFactory/hydration не обязательна и не выбрана. Ниже — отдельные будущие улучшения.
 
 - [ ] Генерируемый/типизированный API контекстов.
 - [ ] Расширенные providers/extensions для hydration.
@@ -101,7 +105,7 @@ Scope v1: hierarchy определяет только время жизни; Fir
 - [ ] Более строгий CommandId/key вместо string.
 - [ ] Метаданные команд для визуального программирования.
 - [ ] Сериализация аргументов команд.
-- [ ] После следующей архитектурной итерации пересмотреть Commands runtime и bound Commands как service внутри ActionContext совместно с context enrichment/hydration.
+- [ ] Пересмотреть Commands runtime и bound Commands с учётом Core1 RunnerContext = infrastructure, сохраняя RuleState только данными.
 
 Эти направления не расширяют текущую v1: результаты команд, cancellation, DI и генерация API сейчас не добавляются.
 
@@ -109,7 +113,7 @@ Scope v1: hierarchy определяет только время жизни; Fir
 
 - [ ] Code coverage отдельной итерацией: input coverageEnabled сейчас не задан, GameCI может включать coverage во временном проекте; отключение не гарантируется.
 - [ ] Optional required CI checks / branch protection после стабилизации CI, по решению владельца.
-- [ ] Rule shortcut API обязательно нужен позже; не текущий blocker.
+- [ ] Дальнейшее удобство Rule API сверх реализованных Core1 Base/empty shortcuts.
 - [ ] Рассмотреть factory-style Rule API.
 - [ ] Универсальный ContextFactory/hydration как возможное улучшение кода после выбора модели контекстов.
 
@@ -133,9 +137,10 @@ Scope v1: hierarchy определяет только время жизни; Fir
 
 ## Технический долг и архитектурное review
 
-- [ ] Пересмотреть дублирование orchestration EcaBaseEngine / EcaExecutionEngine и роль самостоятельного Base engine.
+- [ ] Проверить выбранный Core1 seam на следующем Execution layer: переиспользовать EcaBaseEngine через другой RuleRunner/RuleState. Старые Base/Execution пока остаются reference implementation с дублированием orchestration.
 - [ ] Base async failure handling: fire-and-forget Task в EcaBaseEngine не имеет полноценной observability/error policy. Execution observability/history учтены в разделах инспекции и отладки выше.
 - [ ] Определить threading contract Core; main-thread/single-thread orchestration для Unity — вероятное направление, ещё не принятое решение.
-- [ ] Event ID ↔ EventContext type canonical contract и future EventRegistry validation.
+- [ ] При необходимости развить Core1 Event ID ↔ точный EventStateType contract и immutability custom declarations; базовая EventRegistry validation уже реализована.
+- [ ] ActionRegistry/ConditionRegistry только при реальном сценарии lookup/ownership; сейчас Rule хранит прямые ссылки.
 
 Ergonomics generic Rule/Context API учтена в разделах развития контекстов и удобства Rule API; пересмотр Commands как service — в разделе контекстов/Commands. Эти вопросы не означают реализацию нового runtime в checkpoint.
