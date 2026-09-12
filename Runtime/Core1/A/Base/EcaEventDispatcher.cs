@@ -5,7 +5,7 @@ namespace EcaSystems.Core1
     public sealed class EcaEventDispatcher
     {
         private readonly EcaEventRegistry _events;
-        public event Action<EcaEventOccurrence> Fired;
+        internal event Action<EcaEventOccurrence> Fired;
 
         public EcaEventDispatcher(EcaEventRegistry events)
         {
