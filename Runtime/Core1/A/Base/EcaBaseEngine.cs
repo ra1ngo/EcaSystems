@@ -17,6 +17,18 @@ namespace EcaSystems.Core1
             _dispatcher.Fired += OnFired;
         }
 
+        public void Register<TEventState, TRuleState, TConditionRunnerContext, TActionRunnerContext>(
+            IEcaRule<TEventState, TRuleState, TConditionRunnerContext, TActionRunnerContext> rule)
+            where TRuleState : IEcaRuleState<TEventState>
+            where TConditionRunnerContext : IEcaConditionRunnerContext
+            where TActionRunnerContext : IEcaActionRunnerContext
+        {
+            _runner.ValidateRule<TEventState>(rule);
+            _rules.Register(rule);
+        }
+
+        public bool Unregister(IEcaRule rule) => _rules.Unregister(rule);
+
         private void OnFired(EcaEventOccurrence occurrence)
         {
             var rules = _rules.GetByEvent(occurrence.Event);
@@ -27,9 +39,9 @@ namespace EcaSystems.Core1
             for (var i = 0; i < runs.Count; i++)
                 if (_runner.Check(runs[i])) passed.Add(runs[i]);
 
-            /* ALL CONDITIONS -> ALL ACTIONS, per invocation. A nested Fire has its
-               own stack-local pipeline and enters immediately. As in old Base,
-               Task completion is not awaited and synchronous exceptions propagate. */
+            /* ALL CONDITIONS -> ALL ACTIONS для одного Fire. Вложенный Fire входит
+               немедленно со своими локальными списками. Base не ожидает Task;
+               синхронные исключения распространяются вызывающему коду. */
             for (var i = 0; i < passed.Count; i++) _ = _runner.RunAction(passed[i]);
         }
 

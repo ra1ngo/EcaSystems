@@ -2,7 +2,7 @@
 
 Эти возможности не блокируют первое практическое применение. Обязательные этапы — в [ToDo.md](ToDo.md), согласованные решения — в [Context.md](Context.md). Execution v1, Scope v1, Base context refactor и Commands v1 завершены. Ниже перечислены нереализованные возможности, требующие отдельного проектирования и практических сценариев. Документ ведётся на русском языке.
 
-Core1 Base создан параллельно старому Core: A/Abstractions плоский, RuleState = data, RunnerContext = infrastructure, RuleRun скрывает типы от BaseEngine. В prototype уже выбран синхронный classic C# event dispatcher с immediate/reentrant Fire; ALL CONDITIONS → ALL ACTIONS принадлежит BaseEngine. Следующий обязательный шаг — обсуждение его reuse через новый Execution RuleRunner/RuleState (ToDo), без копирования pipeline. Возможности ниже не реализованы этим prototype.
+Core1 Base создан параллельно старому Core: A/Abstractions плоский, RuleState = data, RunnerContext = infrastructure, RuleRun скрывает типы от BaseEngine. В prototype уже выбран синхронный classic C# event dispatcher с immediate/reentrant Fire; ALL CONDITIONS → ALL ACTIONS принадлежит BaseEngine. Reuse через ExecutionRuleRunner и ScopeRuleRunner реализован; следующий обязательный шаг — review Core1 Execution/Scope (ToDo). Возможности ниже не реализованы этим prototype.
 
 ## Расширенное выполнение
 
@@ -11,10 +11,10 @@ Core1 Base создан параллельно старому Core: A/Abstractio
 Прерывание, продолжение, пауза, Reset и сохранение выполнения, вероятно, потребуют явной модели: Action / Program состоит из Step / Command; состояние выполнения содержит текущий шаг / program counter, историю и сериализуемые данные там, где это применимо.
 
 - [ ] Проверить модель на реальном сценарии, включая основу для сохранения/загрузки.
-- [ ] При необходимости отдельно определить контракты прерывания и очистки.
+- [ ] При необходимости отдельно определить cancellation cleanup hook и контракты прерывания/очистки; текущий Dispose/Unregister не отменяет Actions.
 - [ ] Рассматривать Queue и Reset как возможные будущие возможности, не обязательные стандартные режимы.
 - [ ] Queued/deferred **Event processing** как optional future execution policy. Это отдельно от overlap Queue: Core1 Base сейчас не имеет queue/pendingEvents и сохраняет immediate/reentrant Fire.
-- [ ] Оценить отдельный Group layer между Execution и Scope при реальном use case. Сейчас группа существует внутри старого Execution v1; Core1 Group не реализован.
+- [ ] Оценить отдельный Group layer между Execution и Scope при реальном use case. Сейчас non-generic Group реализована внутри Core1 Execution; отдельный vertical Group layer не реализован и остаётся future mental-test.
 - [ ] Оценить Priority, Retry, Timeout, MaxConcurrency, Dependencies, Sequences и Parallel при наличии оснований.
 - [ ] Для каждой возможности отдельно определить ответственный слой; заранее не расширять минимальную Execution v1.
 
@@ -62,7 +62,7 @@ Scope v1: hierarchy определяет только время жизни; Fir
 - [ ] Рассмотреть event/execution trace, nested fire depth diagnostics и настраиваемые ограничения глубины, включая A → B → A.
 - [ ] Сначала диагностировать, затем ограничивать, сохраняя допустимые сложные цепочки.
 
-- [ ] Дополнительные adapters/event bus notifications при реальном use case. Core1 Dispatcher уже предоставляет обычное синхронное Fired event; межскоуповый routing учтён в разделе развития Scope.
+- [ ] Public external event callback/bridge при реальном use case. Core1 Fired теперь internal infrastructure event Dispatcher → BaseEngine, публичного gameplay callback нет; межскоуповый routing учтён в разделе развития Scope.
 
 ## Расширение Overlap
 
@@ -96,7 +96,7 @@ Scope v1: hierarchy определяет только время жизни; Fir
 
 ## Создание контекстов до Systems runtime и дальнейшее развитие Commands
 
-В старом Core контексты создаются напрямую через new. В Core1 конкретный RuleRunner создаёт State, а RunnerContext отдельно содержит infrastructure; StateBuilder/ContextFactory отсутствуют. Расширение данных и инфраструктуры следующих Execution/Scope/Systems слоёв нужно определить до Systems runtime (ToDo). Универсальная ContextFactory/hydration не обязательна и не выбрана. Ниже — отдельные будущие улучшения.
+В старом Core контексты создаются напрямую через new. В Core1 конкретный RuleRunner создаёт State, а RunnerContext отдельно содержит infrastructure; StateBuilder/ContextFactory отсутствуют. Вертикальное расширение данных Execution/Scope уже реализовано; дальнейшую infrastructure Commands/Systems нужно обсудить отдельно (ToDo). Универсальная ContextFactory/hydration не обязательна и не выбрана. Ниже — отдельные будущие улучшения.
 
 - [ ] Генерируемый/типизированный API контекстов.
 - [ ] Расширенные providers/extensions для hydration.
@@ -137,7 +137,7 @@ Scope v1: hierarchy определяет только время жизни; Fir
 
 ## Технический долг и архитектурное review
 
-- [ ] Проверить выбранный Core1 seam на следующем Execution layer: переиспользовать EcaBaseEngine через другой RuleRunner/RuleState. Старые Base/Execution пока остаются reference implementation с дублированием orchestration.
+- [ ] Review реализованного Core1 reuse: Execution/Scope используют один Base pipeline и общий type-erasure bridge. Старые Base/Execution пока остаются reference implementation с дублированием orchestration.
 - [ ] Base async failure handling: fire-and-forget Task в EcaBaseEngine не имеет полноценной observability/error policy. Execution observability/history учтены в разделах инспекции и отладки выше.
 - [ ] Определить threading contract Core; main-thread/single-thread orchestration для Unity — вероятное направление, ещё не принятое решение.
 - [ ] При необходимости развить Core1 Event ID ↔ точный EventStateType contract и immutability custom declarations; базовая EventRegistry validation уже реализована.

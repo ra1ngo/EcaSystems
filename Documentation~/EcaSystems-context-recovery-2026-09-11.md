@@ -1,32 +1,68 @@
 # EcaSystems — контекст для продолжения работы
 
-Дата актуализации: 2026-09-12, Core1 Base prototype.
+Дата актуализации: 2026-09-12, Core1 Execution + Scope.
 
-Этот recovery-файл обновлён после Core1 Base prototype. Актуальные решения определяет [Context.md](Context.md), ближайшие этапы — [ToDo.md](ToDo.md), будущие возможности — [Roadmap.md](Roadmap.md). Текущий этап — validation Core1 Base; следующий — обсуждение Execution reuse of BaseEngine, затем Scope/Systems.
+Этот recovery-файл обновлён после Core1 Execution/Scope. Актуальные решения определяет [Context.md](Context.md), ближайшие этапы — [ToDo.md](ToDo.md), будущие возможности — [Roadmap.md](Roadmap.md). Следующий этап — review Core1 Execution/Scope; Commands/Systems только после отдельного обсуждения.
 
 [Полный исторический recovery snapshot](Architecture/EcaSystems-context-recovery-full-2026-09-11.md) сохранён отдельно из base/main; он может содержать устаревшие решения и не переопределяет этот краткий срез и более новые решения.
 
-## Core1: новый параллельный prototype
+## Core1: Abstractions → Base → Execution → Scope
 
-Новая архитектура находится в `Runtime/Core1`, namespace/assembly `EcaSystems.Core1`. Временная вертикальная ось — `A`, `A/Abstractions` плоский; пока реализованы только Abstractions + Base и Utils. Старый `Runtime/Core`, старые tests и historical full snapshot не менялись и остаются reference implementation до отдельного решения о миграции. Core1 имеет отдельную `Tests/Editor/Core1/EcaSystems.Core1.Editor.Tests.asmdef`.
+Реализована параллельная вертикаль в Runtime/Core1, namespace/assembly EcaSystems.Core1. Временная ось A, плоская Abstractions, отдельные Base/Execution/Scope. IEcaRuleRun теперь отдельный пустой interface в Abstractions, IEcaRuleRunner остаётся в Base. Старый Runtime/Core, его tests и historical full snapshot не менялись. Core1 остаётся prototype до review, не окончательной заменой старого Core.
 
-Event — декларация (metadata + EventStateType), без Fire/Run. Condition/Action — программные executable declarations с собственными metadata, `Check(state, runnerContext)` / `Task Run(state, runnerContext)`. Rule = 1 Event + optional Condition + 1 Action, ссылки прямые. ActionRegistry/ConditionRegistry отсутствуют до реального use case. `RuleState` = данные, `RunnerContext` = infrastructure. Base State содержит только EventState; Condition и Action получают тот же экземпляр, каждый Rule/Fire получает новый State. Пустой payload — `EcaEventStateEmpty`, readonly struct без Value; есть non-generic Event/Rule shortcuts.
+Event declaration-only, Rule = 1 Event + optional Condition + 1 Action, прямые ссылки. Condition/Action — программные executable declarations с metadata. RuleState = data, RunnerContext = infrastructure; marker contexts не содержат Commands/services. EcaEventStateEmpty без Value и Base/empty shortcuts сохранены. Нет Systems, Commands integration, cancellation, queues, StateBuilder/ContextFactory, ActionRegistry/ConditionRegistry, Rule statuses и универсального ExecutionState.
 
-EventRegistry заполняется заранее, duplicate Id отклоняется; Id + точный EventStateType определяют идентичность. Fire не регистрирует Event. RuleRegistry требует зарегистрированный Event и Action, выбирает снимок Rules в порядке регистрации. EventDispatcher зависит только от EventRegistry и испускает **обычное синхронное C# событие Fired**. Queue/pendingEvents/deferred dispatch отсутствуют. Engine подписывается на Dispatcher; Dispose только снимает подписку. Fire вызывается на Dispatcher.
+### Изменения Base и общий bridge
 
-BaseEngine работает через `IEcaRuleRunner` и opaque `IEcaRuleRun`: сначала CreateRun для всех Rules, затем Check всех, затем RunAction прошедших. **ALL CONDITIONS → ALL ACTIONS принадлежит Engine**, локально одному invocation. Task не ожидаются, как в старом Base; синхронные ошибки прерывают pipeline, ошибка Condition не допускает его Action-фазу.
+EcaRuleRunner больше не sealed; CreateRun/Check/RunAction virtual. Общий occurrence visitor вызывает ValidateRule<T>, затем protected virtual CreateTyped<T>. Слой создаёт State и contexts и передаёт их в унаследованный protected CreateRunCore<T, TS, TC, TA>. Единственный private RuleRun<T, TS, TC, TA>/RunBridge<T, TS, TC, TA> находится в Base. Token хранит typed Rule, State, две роли infrastructure и owner, но не выполняется сам. Bridge восстанавливает типы и вызывает методы RuleRunner, которые используют независимые ConditionRunner/ActionRunner. Private pairing и owner check защищают приведение. Dynamic/reflection execution нет.
 
-Типовая модель: полный `IEcaRule<TEventState, TRuleState, TConditionRunnerContext, TActionRunnerContext>` и простой Base `EcaRule<TEventState>`. Condition/Action contravariant по входам; RuleState covariant по read-only payload, Event/Rule invariant. Base runner использует `EcaRuleState<T>` и marker runner contexts. Другую специализацию должен обслужить другой runner.
+EcaExecutionRuleRunner наследует EcaRuleRunner: получает Group, создаёт Execution State и общий inner token, оборачивает его в пассивный ExecutionRuleRun(owner, inner, group). Check → base.Check(inner), RunAction → group.Run(() => base.RunAction(inner)). EcaScopeRuleRunner наследует Execution runner и переопределяет только compatibility и typed creation Scope State/contexts. GetGroup/WrapRun, Check/RunAction, admission/lifecycle и большой Base bridge переиспользуются. Копий RunBridge по слоям нет.
 
-C# не умеет восстановить неизвестный закрытый T из non-generic token. Решение состоит из двух маленьких мостов: generic EventOccurrence вызывает `Visit<T>` на отдельном CreateRequest; после typed-проверки RuleRunner создаёт private RuleRun<T> с typed Rule/State. Token связан со stateless RunBridge<T>, который возвращает управление generic-методам **RuleRunner**, а те вызывают независимые ConditionRunner/ActionRunner. Token и Rule не имеют методов выполнения. Private pairing token/bridge и owner guard делают внутреннее приведение безопасным; dynamic/reflection execution нет. Публичны только opaque token/runner seam и occurrence visitor в Base, чтобы другой слой из своей assembly мог заменить runner. Конкретные request/token/bridge скрыты. Подробное объяснение — в разделе Core1 документа Context.
+C# не позволяет извлечь неизвестные generic-параметры прямо из opaque interface, поэтому сохранены visitor/adapter с четырьмя generic-параметрами. Это предусмотренное инструкцией расширение; замена concrete State contracts интерфейсами не потребовалась. IEcaRuleRun перенёс файл, сохранив namespace/assembly. Новые Base public API: ValidateRule<T>(IEcaRule), canonical EcaBaseEngine.Register/Unregister, наследуемый runner и protected hooks/core. Других Base public signatures не меняли, кроме требуемой visibility Fired.
 
-Один engine проверенно обрабатывает custom reference payload, int, nullable int и empty state. Test-only replacement runner из отдельной assembly создаёт производный State и собственную infrastructure без изменения Engine; trace Create1 → Create2 → Check1 → Check2 → Action1 → Action2. Это validation расширяемости, не Execution implementation.
+### Registration и dispatch
 
-Точный nested Fire trace: **Check A1 → Check A2 → Action A starts → Check B1 → Check B2 → Action B1:nested → Action B2 → Action A continues → Action A2**. B запускается непосредственно в стеке A до возврата Fire. Async completion не ожидается. Проверены также повторный Fire того же Event с независимым State и Fire из Condition: вложенные Actions могут пройти до оставшихся внешних Conditions, поскольку invariant действует на каждый invocation отдельно.
+Fired теперь **internal infrastructure C# event**, не публичный callback. Fire остаётся public, немедленный и reentrant. Replacement public event и InternalsVisibleTo не добавлены. External callback — только Roadmap.
 
-Не реализованы Core1 Execution/Scope/Systems/Commands integration, StateBuilder, ContextFactory, lifecycle/status model, ExecutionState, cancellation. Следующему Execution оставлены расширение State, создание данных, group/admission Overlap/Limit после Conditions, async observability, lifetime/unregister и инфраструктура RunnerContext. Он должен **переиспользовать BaseEngine через другой RuleRunner/RuleState**, не копировать Fire. Будущий EcaRunMode → EcaExecutionMode — только Execution. Возможный Group layer между Execution и Scope и queued/deferred Event processing как optional future execution policy отражены в Roadmap; Save/Load, Gates, Queries, Sequence, Inspection не дублируются.
+Canonical BaseEngine.Register вызывает validation текущего runner до RuleRegistry.Register. Validation проверяет EventStateType и точную specialization; несовместимость — ошибка Register, не Fire. Defensive check в CreateRun сохранён. Low-level RuleRegistry остаётся storage без знания runner. Standalone Execution.Register<T> принимает только EcaExecutionRuleState<T>/Execution contexts, Scope.Register<T> — только EcaScopeRuleState<T>/Scope contexts; чужие специализации не компилируются через эти public signatures. Internal Execution RegisterCore нужен Scope composition, public escape hatch отсутствует.
 
-Проверки 2026-09-12: раздельная C# 9-компиляция Core1 и его tests — 0 errors / 0 warnings; NUnit вне Unity — Core1 **25/25**, старые **37/37**. Полный Unity **6000.5.6f1** batchmode EditMode suite — **62 passed, 0 failed, 0 skipped**, включая обе assemblies (25 + 37), завершение code 0. XML: `.validation~/core1-unity-results.xml`, log: `.validation~/core1-unity.log` (локальные игнорируемые артефакты). В log есть timeout Unity cloud config при завершении процесса, результат tests Passed. PlayMode и удалённый GameCI не запускались. Это локальная версия Unity, отличная от CI 6000.3.19f1.
+Execution Register: BaseEngine validate/register → ExecutionRegistry.Register(rule, mode), при ошибке второго этапа rollback Base. Canonical duplicate Register отвергается. Low-level ExecutionRegistry допускает no-op только для того же Rule instance и равного mode; другой instance/mode запрещён. Unregister удаляет Rule по identity и Group; re-register создаёт новую Group/GroupState/Limit lifetime. Custom metadata после регистрации предполагается стабильной.
+
+EventRegistry shared и заполняется извне; unknown Fire fails и никогда не регистрирует Event. Identity = Id + точный EventStateType. Каждая runtime-композиция имеет local Dispatcher/RuleRegistry/ExecutionRegistry/runner/BaseEngine.
+
+### Exact Execution pipeline
+
+EcaExecutionEngine(shared events) создаёт local RuleRegistry, Dispatcher, ExecutionRegistry, ExecutionRuleRunner и один EcaBaseEngine. Facade Fire делегирует Dispatcher. Только BaseEngine выполняет select snapshot → CreateRun всех → Check всех → RunAction passed. Engine не знает Execution/Scope и не содержит их admission. TryGetGroup позволяет наблюдать Group без выдачи изменяемого registry.
+
+После всех Conditions Execution wrapper вызывает Group.Run: Limit → Overlap → rejected без counters/execution, либо new RuleExecution(Pending) → add active → Running + TotalStarted → Action callback → await Task → Completed либо Failed + Exception → TotalFinished ровно один раз → remove active. Group и RuleExecution non-generic; Group не знает типы State/contexts и получает Func<Task>.
+
+EcaExecutionMode — Core1 имя прежнего EcaRunMode. Limit=-1 unlimited, 0 запрещает старт, N>0 ограничивает TotalStarted за lifetime Group; <-1 и неизвестный Overlap отклоняются. Ignore запрещает старт при active execution, Allow допускает несколько. Conditions проверяются даже при rejected admission; Failed расходует Limit. Running и Started устанавливаются до callback для корректного nested Ignore/Limit.
+
+Sync throw, faulted Task, null Task и отменённый пользовательский Task становятся Failed; Group поглощает Action failure, остальные passed Rules продолжаются. Fire не ждёт completion. У голого Base сохранены прежние sync exception propagation и ненаблюдаемый Task. Condition exception прерывает Fire до любых его admissions/Actions и не создаёт execution.
+
+### Exact Scope composition и lifetime
+
+Вертикальные классы: EcaRuleState<T> (EventState) → EcaExecutionRuleState<T> (+ RuleExecutionGroupState) → EcaScopeRuleState<T> (+ ScopeState). Condition/Action получают один State на Rule/Fire. GroupState общий для Fire одной регистрации; ScopeState только с ScopeId общий для конкретного Scope. State не хранит engine/registry/Scope/service.
+
+CreateScope: validate parent/ScopeId → new ScopeState → new ExecutionRegistry → new ScopeRuleRunner(groups, state) → internal ExecutionEngine(shared events, groups, runner) → local Dispatcher/RuleRegistry/BaseEngine → new Scope → hierarchy registration. Общий между scopes только EventRegistry. Same Rule instance допустим в нескольких scopes; Groups/GroupState/Limit/active executions/RuleState независимы.
+
+Hierarchy = ownership/lifetime, Fire строго local, без parent/children/sibling propagation. Dispose parent каскадно закрывает descendants, ScopeEngine.Dispose — roots; sibling вне удаляемой ветви сохраняется. Dispose idempotent. Active ScopeId уникален, scope-N пропускает занятые ID; reused ID создаёт новый State, stale instance не удаляет замену и не создаёт child.
+
+Execution/Scope Dispose запрещает новые Fire/Register/Unregister; Scope также CreateScope. BaseEngine отписывается, execution registry очищается. Active Actions не cancel: старые callbacks/runs удерживают Group/State и завершаются естественно. Старое completion/failure не меняет новую Group/Scope. Уже выбранные runs текущего Fire сохраняют snapshot/Group references при Unregister/Dispose во время invocation; ограничения facade относятся к новым вызовам.
+
+Точный Scope trace теста: **Check A1 → Check A2 → A1 starts → Check B1 → Check B2 → B1 starts:nested → B2 → A1 continues → A2**. B1 остаётся pending Task, после явного завершения добавляется **B1 completes**, sibling не вызывается. Синхронный Execution trace: **Check A → A starts → Check B → B:value → A continues → Empty**. Invariant ALL CONDITIONS → ALL ACTIONS действует отдельно на каждый Fire, включая вызовы из Condition.
+
+### Проверки 2026-09-12
+
+- Runtime Core1 и отдельная Core1 tests assembly компилируются с C# 9 без ошибок/предупреждений.
+- NUnit вне Unity: Core1 **75 passed, 0 failed, 0 skipped**; старый Core **37 passed, 0 failed, 0 skipped**.
+- Полный Unity **6000.5.6f1** batchmode EditMode: **112 passed, 0 failed, 0 skipped**, Core1 75 + прежние 37, exit code 0.
+- Новые сценарии покрывают State verticality, shared State, all-checks-before-admission, Limit/Overlap, sync/async/null Task failures, registration rollback, re-register, несколько TEventState, nested Fire, Scope isolation/hierarchy/shared events, active Tasks после Dispose и матрицу совместимости слоёв.
+- Tests не подписываются на Fired. Reflection используется только в тестах для проверки public API/visibility и кратковременного Pending, не в execution runtime.
+- Локальные игнорируемые артефакты: `.validation~/execution-scope-unity-results.xml`, `.validation~/execution-scope-unity.log`; NUnit XML — `.validation~/core1-Core1Tests-nunit.xml` и `.validation~/core1-Compile-nunit.xml`.
+- Локальная Unity отличается от CI 6000.3.19f1. Удалённый GameCI и PlayMode не запускались.
+
+Следующий шаг — review Core1 Execution/Scope. Commands через RunnerContext и Systems обсуждаются отдельно. External callback, deferred/queued Fire, trace/depth diagnostics, cross-scope Fire, cancellation cleanup hook, optional Group vertical layer, Inspection/history остаются будущими возможностями Roadmap; Save/Load не дублируется.
 
 ## Проект и сохранённый Runtime/Core
 
@@ -52,7 +88,7 @@ IEcaScopeContext<TEventContext> наследует IEcaExecutionContext<TEventCo
 
 Механизм создания/расширения контекстов необходимо определить до полноценного Systems runtime: Scope уже требует ScopeState, Systems позже добавит SystemState. Универсальная фабрика не обязательна; временный service locator или скрытый runtime service внутри data context недопустимы.
 
-## Направления после Base/Execution prototype
+## Направления после review Execution/Scope
 
 Вертикальная ось — features/layers: Base, Commands, Execution, Scope, Systems, возможный Inspection/Debug. Это не строгая линейная Clean Architecture; понятную структуру папок желательно сохранить до MVP.
 
@@ -92,4 +128,4 @@ Input coverageEnabled не задан. Прежний recovery-срез сооб
 
 Пользователь обсуждает архитектуру, затем передаёт временную инструкцию. Более поздние решения имеют приоритет; перед изменениями нужно читать актуальный код и Git-состояние. Не реализовывать отложенные возможности без запроса. Постоянная документация ведётся на русском.
 
-Core1 prototype выполняется в новой ветке `codex/core1-base-prototype` от актуального main, с commit и push. Временный instructions-файл и его .meta удаляются перед final commit. PR пользователь создаёт вручную.
+Core1 Execution/Scope выполняется в новой ветке `codex/core1-execution-scope` от актуального main, с commit и push. Временный instructions-файл и его .meta удаляются перед final commit. PR пользователь создаёт вручную.

@@ -27,14 +27,15 @@ namespace EcaSystems.Tests.Core1
         [Test]
         public void Dispatcher_UnknownOrConflictingFire_FailsBeforeNotificationAndNeverRegisters()
         {
-            var events = new EcaEventRegistry();
-            var dispatcher = new EcaEventDispatcher(events);
+            using var f = new BaseFixture();
+            var events = f.Events;
+            var dispatcher = f.Dispatcher;
             var notifications = 0;
-            dispatcher.Fired += _ => notifications++;
             var evt = new EcaEvent<int>("event", "Event");
             Assert.Throws<InvalidOperationException>(() => dispatcher.Fire(evt, 1));
             Assert.That(events.IsRegistered(evt), Is.False);
             events.Register(evt);
+            f.Rule("r", evt, _ => notifications++);
             Assert.Throws<InvalidOperationException>(() => dispatcher.Fire(new EcaEvent<string>("event", "Wrong"), "x"));
             Assert.That(notifications, Is.Zero);
             dispatcher.Fire(new EcaEvent<int>("event", "Alias"), 42);

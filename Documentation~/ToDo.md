@@ -16,22 +16,24 @@
 - [x] GitHub Actions CI: один EditMode job, Unity 6000.3.19f1 / GameCI packageMode, копия пакета в _ci/EcaSystemsPackage; прошлый recovery-срез сообщает 31/31 passed.
 - [x] Architecture checkpoint: EcaBaseEngine, общий Execution context contract, EcaScopeState и Scope context contract; runtime wiring ScopeState явно отложен.
 
-## 1. Validation Core1 Base — текущая итерация
+## 1. Core1 Execution/Scope — реализовано, требуется review
 
-- [x] Параллельный prototype в Runtime/Core1: временная вертикальная ось A, плоские A/Abstractions, Base и Utils. Старый Runtime/Core и прежние tests сохранены.
-- [x] Event declaration-only; Rule = 1 Event + optional Condition + 1 Action; Condition/Action остаются программными executable contracts.
-- [x] RuleState только с EventState; RunnerContext — отдельная infrastructure. Независимые ConditionRunner/ActionRunner, без factories, lifecycle/status и ExecutionState.
-- [x] EventRegistry + обычное синхронное C# Fired event, immediate/reentrant Fire без queue/pendingEvents.
-- [x] RuleRun/type-erasure seam без dynamic/reflection execution; один BaseEngine работает с разными TEventState и владеет ALL CONDITIONS → ALL ACTIONS.
-- [x] Отдельные Core1 tests: generic/empty payload, один State в двух ролях, фазовый порядок, nested/reentrant Fire, ошибки, snapshot, async semantics и замена runner из другой assembly.
-- [ ] Обсудить результаты prototype и API перед следующим слоем. Технические детали и проверки — в Context и кратком recovery.
+- [x] Параллельная вертикаль Abstractions → Base → Execution → Scope в Runtime/Core1; старый Core и tests сохранены.
+- [x] IEcaRuleRun вынесен в плоскую Abstractions; один extensible Base bridge обслуживает Base/Execution/Scope.
+- [x] Canonical BaseEngine.Register валидирует текущую specialization до storage; standalone Execution/Scope имеют точные типизированные public Register.
+- [x] Fired стал internal C# event; nested Fire синхронный/reentrant без очередей и public gameplay callback.
+- [x] Execution reuse BaseEngine через ExecutionRuleRunner; non-generic Group/RuleExecution, EcaExecutionMode, admission после всех Conditions, наблюдение Action Task.
+- [x] Scope reuse Execution + BaseEngine через ScopeRuleRunner; вертикальные State, shared EventRegistry, local runtime и local Fire, hierarchy/lifetime.
+- [x] Unregister/Dispose не отменяют active Actions; повторная регистрация создаёт независимые GroupState/Limit.
+- [x] Core1 Base regression и новые Execution/Scope tests: State, compatibility, Limit/Overlap, lifecycle/errors, несколько TEventState, nested Fire, isolation, shared EventRegistry, hierarchy, dispose и re-registration.
+- [ ] Review public API Core1 Execution/Scope и общей модели bridge/wrapper. Core1 не объявлять окончательной заменой Runtime/Core до этого review.
+- [ ] Отдельно обсудить Commands через RunnerContext и Systems; не начинать их реализацию автоматически.
 
-## 2. Execution reuse of BaseEngine — после Base
+## 2. Следующие архитектурные решения после review
 
-- [ ] Использовать другой RuleRunner/RuleState поверх того же EcaBaseEngine, не копировать Fire pipeline.
-- [ ] Определить расширенные данные State, group/admission Overlap/Limit после всех Conditions, наблюдение Task, lifetime/unregister и infrastructure RunnerContext.
-- [ ] В новом Execution переименовать EcaRunMode в EcaExecutionMode; не переносить mode в Base.
-- [ ] Обсудить возможный отдельный Group layer между Execution и Scope (Roadmap), без реализации заранее.
+- [ ] Согласовать будущий доступ к Commands из RunnerContext, сохраняя RuleState только данными; текущий Commands v1 старого Core не менять до решения.
+- [ ] Согласовать ownership/exports Systems и интеграцию с общим EventRegistry и local runtime scopes.
+- [ ] Возможный Group vertical layer между Execution и Scope остаётся только future mental-test в Roadmap.
 - [ ] Не добавлять ActionRegistry/ConditionRegistry до реального use case; StateBuilder/ContextFactory не считать обязательным решением.
 
 ## 3. Архитектура Scope/Systems после Execution
@@ -41,7 +43,7 @@
 - [ ] Развить relation Event ↔ Rule/Condition/Action ↔ Execution на выбранном RuleRun seam.
 - [ ] Спроектировать Fire Event/routing и ownership Scope поверх выбранного синхронного EventDispatcher, без циклических зависимостей.
 - [ ] Рассматривать System как адаптер и ownership boundary, а не центральный runtime container Events/Commands/State. Не закреплять прежнее предположение, что отдельные Condition Queries не нужны.
-- [ ] Сохранить расширение Context по слоям; решить создание и выбор расширенных контекстов для ScopeState. Текущий Scope.Fire поддерживает только точные Execution role types; контракт Scope ещё не означает runtime wiring.
+- [x] Core1 ScopeState подключён в реальный Scope.Fire через ScopeRuleState и общий Base bridge; старый Core Scope wiring остаётся без изменений.
 - [ ] Пересмотреть bound Commands с учётом RuleState = data / RunnerContext = infrastructure, сохранив текущий Commands v1 до решения.
 - [ ] После этого вернуться к Events + Systems implementation: интеграционная поверхность Events, Commands, State, возможные Condition Queries; SystemState сначала предполагается глобальным.
 - [ ] Использовать термин System, не Module. DI и размещение root engine остаются решением приложения.
@@ -67,4 +69,4 @@ Cancellation, Reset, Queue, плавный Unregister и маршрутизац�
 
 ## Позже: удобство API и улучшение кода
 
-Core1 имеет минимальные Base/empty shortcuts. Дальнейшая ergonomics/factory API учтена в [Roadmap.md](Roadmap.md). Универсальная фабрика не является выбранным решением: новый State создаёт конкретный RuleRunner; расширение данных и infrastructure обсуждается в этапах 2–3.
+Core1 имеет минимальные Base/empty shortcuts. Дальнейшая ergonomics/factory API учтена в [Roadmap.md](Roadmap.md). Универсальная фабрика не является выбранным решением: вертикальный State создаёт конкретный RuleRunner; дальнейшее расширение для Commands/Systems обсуждается после review.
