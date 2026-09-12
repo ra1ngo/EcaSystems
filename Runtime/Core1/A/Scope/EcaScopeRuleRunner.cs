@@ -2,7 +2,7 @@ using System;
 
 namespace EcaSystems.Core1
 {
-    public sealed class EcaScopeRuleRunner : EcaExecutionRuleRunner
+    public class EcaScopeRuleRunner : EcaExecutionRuleRunner
     {
         private readonly EcaScopeState _scopeState;
         private readonly IEcaScopeConditionRunnerContext _conditionContext = new ConditionRunnerContext();

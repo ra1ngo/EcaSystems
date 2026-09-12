@@ -7,14 +7,20 @@ namespace EcaSystems.Core1
     public sealed class EcaScopeEngine : IDisposable
     {
         private readonly EcaEventRegistry _events;
+        private readonly Func<EcaRuleExecutionRegistry, EcaScopeState, EcaScopeRuleRunner> _runnerFactory;
         private readonly Dictionary<string, EcaScope> _scopes = new(StringComparer.Ordinal);
         private readonly Dictionary<string, HashSet<EcaScope>> _children = new(StringComparer.Ordinal);
         private long _nextScopeId = 1;
         private bool _isDisposed;
 
         public EcaScopeEngine(EcaEventRegistry events)
+            : this(events, (groups, state) => new EcaScopeRuleRunner(groups, state)) { }
+
+        internal EcaScopeEngine(EcaEventRegistry events,
+            Func<EcaRuleExecutionRegistry, EcaScopeState, EcaScopeRuleRunner> runnerFactory)
         {
             _events = events ?? throw new ArgumentNullException(nameof(events));
+            _runnerFactory = runnerFactory ?? throw new ArgumentNullException(nameof(runnerFactory));
         }
 
         public int ScopeCount => _scopes.Count;
@@ -46,7 +52,9 @@ namespace EcaSystems.Core1
                registries, dispatcher, runner, BaseEngine и lifetime GroupState. */
             var state = new EcaScopeState(scopeId);
             var groups = new EcaRuleExecutionRegistry();
-            var runner = new EcaScopeRuleRunner(groups, state);
+            /* Верхний слой выбирает runner, сохраняя общую композицию и hierarchy. */
+            var runner = _runnerFactory(groups, state)
+                ?? throw new InvalidOperationException("Scope runner factory returned null.");
             var execution = new EcaExecutionEngine(_events, groups, runner);
             var scope = new EcaScope(this, execution, state, parent?.ScopeId);
             _scopes.Add(scopeId, scope);

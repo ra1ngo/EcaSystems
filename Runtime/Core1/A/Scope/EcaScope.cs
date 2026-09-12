@@ -27,7 +27,12 @@ namespace EcaSystems.Core1
         }
 
         public void Register<T>(IEcaRule<T, EcaScopeRuleState<T>, IEcaScopeConditionRunnerContext,
-            IEcaScopeActionRunnerContext> rule, EcaExecutionMode mode)
+            IEcaScopeActionRunnerContext> rule, EcaExecutionMode mode) => RegisterCore(rule, mode);
+
+        internal void RegisterCore<T, TS, TC, TA>(IEcaRule<T, TS, TC, TA> rule, EcaExecutionMode mode)
+            where TS : IEcaScopeRuleState<T>
+            where TC : IEcaScopeConditionRunnerContext
+            where TA : IEcaScopeActionRunnerContext
         {
             ThrowIfDisposed();
             _executionEngine.RegisterCore(rule, mode);
