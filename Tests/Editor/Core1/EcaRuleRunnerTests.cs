@@ -12,15 +12,15 @@ namespace EcaSystems.Tests.Core1
         [Test]
         public void Runner_RejectsForeignTokensAndMismatchedRules()
         {
-            var runner = new EcaRuleRunner();
-            using var f = new BaseFixture();
+            var runner = new RecordingRuleRunner();
+            using var f = new BaseFixture(runner);
             var evt = f.Event<int>("event");
             var other = f.Event<string>("other");
             var rule = new EcaRule<int>("r", "Rule", evt, new TestAction<EcaRuleState<int>>((_, __) => Task.CompletedTask));
-            EcaEventOccurrence occurrence = null;
-            f.Dispatcher.Fired += value => occurrence = value;
+            f.Engine.Register(rule);
+            f.Rule("other.rule", other, _ => { });
             f.Dispatcher.Fire(evt, 3);
-            var run = runner.CreateRun(rule, occurrence);
+            var run = runner.LastRun;
             Assert.That(runner.Check(run), Is.True);
             Assert.That(runner.RunAction(run), Is.SameAs(Task.CompletedTask));
             Assert.Throws<ArgumentException>(() => new EcaRuleRunner().Check(run));
@@ -28,7 +28,7 @@ namespace EcaSystems.Tests.Core1
             Assert.Throws<ArgumentException>(() => runner.Check(new ForeignRun()));
             Assert.Throws<ArgumentNullException>(() => runner.Check(null));
             f.Dispatcher.Fire(other, "wrong");
-            Assert.Throws<ArgumentException>(() => runner.CreateRun(rule, occurrence));
+            Assert.Throws<ArgumentException>(() => runner.CreateRun(rule, runner.LastOccurrence));
         }
 
         [Test]
@@ -67,16 +67,16 @@ namespace EcaSystems.Tests.Core1
             for (var i = 1; i <= 2; i++)
             {
                 var id = i.ToString();
-                ProbeState checkedState = null;
-                f.Rules.Register(new EcaRule<int, ProbeState, IEcaConditionRunnerContext, IEcaActionRunnerContext>(
-                    id, id, evt, new TestAction<ProbeState>((s, c) =>
+                ProbeState<int> checkedState = null;
+                f.Engine.Register(new EcaRule<int, ProbeState<int>, IEcaConditionRunnerContext, IEcaActionRunnerContext>(
+                    id, id, evt, new TestAction<ProbeState<int>>((s, c) =>
                     {
                         Assert.That(s, Is.SameAs(checkedState));
                         Assert.That(s.EventState, Is.EqualTo(8));
                         Assert.That(c, Is.SameAs(runner.ActionInfrastructure));
                         trace.Add("Action" + id);
                         return Task.CompletedTask;
-                    }), new TestCondition<ProbeState>((s, c) =>
+                    }), new TestCondition<ProbeState<int>>((s, c) =>
                     {
                         checkedState = s;
                         Assert.That(c, Is.SameAs(runner.ConditionInfrastructure));
@@ -89,70 +89,57 @@ namespace EcaSystems.Tests.Core1
         }
 
         [Test]
-        public void UnsupportedStateSpecialization_FailsDuringCreateBeforeAnyCondition()
+        public void UnsupportedStateSpecialization_FailsDuringCanonicalRegister()
         {
             using var f = new BaseFixture();
             var evt = f.Event<int>("event");
             var checks = 0;
-            f.Rule("base", evt, _ => Assert.Fail("No action expected"), _ => { checks++; return true; });
-            f.Rules.Register(new EcaRule<int, ProbeState, IEcaConditionRunnerContext, IEcaActionRunnerContext>(
-                "derived", "Derived", evt, new TestAction<ProbeState>((_, __) => Task.CompletedTask)));
-            Assert.Throws<ArgumentException>(() => f.Dispatcher.Fire(evt, 0));
+            f.Rule("base", evt, _ => { }, _ => { checks++; return true; });
+            var unsupported = new EcaRule<int, ProbeState<int>, IEcaConditionRunnerContext, IEcaActionRunnerContext>(
+                "derived", "Derived", evt, new TestAction<ProbeState<int>>((_, __) => Task.CompletedTask));
+            Assert.Throws<ArgumentException>(() => f.Engine.Register(unsupported));
+            Assert.That(f.Rules.GetByEvent(evt).Count, Is.EqualTo(1));
             Assert.That(checks, Is.Zero);
         }
 
         private sealed class ForeignRun : IEcaRuleRun { }
         private sealed class ConditionContext : IEcaConditionRunnerContext { }
         private sealed class ActionContext : IEcaActionRunnerContext { }
-        private sealed class ProbeState : EcaRuleState<int>
+        private sealed class ProbeState<T> : EcaRuleState<T>
         {
-            internal ProbeState(int eventState) : base(eventState) { }
+            internal ProbeState(T eventState) : base(eventState) { }
         }
 
-        /* A test-only external runner proves the public seam works from a separate
-           assembly. It deliberately supports one concrete state, no Execution model. */
-        private sealed class ProbeRunner : IEcaRuleRunner
+        private sealed class RecordingRuleRunner : EcaRuleRunner
+        {
+            internal IEcaRuleRun LastRun;
+            internal EcaEventOccurrence LastOccurrence;
+            public override IEcaRuleRun CreateRun(IEcaRule rule, EcaEventOccurrence occurrence)
+            {
+                LastOccurrence = occurrence;
+                return LastRun = base.CreateRun(rule, occurrence);
+            }
+        }
+
+        /* Внешний производный runner расширяет State, используя тот же Base bridge. */
+        private sealed class ProbeRunner : EcaRuleRunner
         {
             private readonly List<string> _trace;
             internal readonly IEcaConditionRunnerContext ConditionInfrastructure = new ConditionContext();
             internal readonly IEcaActionRunnerContext ActionInfrastructure = new ActionContext();
             internal ProbeRunner(List<string> trace) { _trace = trace; }
 
-            public IEcaRuleRun CreateRun(IEcaRule rule, EcaEventOccurrence occurrence)
+            protected override void ValidateTyped<T>(IEcaRule rule)
+            {
+                if (!(rule is IEcaRule<T, ProbeState<T>, IEcaConditionRunnerContext, IEcaActionRunnerContext>))
+                    throw new ArgumentException("Unsupported probe rule.", nameof(rule));
+            }
+
+            protected override IEcaRuleRun CreateTyped<T>(IEcaRule rule, IEcaEvent<T> ecaEvent, T eventState)
             {
                 _trace.Add("Create" + rule.Id);
-                return new ProbeRun
-                {
-                    Rule = (IEcaRule<int, ProbeState, IEcaConditionRunnerContext, IEcaActionRunnerContext>)rule,
-                    State = new ProbeState(occurrence.Accept(new IntReader()))
-                };
-            }
-
-            public bool Check(IEcaRuleRun run)
-            {
-                var data = (ProbeRun)run;
-                return data.Rule.Condition == null || new EcaConditionRunner().Check(data.Rule.Condition, data.State, ConditionInfrastructure);
-            }
-
-            public Task RunAction(IEcaRuleRun run)
-            {
-                var data = (ProbeRun)run;
-                return new EcaActionRunner().Run(data.Rule.Action, data.State, ActionInfrastructure);
-            }
-
-            private sealed class ProbeRun : IEcaRuleRun
-            {
-                internal IEcaRule<int, ProbeState, IEcaConditionRunnerContext, IEcaActionRunnerContext> Rule;
-                internal ProbeState State;
-            }
-
-            private sealed class IntReader : IEcaEventOccurrenceVisitor<int>
-            {
-                public int Visit<T>(IEcaEvent<T> ecaEvent, T eventState)
-                {
-                    if (typeof(T) != typeof(int)) throw new ArgumentException("Probe supports int only.");
-                    return (int)(object)eventState;
-                }
+                var typed = (IEcaRule<T, ProbeState<T>, IEcaConditionRunnerContext, IEcaActionRunnerContext>)rule;
+                return CreateRunCore(typed, new ProbeState<T>(eventState), ConditionInfrastructure, ActionInfrastructure);
             }
         }
     }

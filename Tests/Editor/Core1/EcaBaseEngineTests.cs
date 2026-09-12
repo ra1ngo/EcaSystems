@@ -23,7 +23,7 @@ namespace EcaSystems.Tests.Core1
             f.Rule("r1", reference, s => { Assert.That(s.EventState, Is.SameAs(payload)); trace.Add("reference"); });
             f.Rule("r2", number, s => trace.Add("int:" + s.EventState), s => s.EventState > 0);
             f.Rule("r3", nullable, s => { Assert.That(s.EventState, Is.Null); trace.Add("nullable"); });
-            f.Rules.Register(new EcaRule("r4", "Empty rule", empty,
+            f.Engine.Register(new EcaRule("r4", "Empty rule", empty,
                 new TestAction<EcaRuleState<EcaEventStateEmpty>>((s, _) =>
                 {
                     Assert.That(s.EventState, Is.EqualTo(default(EcaEventStateEmpty)));
@@ -184,7 +184,7 @@ namespace EcaSystems.Tests.Core1
                 Assert.That(state.EventState, Is.EqualTo(9));
                 trace.Add("completed");
             }
-            f.Rules.Register(new EcaRule<int>("async", "Async", evt,
+            f.Engine.Register(new EcaRule<int>("async", "Async", evt,
                 new TestAction<EcaRuleState<int>>((s, _) => running = Run(s)),
                 new TestCondition<EcaRuleState<int>>((s, _) => { checkedState = s; return true; })));
             f.Rule("next", evt, _ => trace.Add("next"));
@@ -206,7 +206,7 @@ namespace EcaSystems.Tests.Core1
             var evt = f.Event<int>("event");
             var failed = Task.FromException(new InvalidOperationException("async failure"));
             var ran = false;
-            f.Rules.Register(new EcaRule<int>("failed", "Failed", evt,
+            f.Engine.Register(new EcaRule<int>("failed", "Failed", evt,
                 new TestAction<EcaRuleState<int>>((_, __) => failed)));
             f.Rule("next", evt, _ => ran = true);
             Assert.DoesNotThrow(() => f.Dispatcher.Fire(evt, 0));
@@ -227,7 +227,7 @@ namespace EcaSystems.Tests.Core1
                 if (!changed)
                 {
                     changed = true;
-                    f.Rules.Unregister(removed);
+                    f.Engine.Unregister(removed);
                     f.Rule("new", evt, s => trace.Add("new"));
                 }
                 return true;
@@ -244,15 +244,15 @@ namespace EcaSystems.Tests.Core1
             using var f = new BaseFixture();
             var evt = f.Event<int>("event");
             var actions = 0;
-            var notifications = 0;
             f.Rule("r", evt, _ => actions++);
-            f.Dispatcher.Fired += _ => notifications++;
             f.Dispatcher.Fire(evt, 0);
             f.Engine.Dispose();
             f.Engine.Dispose();
             f.Dispatcher.Fire(evt, 0);
             Assert.That(actions, Is.EqualTo(1));
-            Assert.That(notifications, Is.EqualTo(2));
+            using var replacement = new EcaBaseEngine(f.Dispatcher, f.Rules, new EcaRuleRunner());
+            f.Dispatcher.Fire(evt, 0);
+            Assert.That(actions, Is.EqualTo(2));
         }
 
         private sealed class Payload { internal int Value; }

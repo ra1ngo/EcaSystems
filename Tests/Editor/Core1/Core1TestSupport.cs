@@ -31,7 +31,7 @@ namespace EcaSystems.Tests.Core1
             var rule = new EcaRule<T>(id, id, ecaEvent,
                 new TestAction<EcaRuleState<T>>((s, _) => { action(s); return Task.CompletedTask; }),
                 condition == null ? null : new TestCondition<EcaRuleState<T>>((s, _) => condition(s)));
-            Rules.Register(rule);
+            Engine.Register(rule);
             return rule;
         }
 
