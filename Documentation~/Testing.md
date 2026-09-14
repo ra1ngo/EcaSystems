@@ -69,3 +69,9 @@ Core2 tests находятся в `Tests/Editor/Core2`, assembly `EcaSystems.Cor
 Локальный полный Unity 6000.5.6f1 batchmode EditMode run: **202 passed, 0 failed, 0 skipped** (Core — 37, Core1 — 77, Core2 — 88: 27 Base + 61 Execution). Core2 компилируется в составе package с прежним asmdef и `noEngineReferences`. Первая попытка остановилась до тестов на двух конфликтах имени тестового Action с System.Action; после уточнения имён повторный полный запуск прошёл. XML и logs хранятся в игнорируемой `.validation~`, в коммит не включены.
 
 PlayMode scenarios отсутствуют; удалённый GameCI в рамках этой итерации не запускался. Старые Core/Core1 и Core2/Base tests сохранены без изменений.
+
+## Core2 Scope — 2026-09-15
+
+Добавлен 21 NUnit case в `Tests/Editor/Core2/EcaScopeTests.cs`: ScopeId/state validation, default Register и typed ExecutionGroup, расширение готового IEcaExecutionRuleState через Func, пользовательский rich State/contexts, свежие состояния фаз, общий ScopeState, barrier/selection, overlap/limit, изоляция независимых ExecutionRuntime с общей Event/Rule declaration, direct reentrant Fire, Unregister активного запуска, ошибки extension и Base ForceFire с caller state.
+
+Полный локальный Unity 6000.5.6f1 batchmode EditMode suite: **223 passed, 0 failed, 0 skipped**. Core — 37, Core1 — 77, Core2 — 109 (27 Base + 61 Execution + 21 Scope). Компиляция package успешна с существующим Core2 asmdef и noEngineReferences; все 202 прежних теста сохранены. XML/log: `.validation~/core2-scope-unity-results.xml` и `.validation~/core2-scope-unity.log`, не коммитятся. PlayMode scenarios отсутствуют; удалённый GameCI в этой итерации не запускался.
