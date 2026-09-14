@@ -3,13 +3,14 @@ using System.Collections.Generic;
 
 namespace EcaSystems.Core2
 {
-    public sealed class EcaBaseRuntime //: IDisposable
+    //public sealed class EcaBaseRuntime : IDisposable
+    public class EcaBaseRuntime 
     {
         private readonly IEcaRuleRegistry _rules;
-        private readonly IEcaActionRunner actionRunner;
+        private readonly IEcaActionRunner _actionRunner;
         private readonly IEcaConditionChecker _conditionChecker;
 
-        public EcaBaseEngine(EcaRuleRegistry rules, IEcaActionRunner actionRunner, IEcaConditionChecker conditionChecker)
+        public EcaBaseRuntime(IEcaRuleRegistry rules, IEcaActionRunner actionRunner, IEcaConditionChecker conditionChecker)
         {
             _rules = rules ?? throw new ArgumentNullException(nameof(rules));
             _actionRunner = actionRunner ?? throw new ArgumentNullException(nameof(actionRunner));

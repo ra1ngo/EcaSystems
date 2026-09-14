@@ -4,7 +4,4 @@ namespace EcaSystems.Core2
     {
         IEcaCommands Commands { get; }
     }
-
-    public interface IEcaCommandsActionContext<TEventContext>
-        : IEcaCommandsActionContext, IEcaActionContext<TEventContext> { }
 }
