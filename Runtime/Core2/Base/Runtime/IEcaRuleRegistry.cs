@@ -4,36 +4,16 @@ namespace EcaSystems.Core2
 {
     public interface IEcaRuleRegistry
     {
-        void Register<
-            TEventState,
-            TRuleState,
-            TConditionContext,
-            TActionContext>(
-            IEcaRule<
-                TEventState,
-                TRuleState,
-                TConditionContext,
-                TActionContext> rule)
-            where TRuleState : IEcaRuleState<TEventState>
-            where TConditionContext : IEcaConditionContext
-            where TActionContext : IEcaActionContext;
+        void Register<E, R, C, A>(IEcaRule<E, R, C, A> rule)
+            where R : IEcaRuleState<E>
+            where C : IEcaConditionContext
+            where A : IEcaActionContext;
 
         bool Unregister(IEcaRule rule);
 
-        IReadOnlyList<
-            IEcaRule<
-                TEventState,
-                TRuleState,
-                TConditionContext,
-                TActionContext>>
-            GetByEvent<
-                TEventState,
-                TRuleState,
-                TConditionContext,
-                TActionContext>(
-                IEcaEvent<TEventState> ecaEvent)
-            where TRuleState : IEcaRuleState<TEventState>
-            where TConditionContext : IEcaConditionContext
-            where TActionContext : IEcaActionContext;
+        IReadOnlyList<IEcaRule<E, R, C, A>> GetByEvent<E, R, C, A>(IEcaEvent<E> ecaEvent)
+            where R : IEcaRuleState<E>
+            where C : IEcaConditionContext
+            where A : IEcaActionContext;
     }
 }

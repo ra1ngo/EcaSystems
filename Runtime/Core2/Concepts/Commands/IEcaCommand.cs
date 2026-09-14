@@ -7,9 +7,9 @@ namespace EcaSystems.Core2
         string Id { get; }
     }
 
-    public interface IEcaCommand<in TContext, in TArgs> : IEcaCommand
-        where TContext : IEcaActionContext
+    public interface IEcaCommand<in C, in A> : IEcaCommand
+        where C : IEcaActionContext
     {
-        Task Run(TContext context, TArgs args);
+        Task Run(C context, A args);
     }
 }

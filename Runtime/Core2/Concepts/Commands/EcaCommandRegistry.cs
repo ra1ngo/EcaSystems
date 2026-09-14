@@ -8,15 +8,15 @@ namespace EcaSystems.Core2
     {
         private readonly Dictionary<string, IEcaCommandEntry> _commands = new(StringComparer.Ordinal);
 
-        public void Register<TContext, TArgs>(IEcaCommand<TContext, TArgs> command)
-            where TContext : IEcaActionContext
+        public void Register<C, A>(IEcaCommand<C, A> command)
+            where C : IEcaActionContext
         {
             if (command == null) throw new ArgumentNullException(nameof(command));
             var id = command.Id;
             ValidateId(id);
             if (_commands.ContainsKey(id))
                 throw new InvalidOperationException($"Command '{id}' is already registered.");
-            _commands.Add(id, new EcaCommandEntry<TContext, TArgs>(command));
+            _commands.Add(id, new EcaCommandEntry<C, A>(command));
         }
 
         public bool Unregister(string commandId)
@@ -46,15 +46,15 @@ namespace EcaSystems.Core2
         Task Run(IEcaActionContext context, object args);
     }
 
-    internal sealed class EcaCommandEntry<TContext, TArgs> : IEcaCommandEntry
-        where TContext : IEcaActionContext
+    internal sealed class EcaCommandEntry<C, A> : IEcaCommandEntry
+        where C : IEcaActionContext
     {
-        private readonly IEcaCommand<TContext, TArgs> _command;
-        public Type ContextType => typeof(TContext);
-        public Type ArgsType => typeof(TArgs);
+        private readonly IEcaCommand<C, A> _command;
+        public Type ContextType => typeof(C);
+        public Type ArgsType => typeof(A);
 
-        public EcaCommandEntry(IEcaCommand<TContext, TArgs> command) => _command = command;
+        public EcaCommandEntry(IEcaCommand<C, A> command) => _command = command;
 
-        public Task Run(IEcaActionContext context, object args) => _command.Run((TContext)context, (TArgs)args);
+        public Task Run(IEcaActionContext context, object args) => _command.Run((C)context, (A)args);
     }
 }

@@ -29,16 +29,18 @@ namespace EcaSystems.Core2
                 _context = context;
             }
 
-            public Task Run<TArgs>(string commandId, TArgs args)
+            public Task Run<A>(string commandId, A args)
             {
                 var command = _registry.Resolve(commandId);
                 if (!command.ContextType.IsInstanceOfType(_context))
-                    throw new InvalidOperationException($"Command '{commandId}' requires action context '{command.ContextType}', received '{_context.GetType()}'.");
+                    throw new InvalidOperationException(
+                        $"Command '{commandId}' requires action context '{command.ContextType}', received '{_context.GetType()}'.");
 
                 // Проверяем объявленный тип и null: несовместимый тип нельзя скрыть за null.
-                if (!command.ArgsType.IsAssignableFrom(typeof(TArgs)) ||
+                if (!command.ArgsType.IsAssignableFrom(typeof(A)) ||
                     (args is null && command.ArgsType.IsValueType && Nullable.GetUnderlyingType(command.ArgsType) == null))
-                    throw new ArgumentException($"Command '{commandId}' requires arguments '{command.ArgsType}', received '{typeof(TArgs)}'.", nameof(args));
+                    throw new ArgumentException(
+                        $"Command '{commandId}' requires arguments '{command.ArgsType}', received '{typeof(A)}'.", nameof(args));
 
                 return command.Run(_context, args)
                     ?? throw new InvalidOperationException($"Command '{commandId}' returned null Task.");

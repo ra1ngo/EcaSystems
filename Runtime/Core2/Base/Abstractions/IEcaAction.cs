@@ -9,10 +9,10 @@ namespace EcaSystems.Core2
         string Description { get; }
     }
 
-    public interface IEcaAction<in TRuleState, in TActionContext> : IEcaAction
-        where TRuleState : IEcaRuleState
-        where TActionContext: IEcaActionContext
+    public interface IEcaAction<in R, in A> : IEcaAction
+        where R : IEcaRuleState
+        where A : IEcaActionContext
     {
-        Task Run(TRuleState state, TActionContext context);
+        Task Run(R state, A context);
     }
 }

@@ -1,1 +1,0 @@
-namespace EcaSystems.Core2

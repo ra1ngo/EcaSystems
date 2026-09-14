@@ -10,5 +10,5 @@ namespace EcaSystems.Core2
         Type EventStateType { get; }
     }
 
-    public interface IEcaEvent<TEventState> : IEcaEvent { }
+    public interface IEcaEvent<E> : IEcaEvent { }
 }

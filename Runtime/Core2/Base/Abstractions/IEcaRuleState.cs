@@ -2,8 +2,8 @@ namespace EcaSystems.Core2
 {
     public interface IEcaRuleState { }
 
-    public interface IEcaRuleState<out TEventState> : IEcaRuleState
+    public interface IEcaRuleState<out E> : IEcaRuleState
     {
-        TEventState EventState { get; }
+        E EventState { get; }
     }
 }

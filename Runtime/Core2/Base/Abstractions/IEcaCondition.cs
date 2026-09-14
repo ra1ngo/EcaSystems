@@ -7,10 +7,10 @@ namespace EcaSystems.Core2
         string Description { get; }
     }
 
-    public interface IEcaCondition<in TRuleState, in TConditionContext> : IEcaCondition
-        where TRuleState : IEcaRuleState
-        where TConditionContext : IEcaConditionContext
+    public interface IEcaCondition<in R, in C> : IEcaCondition
+        where R : IEcaRuleState
+        where C : IEcaConditionContext
     {
-        bool Check(TRuleState state, TConditionContext context);
+        bool Check(R state, C context);
     }
 }

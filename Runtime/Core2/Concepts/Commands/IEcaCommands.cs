@@ -4,6 +4,6 @@ namespace EcaSystems.Core2
 {
     public interface IEcaCommands
     {
-        Task Run<TArgs>(string commandId, TArgs args);
+        Task Run<A>(string commandId, A args);
     }
 }
