@@ -45,31 +45,52 @@ namespace EcaSystems.Core2
         }
 
 
-        public IReadOnlyList<IEcaRule> GetByEvent(IEcaEvent ecaEvent)
+        public IReadOnlyList<
+            IEcaRule<
+                TEventState,
+                TRuleState,
+                TConditionContext,
+                TActionContext>>
+            GetByEvent<
+                TEventState,
+                TRuleState,
+                TConditionContext,
+                TActionContext>(
+                IEcaEvent<TEventState> ecaEvent)
+            where TRuleState : IEcaRuleState<TEventState>
+            where TConditionContext : IEcaConditionContext
+            where TActionContext : IEcaActionContext
         {
             if (ecaEvent == null)
                 throw new ArgumentNullException(nameof(ecaEvent));
 
             if (!_events.CheckRegistered(ecaEvent))
-            {
                 throw new InvalidOperationException(
                     $"Event '{ecaEvent.Id}' is not registered.");
-            }
 
-            var matching = new List<IEcaRule>();
+            var matching = new List<
+                IEcaRule<
+                    TEventState,
+                    TRuleState,
+                    TConditionContext,
+                    TActionContext>>();
 
             foreach (var rule in _rules)
             {
                 if (rule.Event.Id != ecaEvent.Id)
                     continue;
 
-                if (rule.Event.EventStateType != ecaEvent.EventStateType)
+                if (rule is not IEcaRule<
+                        TEventState,
+                        TRuleState,
+                        TConditionContext,
+                        TActionContext> typedRule)
                 {
                     throw new InvalidOperationException(
-                        $"Rule '{rule.Id}' has an incompatible event state type.");
+                        $"Rule '{rule.Id}' is incompatible with requested runtime types.");
                 }
 
-                matching.Add(rule);
+                matching.Add(typedRule);
             }
 
             return matching.AsReadOnly();

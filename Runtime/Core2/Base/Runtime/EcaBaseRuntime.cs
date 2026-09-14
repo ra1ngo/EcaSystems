@@ -23,11 +23,74 @@ namespace EcaSystems.Core2
             where TConditionContext : IEcaConditionContext
             where TActionContext : IEcaActionContext
         {
-            //_runner.ValidateRule<TEventState>(rule); //TODO важно, валидация должна быть в регистре!!!
             _rules.Register(rule);
         }
 
         public bool Unregister(IEcaRule rule) => _rules.Unregister(rule);
+
+        public void ForceFire<
+            TEventState,
+            TRuleState,
+            TConditionContext,
+            TActionContext>(
+            IEcaEvent<TEventState> ecaEvent,
+            TEventState eventState,
+            Func<
+                IEcaRule<
+                    TEventState,
+                    TRuleState,
+                    TConditionContext,
+                    TActionContext>,
+                TEventState,
+                TRuleState> createState,
+            TConditionContext conditionContext,
+            TActionContext actionContext)
+            where TRuleState : IEcaRuleState<TEventState>
+            where TConditionContext : IEcaConditionContext
+            where TActionContext : IEcaActionContext
+        {
+            if (ecaEvent == null) throw new ArgumentNullException(nameof(ecaEvent));
+
+            if (createState == null) throw new ArgumentNullException(nameof(createState));
+
+            var rules = _rules.GetByEvent<
+                TEventState,
+                TRuleState,
+                TConditionContext,
+                TActionContext>(ecaEvent);
+
+            var states = new TRuleState[rules.Count];
+            var passed = new bool[rules.Count];
+
+            // Сначала проверяем Conditions всех Rules.
+            for (var i = 0; i < rules.Count; i++)
+            {
+                var rule = rules[i];
+
+                var state = createState(rule, eventState);
+
+                states[i] = state;
+
+                passed[i] =
+                    rule.Condition == null ||
+                    _conditionChecker.Check(
+                        rule.Condition,
+                        state,
+                        conditionContext);
+            }
+
+            // Только после всех Conditions запускаем Actions.
+            for (var i = 0; i < rules.Count; i++)
+            {
+                if (!passed[i])
+                    continue;
+
+                _ = _actionRunner.Run(
+                    rules[i].Action,
+                    states[i],
+                    actionContext);
+            }
+        }
 
         //public void Dispose() => _dispatcher.Fired -= OnFired;
     }
