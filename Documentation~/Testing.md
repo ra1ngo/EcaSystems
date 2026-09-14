@@ -59,3 +59,13 @@ Input `coverageEnabled` в текущем workflow **не задан**. Code Cov
 - ScopeState внутри runtime-контекстов не тестируется как реализованная возможность: wiring отсутствует и явно отложен в Context/ToDo. Существующие integration tests продолжают проверять локальный Fire, независимость GroupState/Limit и Dispose без отмены Actions.
 
 В этой ветке PlayMode и удалённый GameCI не запускались. Push feature-ветки не запускает workflow автоматически; PR создаёт пользователь.
+
+## Core2 Execution — 2026-09-14
+
+Core2 tests находятся в `Tests/Editor/Core2`, assembly `EcaSystems.Core2.Editor.Tests` с reference на `EcaSystems.Core2`. Используется существующий Unity/NUnit путь, без нового внешнего .NET test project.
+
+Добавлен 61 NUnit case: mode validation, live State/counters, Check без admission, fresh RuleState для фаз, Pending/Running/Completed/Failed, синхронные и отложенные ошибки/null Task/createState, overlap и lifetime Limit, typed GroupRegistry, rollback, unregister/re-registration, ALL CONDITIONS → ALL EXECUTIONS, immediate/reentrant Fire, поздний Ignore/Limit admission, snapshot выбранных Groups и Base ForceFire без lifecycle. Тесты используют управляемые Tasks с ограниченным ожиданием и освобождением в TearDown.
+
+Локальный полный Unity 6000.5.6f1 batchmode EditMode run: **202 passed, 0 failed, 0 skipped** (Core — 37, Core1 — 77, Core2 — 88: 27 Base + 61 Execution). Core2 компилируется в составе package с прежним asmdef и `noEngineReferences`. Первая попытка остановилась до тестов на двух конфликтах имени тестового Action с System.Action; после уточнения имён повторный полный запуск прошёл. XML и logs хранятся в игнорируемой `.validation~`, в коммит не включены.
+
+PlayMode scenarios отсутствуют; удалённый GameCI в рамках этой итерации не запускался. Старые Core/Core1 и Core2/Base tests сохранены без изменений.

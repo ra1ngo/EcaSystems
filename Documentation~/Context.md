@@ -6,6 +6,38 @@ EcaSystems — Unity-first UPM-фреймворк для взаимодейст�
 
 Здесь зафиксированы актуальные согласованные решения. [ToDo.md](ToDo.md) содержит необходимые этапы до первого полноценного применения, [Roadmap.md](Roadmap.md) — необязательные будущие возможности. Документы Documentation~/Architecture/ сохраняют историю обсуждений: [MentalTests](Architecture/MentalTests.md) и [полный recovery snapshot](Architecture/EcaSystems-context-recovery-full-2026-09-11.md) могут содержать устаревшие решения и не переопределяют актуальные документы. [Короткий recovery](EcaSystems-context-recovery-2026-09-11.md) остаётся актуальным кратким срезом; более новые решения имеют приоритет. Постоянные архитектурные документы проекта ведутся на русском языке; имена API не переводятся.
 
+## Core2 Base → Execution — 2026-09-14
+
+Актуальная итерация развивается в `Runtime/Core2`, namespace/assembly `EcaSystems.Core2`, без Unity API (`noEngineReferences`). Core2/Base завершён и остаётся неизменным. Core2/Layers/Execution реализован; описанные ниже Core/Core1 — отдельные reference implementations, их bridge/Scope/Commands API не определяют Core2.
+
+### API и композиция
+
+`EcaExecutionRuntime` использует composition с `EcaBaseRuntime` и общие экземпляры `IEcaRuleRegistry`, `IEcaConditionChecker`, `IEcaActionRunner`; Groups хранятся в `IEcaExecutionGroupRegistry` / `EcaExecutionGroupRegistry`. Constructor принимает `(rules, groups, conditionChecker, actionRunner)`. Runtime не выдаёт mutable registries; inspection доступен через `GetGroup(ruleId)` / `TryGetGroup(ruleId, out group)`.
+
+`Register<E,R,C,A>(rule, executionMode, createState)` регистрирует Rule через Base, затем создаёт и регистрирует Group; при ошибке второго этапа регистрация Rule откатывается. `Unregister(rule)` удаляет именно зарегистрированный экземпляр Rule и его Group. Чужой экземпляр с тем же Id не удаляет Group. Активные executions продолжаются со старой Group/State; повторная регистрация создаёт независимые counters и lifetime Limit. Метаданные Rule/Event после регистрации должны оставаться стабильными. Переданные registries следует изменять согласованно через Runtime.
+
+`IEcaExecutionGroup` предоставляет Rule/RuleId, ExecutionMode, State и read-only Executions. Typed `IEcaExecutionGroup<E,R,C,A>` и `EcaExecutionGroup<E,R,C,A>` имеют `Check(E, C)` и `Task Run(E, A)`. Typed GroupRegistry.Get сохраняет specialization и бросает ошибку при несовместимости; typed TryGet возвращает false. Duplicate RuleId запрещён. Runtime сохраняет generic extensibility: `R : IEcaExecutionRuleState<E>`, `C : IEcaExecutionConditionContext`, `A : IEcaExecutionActionContext`; конкретные расширенные State/contexts проходят без bridge, visitor и wrapper.
+
+### Fire, barrier и reentrancy
+
+`Fire<E,R,C,A>(ecaEvent, eventState, conditionContext, actionContext)` выбирает Rules в registry order, вызывает Check всех Groups и только затем Run прошедших: **ALL CONDITIONS → ALL EXECUTIONS**. Между фазами хранятся ссылки на выбранные Groups. Unregister из предыдущей Action не исключает уже выбранную Group из текущего Fire, но исключает из будущих Fire. Повторный lookup после barrier не выполняется.
+
+Check не проверяет ExecutionMode, не резервирует slot, не создаёт Execution и не меняет counters. Admission проверяется private-функцией непосредственно внутри Run: nested Fire мог занять Group или израсходовать её Limit после внешней Condition-фазы. Fire синхронный, immediate/reentrant, без очереди; он запускает lifecycle, но не ожидает завершения Action Task. Barrier относится к одному invocation. Работа Runtime/Group предполагает последовательные вызовы на одном execution context; конкурентный доступ с разных потоков не синхронизируется.
+
+`ForceFire<E,R,C,A>` делегируется внутреннему BaseRuntime с исходными Base constraints: это Base pipeline, который проверяет все Conditions перед Actions, но не использует ExecutionMode, Group createState, lifecycle и counters. Это не пропуск Conditions.
+
+### State, mode и lifecycle
+
+`IEcaExecutionRuleState<out E>` расширяет Base RuleState свойством `ExecutionGroupState`; `EcaExecutionRuleState<E>` хранит EventState и обязательную live-ссылку на `EcaExecutionGroupState`. Context contracts — только `IEcaExecutionConditionContext` и `IEcaExecutionActionContext`, без concrete infrastructure classes.
+
+Group хранит `Func<E, EcaExecutionGroupState, R> createState`: Check создаёт свежий State для непустой Condition, Run — свежий State для Action после допуска. Condition и Action могут получить разные экземпляры. Condition по контракту side-effect-free, не мутирует RuleState и не передаёт через него вычисленные данные в Action. Null Condition проходит без создания State. GroupState живёт вместе с одной регистрацией: Condition видит counters до текущего запуска; Action видит уже увеличенный TotalStarted. StateBuilder/StateFactory отложен.
+
+`EcaExecutionModeOverlap` содержит Ignore и Allow. Ignore блокирует запуск при активном execution; Allow допускает несколько. `EcaExecutionMode.Limit`: -1 unlimited, 0 запрещает старт, N > 0 ограничивает lifetime TotalStarted; завершение не восстанавливает Limit, Failed также расходует его. Значения Limit < -1 и неизвестный overlap отклоняются.
+
+`EcaExecution` содержит Id (монотонный в пределах Group), Rule/RuleId, Status и Exception; `EcaExecutionStatus`: Pending → Running → Completed/Failed. До пользовательских createState/Action execution добавлен в active Executions, переведён в Running, TotalStarted увеличен. Поэтому reentrant Fire видит занятость/расход Limit. Rejected Run возвращает CompletedTask без execution, State и изменения counters. Exceptions Action/createState, faulted Task и null Task дают Failed с Exception; finally увеличивает TotalFinished и удаляет execution из active. Lifecycle наблюдает Task и не мешает следующим прошедшим Groups. Executions — только активные запуски, без history; сохранённая внешняя ссылка позволяет увидеть финальный статус.
+
+Ошибка Condition или её createState может прервать Fire до запуска executions; дополнительной error-policy нет. Cancellation, Reset/Queue, Scope, Commands integration, Fire Event command, EventDispatcher/EventReceiver и UnityEvent в Core2 Execution не реализованы.
+
 ## Core1 Abstractions → Base → Execution → Scope — 2026-09-12
 
 Новая архитектура развивается параллельно в `Runtime/Core1`, namespace/assembly `EcaSystems.Core1`. Временная вертикальная ось — `A`: плоская `A/Abstractions`, затем `A/Base`, `A/Execution`, `A/Scope`; empty payload остаётся в Utils. Execution/Scope contracts принадлежат своим слоям. `IEcaRuleRun` перенесён в отдельный файл Abstractions и остаётся пустым opaque contract. Старый Runtime/Core, его tests и historical full snapshot не изменены. Core1 ещё не объявлен окончательной заменой старого Core; разделы ниже про старые Commands/Execution/Scope описывают reference implementation.
