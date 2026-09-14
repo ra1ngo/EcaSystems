@@ -2,6 +2,16 @@
 
 Здесь только работа до первого полноценного применения в играх. Execution v1, Scope v1, Base context refactor и Commands v1 завершены. Актуальные решения — в [Context.md](Context.md), необязательные будущие возможности — в [Roadmap.md](Roadmap.md). Документы ведутся на русском языке.
 
+## Core2 — checkpoint 2026-09-14
+
+- [x] Core2/Base завершён; API и архитектура не меняются в Execution-итерации.
+- [x] Core2/Layers/Execution: generic Group Check/Run, composition Runtime, ALL CONDITIONS → ALL EXECUTIONS, поздний admission, immediate/reentrant Fire, lifetime Limit/Overlap, lifecycle и rollback/unregister.
+- [x] NUnit/Unity EditMode tests для Execution и недостающие Unity metadata.
+- [ ] Рассмотреть StateBuilder/StateFactory позже, если создание RuleState между слоями станет достаточно сложным/повторяемым. Пока используется Func<E, EcaExecutionGroupState, R>; отдельный builder не проектируется.
+- [ ] Следующие слои согласовывать отдельными итерациями. Core2 Scope, Commands integration, Fire Event command/receiver, EventDispatcher/UnityEvent, cancellation и Reset/Queue сейчас не реализованы.
+
+Разделы ниже про завершённые Core/Core1 возможности не означают их наличие в Core2.
+
 ## Завершено
 
 - [x] Execution v1.
