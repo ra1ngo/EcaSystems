@@ -62,7 +62,7 @@ namespace EcaSystems.Core2
             return _executionRuntime.Unregister(rule);
         }
 
-        public void ForceFire<E, R, C, A>(
+        public void Fire<E, R, C, A>(
             IEcaEvent<E> ecaEvent, E eventState, Func<IEcaRule<E, R, C, A>, E, R> createState,
             C conditionContext, A actionContext)
             where R : IEcaRuleState<E>
@@ -70,7 +70,7 @@ namespace EcaSystems.Core2
             where A : IEcaActionContext
         {
             ThrowIfDisposed();
-            _executionRuntime.ForceFire(ecaEvent, eventState, createState, conditionContext, actionContext);
+            _executionRuntime.Fire(ecaEvent, eventState, createState, conditionContext, actionContext);
         }
 
         public IEcaExecutionGroup GetGroup(string ruleId)

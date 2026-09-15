@@ -25,7 +25,7 @@ namespace EcaSystems.Core2
 
         public bool Unregister(IEcaRule rule) => _rules.Unregister(rule);
 
-        public void ForceFire<E, R, C, A>(
+        public void Fire<E, R, C, A>(
             IEcaEvent<E> ecaEvent, E eventState,
             Func<IEcaRule<E, R, C, A>, E, R> createState,
             C conditionContext, A actionContext)
