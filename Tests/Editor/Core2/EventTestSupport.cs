@@ -31,21 +31,6 @@ namespace EcaSystems.Tests.Core2
             }
         }
 
-        internal sealed class Source : IEcaEventOccurrenceSource
-        {
-            private Action<EcaEventOccurrence> _fired;
-            public int Adds { get; private set; }
-            public int Removes { get; private set; }
-            public event Action<EcaEventOccurrence> Fired
-            {
-                add { Adds++; _fired += value; }
-                remove { Removes++; _fired -= value; }
-            }
-            public void Emit(EcaEventOccurrence occurrence) => _fired?.Invoke(occurrence);
-            public void Fire<E>(IEcaEvent<E> ecaEvent, E eventState) => Emit(EcaEventOccurrence.Create(ecaEvent, eventState));
-            public Action<EcaEventOccurrence> Snapshot() => _fired;
-        }
-
         internal sealed class State<E> : IEcaRuleState<E>
         {
             public E EventState { get; }
@@ -84,17 +69,15 @@ namespace EcaSystems.Tests.Core2
         }
     }
 
-    internal sealed class EcaTestBaseRuntime : EcaBaseRuntime, IEcaEventHandler, IDisposable
+    internal sealed class EcaTestBaseRuntime : EcaBaseRuntime, IEcaEventHandler
     {
-        private readonly EcaEventReceiver _receiver;
         private readonly BaseTestSupport.ConditionContext _conditions = new();
         private readonly BaseTestSupport.ActionContext _actions = new();
 
-        public EcaTestBaseRuntime(EcaBaseEventRegistry events, EcaEventReceiver receiver)
+        public EcaTestBaseRuntime(EcaBaseEventRegistry events, EcaEventEmitter emitter)
             : base(new EcaBaseRuleRegistry(events), new EcaBaseActionRunner(), new EcaBaseConditionChecker())
         {
-            _receiver = receiver;
-            receiver.Subscribe(this);
+            emitter.Bind(this);
         }
 
         void IEcaEventHandler.Handle<E>(IEcaEvent<E> ecaEvent, E eventState) => Fire(ecaEvent, eventState);
@@ -102,7 +85,5 @@ namespace EcaSystems.Tests.Core2
         public void Fire<E>(IEcaEvent<E> ecaEvent, E eventState) =>
             base.Fire<E, EventTestSupport.State<E>, BaseTestSupport.ConditionContext, BaseTestSupport.ActionContext>(
                 ecaEvent, eventState, (rule, state) => new EventTestSupport.State<E>(state), _conditions, _actions);
-
-        public void Dispose() => _receiver.Unsubscribe(this);
     }
 }

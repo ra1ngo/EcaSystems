@@ -8,10 +8,11 @@
 - [x] Core2/Layers/Execution: generic Group Check/Run, composition Runtime, ALL CONDITIONS → ALL EXECUTIONS, поздний admission, immediate/reentrant Fire, lifetime Limit/Overlap, lifecycle и rollback/unregister.
 - [x] Scope: EcaScopeRuntime manager + isolated EcaScope, независимые Execution graphs, hierarchy/ParentScopeId, local Fire, recursive Dispose и ScopeId reuse без отмены Actions; enrichment через Func<IEcaExecutionRuleState<E>, EcaScopeState, R> сохранён.
 - [x] Commands validated как самостоятельный Concept: standalone tests и BaseRuntime integration через test composition context; production API без изменений.
-- [x] EventHandling concept: Dispatcher/Occurrence/Receiver/Handler, независимый source contract, один subscription для arbitrary E; Base integration через test runtime. Core2 runtime API переименован в Fire с сохранением semantics overloads.
+- [x] EventEmitter concept: public IEcaEventEmitter.Fire<E>, internal Bind одного IEcaEventHandler, прямой generic callback; Base integration через test runtime. Core2 runtime API переименован в Fire с сохранением semantics overloads.
 - [x] NUnit/Unity EditMode tests для Execution и недостающие Unity metadata.
+- [ ] Следующей отдельной итерацией рассмотреть external event adapters к IEcaEventEmitter.Fire<E>: C# events, callbacks, observables, polling, UnityEvent/InputAction и другие источники; список в Roadmap. Сейчас реализован только прямой Emitter API.
 - [ ] Рассмотреть StateBuilder/StateFactory позже, если последовательное расширение RuleState между слоями станет достаточно сложным, повторяемым или неудобным через Func. Execution использует Func<E, EcaExecutionGroupState, R>, Scope — Func<IEcaExecutionRuleState<E>, EcaScopeState, R>; отдельный builder не проектируется.
-- [ ] Следующие слои согласовывать отдельными итерациями. Core2 production Commands/EventHandling composition с Execution/Scope, FireEventCommand, Unity bridge, cancellation и Reset/Queue сейчас не реализованы.
+- [ ] Следующие слои согласовывать отдельными итерациями. Core2 production Commands/EventEmitter composition с Execution/Scope, FireEventCommand, Unity bridge, cancellation и Reset/Queue сейчас не реализованы.
 
 Разделы ниже про завершённые Core/Core1 возможности не означают их наличие в Core2.
 
