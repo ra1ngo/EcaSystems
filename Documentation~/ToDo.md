@@ -7,9 +7,10 @@
 - [x] Core2/Base завершён; API и архитектура не меняются в Execution-итерации.
 - [x] Core2/Layers/Execution: generic Group Check/Run, composition Runtime, ALL CONDITIONS → ALL EXECUTIONS, поздний admission, immediate/reentrant Fire, lifetime Limit/Overlap, lifecycle и rollback/unregister.
 - [x] Scope: EcaScopeRuntime manager + isolated EcaScope, независимые Execution graphs, hierarchy/ParentScopeId, local Fire, recursive Dispose и ScopeId reuse без отмены Actions; enrichment через Func<IEcaExecutionRuleState<E>, EcaScopeState, R> сохранён.
+- [x] Commands validated как самостоятельный Concept: standalone tests и BaseRuntime integration через test composition context; production API без изменений.
 - [x] NUnit/Unity EditMode tests для Execution и недостающие Unity metadata.
 - [ ] Рассмотреть StateBuilder/StateFactory позже, если последовательное расширение RuleState между слоями станет достаточно сложным, повторяемым или неудобным через Func. Execution использует Func<E, EcaExecutionGroupState, R>, Scope — Func<IEcaExecutionRuleState<E>, EcaScopeState, R>; отдельный builder не проектируется.
-- [ ] Следующие слои согласовывать отдельными итерациями. Core2 Commands integration, Fire Event command/receiver, EventDispatcher/UnityEvent, cancellation и Reset/Queue сейчас не реализованы.
+- [ ] Следующие слои согласовывать отдельными итерациями. Core2 production Commands integration с Execution/Scope, Fire Event command/receiver, EventDispatcher/UnityEvent, cancellation и Reset/Queue сейчас не реализованы.
 
 Разделы ниже про завершённые Core/Core1 возможности не означают их наличие в Core2.
 

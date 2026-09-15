@@ -6,6 +6,14 @@ EcaSystems — Unity-first UPM-фреймворк для взаимодейст�
 
 Здесь зафиксированы актуальные согласованные решения. [ToDo.md](ToDo.md) содержит необходимые этапы до первого полноценного применения, [Roadmap.md](Roadmap.md) — необязательные будущие возможности. Документы Documentation~/Architecture/ сохраняют историю обсуждений: [MentalTests](Architecture/MentalTests.md) и [полный recovery snapshot](Architecture/EcaSystems-context-recovery-full-2026-09-11.md) могут содержать устаревшие решения и не переопределяют актуальные документы. [Короткий recovery](EcaSystems-context-recovery-2026-09-11.md) остаётся актуальным кратким срезом; более новые решения имеют приоритет. Постоянные архитектурные документы проекта ведутся на русском языке; имена API не переводятся.
 
+## Core2 Commands validation — 2026-09-15
+
+`Core2/Concepts/Commands` проверен как самостоятельный horizontal Concept: standalone registry/runner/binding и end-to-end `Commands + EcaBaseRuntime`. Production Commands API и реализация не менялись. Commands подключаются тестовым composition context через `IEcaCommandsActionContext.Commands`; Base получает обычный `A : IEcaActionContext` и не знает о Commands. Production integration с Execution/Scope contexts пока не реализована.
+
+`Bind` удерживает ровно переданный ActionContext instance; bindings одного runner/registry/command не смешиваются, в том числе при overlapping async calls. Lookup выполняется заново на каждом Run, поэтому existing binding видит unregister/re-registration. Публичного Get/TryGet у CommandRegistry нет, как и в старом Core: internal Resolve проверен через публичный Run, новый inspection API не добавлялся. Базовое функциональное parity со старым Core сохранено: registration, lookup, binding, typed invocation, несколько Commands и Task.
+
+Context проверяется по совместимости instance; args — по объявленному generic-типу. Допустимы совместимые производные типы, typed null reference args и nullable value args; object-обёртка не скрывает несовместимый declared type. Unknown id/wrong context/null Task дают InvalidOperationException, invalid id/wrong args — ArgumentException; sync exception распространяется непосредственно, faulted Task возвращается caller без новой error-policy. Base ForceFire остаётся fire-and-forget; Task проверяется там, где Action получает его от Commands.Run. Barrier и Conditions работают без изменений Base.
+
 ## Core2 Scope — 2026-09-15
 
 Core2/Base, Core2/Layers/Execution и Core2/Layers/Scope завершены. Scope сочетает vertical enrichment и runtime isolation/lifetime boundary. Orchestration, Group и lifecycle принадлежат Execution; Scope не добавляет Runner/bridge/Executor. Base/Execution API не менялся.
