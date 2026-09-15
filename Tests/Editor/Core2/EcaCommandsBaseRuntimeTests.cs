@@ -27,13 +27,13 @@ namespace EcaSystems.Tests.Core2
         }
 
         private void Fire(CommandsContext context, int value = 7) =>
-            _runtime.ForceFire<int, BaseTestSupport.State, BaseTestSupport.ConditionContext, CommandsContext>(
+            _runtime.Fire<int, BaseTestSupport.State, BaseTestSupport.ConditionContext, CommandsContext>(
                 _event, value, (rule, payload) => new BaseTestSupport.State { EventState = payload },
                 new BaseTestSupport.ConditionContext(), context);
 
         [TestCase(true)]
         [TestCase(false)]
-        public void ForceFire_ConditionControlsActionAndCommand(bool passes)
+        public void Fire_ConditionControlsActionAndCommand(bool passes)
         {
             var context = new CommandsContext(_runner);
             CommandsContext commandContext = null, actionContext = null;
@@ -62,7 +62,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void ForceFire_MultipleRulesKeepBarrierBeforeCommandSideEffects()
+        public void Fire_MultipleRulesKeepBarrierBeforeCommandSideEffects()
         {
             var trace = new List<string>();
             var context = new CommandsContext(_runner);
@@ -99,7 +99,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void ForceFire_SeparateCallsKeepBoundContextsIndependent()
+        public void Fire_SeparateCallsKeepBoundContextsIndependent()
         {
             var a = new CommandsContext(_runner);
             var b = new CommandsContext(_runner);
@@ -125,7 +125,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public async Task ForceFire_ReturnsWhileActionHasUnfinishedCommandTask()
+        public async Task Fire_ReturnsWhileActionHasUnfinishedCommandTask()
         {
             var gate = new TaskCompletionSource<bool>();
             var context = new CommandsContext(_runner);
@@ -160,7 +160,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void ForceFire_PropagatesCommandLookupFailureThroughSynchronousAction()
+        public void Fire_PropagatesCommandLookupFailureThroughSynchronousAction()
         {
             var context = new CommandsContext(_runner);
             _runtime.Register(new Rule

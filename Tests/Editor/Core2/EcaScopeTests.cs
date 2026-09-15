@@ -318,7 +318,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void ForceFire_UsesCallerStateAndBaseBarrierWithoutScopeExtensionOrExecution()
+        public void Fire_UsesCallerStateAndBaseBarrierWithoutScopeExtensionOrExecution()
         {
             var trace = new List<string>();
             var seen = new List<EcaScopeRuleState<int>>();
@@ -332,7 +332,7 @@ namespace EcaSystems.Tests.Core2
                     new EcaExecutionMode(EcaExecutionModeOverlap.Ignore, 0),
                     (previous, scope) => throw new Exception("Must use caller createState"));
             }
-            _scope.ForceFire<int, EcaScopeRuleState<int>, ScopeC, ScopeA>(Event, 17,
+            _scope.Fire<int, EcaScopeRuleState<int>, ScopeC, ScopeA>(Event, 17,
                 (rule, value) => new EcaScopeRuleState<int>(value, callerGroup, callerScope), _condition, _action);
             Assert.That(trace, Is.EqualTo(new[] { "Condition A", "Condition B", "Action A" }));
             Assert.That(seen[0], Is.SameAs(seen[2]));

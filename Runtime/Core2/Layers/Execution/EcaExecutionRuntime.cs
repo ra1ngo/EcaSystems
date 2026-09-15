@@ -68,14 +68,14 @@ namespace EcaSystems.Core2
                 _ = group.Run(eventState, actionContext);
         }
 
-        public void ForceFire<E, R, C, A>(
+        public void Fire<E, R, C, A>(
             IEcaEvent<E> ecaEvent, E eventState, Func<IEcaRule<E, R, C, A>, E, R> createState,
             C conditionContext, A actionContext)
             where R : IEcaRuleState<E>
             where C : IEcaConditionContext
             where A : IEcaActionContext
         {
-            _baseRuntime.ForceFire(ecaEvent, eventState, createState, conditionContext, actionContext);
+            _baseRuntime.Fire(ecaEvent, eventState, createState, conditionContext, actionContext);
         }
 
         public IEcaExecutionGroup GetGroup(string ruleId) => _groups.Get(ruleId);

@@ -229,7 +229,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void ForceFire_UsesBaseBarrierAndIgnoresExecutionModeAndLifecycle()
+        public void Fire_UsesBaseBarrierAndIgnoresExecutionModeAndLifecycle()
         {
             var trace = new List<string>();
             var forceState = new EcaExecutionGroupState();
@@ -247,7 +247,7 @@ namespace EcaSystems.Tests.Core2
                 }), new EcaExecutionMode(EcaExecutionModeOverlap.Ignore, 0),
                     (value, state) => throw new Exception("Execution state creator must not be used"));
             }
-            Runtime.ForceFire<int, State, ConditionContext, ActionContext>(Event, 42, (rule, value) =>
+            Runtime.Fire<int, State, ConditionContext, ActionContext>(Event, 42, (rule, value) =>
             {
                 created++;
                 return new State(value, forceState);
@@ -264,7 +264,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void ForceFire_AcceptsBaseOnlyTypesAndSharedRegistry()
+        public void Fire_AcceptsBaseOnlyTypesAndSharedRegistry()
         {
             var called = false;
             var rule = new BaseTestSupport.Rule
@@ -273,7 +273,7 @@ namespace EcaSystems.Tests.Core2
                 Action = new BaseTestSupport.Action { RunHandler = (state, context) => { called = true; return Task.CompletedTask; } }
             };
             Rules.Register(rule);
-            Runtime.ForceFire<int, BaseTestSupport.State, BaseTestSupport.ConditionContext, BaseTestSupport.ActionContext>(
+            Runtime.Fire<int, BaseTestSupport.State, BaseTestSupport.ConditionContext, BaseTestSupport.ActionContext>(
                 Event, 1, (matching, value) => new BaseTestSupport.State { EventState = value },
                 new BaseTestSupport.ConditionContext(), new BaseTestSupport.ActionContext());
             Assert.That(called, Is.True);
