@@ -6,6 +6,26 @@ EcaSystems — Unity-first UPM-фреймворк для взаимодейст�
 
 Здесь зафиксированы актуальные согласованные решения. [ToDo.md](ToDo.md) содержит необходимые этапы до первого полноценного применения, [Roadmap.md](Roadmap.md) — необязательные будущие возможности. Документы Documentation~/Architecture/ сохраняют историю обсуждений: [MentalTests](Architecture/MentalTests.md) и [полный recovery snapshot](Architecture/EcaSystems-context-recovery-full-2026-09-11.md) могут содержать устаревшие решения и не переопределяют актуальные документы. [Короткий recovery](EcaSystems-context-recovery-2026-09-11.md) остаётся актуальным кратким срезом; более новые решения имеют приоритет. Постоянные архитектурные документы проекта ведутся на русском языке; имена API не переводятся.
 
+## Core2 Scope — 2026-09-15
+
+Core2/Base, Core2/Layers/Execution и Core2/Layers/Scope завершены. Scope сочетает vertical enrichment и runtime isolation/lifetime boundary. Orchestration, Group и lifecycle принадлежат Execution; Scope не добавляет Runner/bridge/Executor. Base/Execution API не менялся.
+
+`EcaScopeRuntime(IEcaEventRegistry events)` — manager всех активных Scope и их hierarchy. API: `ScopeCount`, `CreateScope(string scopeId = null)`, `TryGetScope(string scopeId, out EcaScope scope)`, `Dispose()`. Общий только EventRegistry; для каждого Scope manager создаёт независимые EcaBaseRuleRegistry, EcaExecutionGroupRegistry, checker/runner и EcaExecutionRuntime/BaseRuntime graph. Одну Rule instance можно зарегистрировать в нескольких Scope: GroupState, active executions, overlap и lifetime Limit независимы.
+
+`EcaScope` — один isolated Scope с собственным ExecutionRuntime. API: `State`, `ScopeId`, `ParentScopeId`, `IsDisposed`, `CreateScope`, `Register`, `Unregister`, `Fire`, `ForceFire`, `GetGroup`, `TryGetGroup`, `Dispose`. Root имеет ParentScopeId == null; child создаётся через parent.CreateScope. Hierarchy определяет ownership/lifetime, но не распространяет Fire: parent и child обрабатывают только собственные Rules.
+
+Null ScopeId означает auto-id: scope-1, scope-2 и далее с пропуском занятых имён; пустые/пробельные явные имена запрещены. Active ScopeId уникален в manager. Dispose сначала закрывает Scope, рекурсивно закрывает descendants, удаляет их из manager и освобождает ссылку на ExecutionRuntime; родитель, siblings и другие roots не затрагиваются при удалении child. Новые операции через disposed Scope бросают ObjectDisposedException, read-only State/identity остаются доступны. Dispose idempotent. Manager.Dispose закрывает все scopes; CreateScope после закрытия бросает ObjectDisposedException, ScopeCount == 0 и TryGetScope возвращает false, как в Core/Core1.
+
+Уже запущенные Actions не отменяются: они завершают старые Groups и counters. Повторное использование ScopeId создаёт новый ScopeState и Execution graph; старый объект и завершение старой Action не затрагивают replacement. Internal removal проверяет reference identity, а не только строковый Id. Уже выбранные Groups текущего Fire сохраняют snapshot semantics Execution; Dispose закрывает последующие вызовы, не меняя текущую orchestration.
+
+`EcaScopeState` содержит только обязательный непустой ScopeId; ParentScopeId и IsDisposed принадлежат EcaScope. `IEcaScopeRuleState<out E>` расширяет `IEcaExecutionRuleState<E>` свойством ScopeState. `EcaScopeRuleState<E>` сохраняет EventState и обязательные ссылки ExecutionGroupState/ScopeState без concrete inheritance. `IEcaScopeConditionContext` / `IEcaScopeActionContext` расширяют Execution contexts и остаются пустыми extension points.
+
+Основной `EcaScope.Register<E,R,C,A>(rule, mode, extendState)` принимает `Func<IEcaExecutionRuleState<E>, EcaScopeState, R>` с `R : IEcaScopeRuleState<E>` и Scope constraints для C/A. Адаптер создаёт готовый EcaExecutionRuleState<E> из payload/live GroupState и передаёт его вместе с this.State в extendState. Возвращённый R поступает в Condition/Action. Фазы используют отдельные вызовы extension function; Condition остаётся side-effect-free. Сохранён default `Register<E,C,A>(rule, mode)` для EcaScopeRuleState<E>.
+
+Fire и inspection делегируются собственному ExecutionRuntime. ALL CONDITIONS → ALL EXECUTIONS, admission непосредственно в Run, immediate/reentrant Fire и обработка ошибок принадлежат Execution. Все Rules одного Scope получают один ScopeState. Unregister удаляет только локальную регистрацию; активные executions завершаются естественно.
+
+ForceFire — локальный pass-through в Execution/Base с Base constraints: сохраняет Base barrier, не использует Scope extendState и ExecutionMode/lifecycle/counters. Caller сам передаёт createState. StateBuilder/StateFactory остаются в ToDo. EventDispatcher/Receiver, FireEventCommand, Commands integration, cross-scope Fire, Unity, cancellation и Reset/Queue не реализованы. Roadmap о внешней мутации registries/Rule.Id сохранён без новой защиты в Execution.
+
 ## Core2 Base → Execution — 2026-09-14
 
 Актуальная итерация развивается в `Runtime/Core2`, namespace/assembly `EcaSystems.Core2`, без Unity API (`noEngineReferences`). Core2/Base завершён и остаётся неизменным. Core2/Layers/Execution реализован; описанные ниже Core/Core1 — отдельные reference implementations, их bridge/Scope/Commands API не определяют Core2.
@@ -36,7 +56,7 @@ Group хранит `Func<E, EcaExecutionGroupState, R> createState`: Check со�
 
 `EcaExecution` содержит Id (монотонный в пределах Group), Rule/RuleId, Status и Exception; `EcaExecutionStatus`: Pending → Running → Completed/Failed. До пользовательских createState/Action execution добавлен в active Executions, переведён в Running, TotalStarted увеличен. Поэтому reentrant Fire видит занятость/расход Limit. Rejected Run возвращает CompletedTask без execution, State и изменения counters. Exceptions Action/createState, faulted Task и null Task дают Failed с Exception; finally увеличивает TotalFinished и удаляет execution из active. Lifecycle наблюдает Task и не мешает следующим прошедшим Groups. Executions — только активные запуски, без history; сохранённая внешняя ссылка позволяет увидеть финальный статус.
 
-Ошибка Condition или её createState может прервать Fire до запуска executions; дополнительной error-policy нет. Cancellation, Reset/Queue, Scope, Commands integration, Fire Event command, EventDispatcher/EventReceiver и UnityEvent в Core2 Execution не реализованы.
+Ошибка Condition или её createState может прервать Fire до запуска executions; дополнительной error-policy нет. Cancellation, Reset/Queue, Commands integration, Fire Event command, EventDispatcher/EventReceiver и UnityEvent в Core2 Execution не реализованы.
 
 ## Core1 Abstractions → Base → Execution → Scope — 2026-09-12
 

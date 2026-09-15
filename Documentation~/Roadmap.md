@@ -4,6 +4,17 @@
 
 Core1 Base создан параллельно старому Core: A/Abstractions плоский, RuleState = data, RunnerContext = infrastructure, RuleRun скрывает типы от BaseEngine. В prototype уже выбран синхронный classic C# event dispatcher с immediate/reentrant Fire; ALL CONDITIONS → ALL ACTIONS принадлежит BaseEngine. Reuse через ExecutionRuleRunner и ScopeRuleRunner реализован; следующий обязательный шаг — review Core1 Execution/Scope (ToDo). Возможности ниже не реализованы этим prototype.
 
+## Core2: согласованность Runtime и registries
+
+Текущий Execution предполагает согласованные изменения RuleRegistry / ExecutionGroupRegistry через Runtime и стабильные Rule.Id и другие metadata, влияющие на identity, после регистрации. Ручная внешняя мутация registries или изменение Rule.Id может рассинхронизировать Runtime. Scope сохраняет эти предположения; защита в этой итерации не добавляется.
+
+- [ ] Обсудить более сильную инкапсуляцию registries и ограничение внешних mutation paths.
+- [ ] Рассмотреть immutable identity metadata.
+- [ ] Определить необходимость consistency validation/diagnostics.
+- [ ] Согласовать recovery strategy при обнаружении рассинхронизации.
+
+Это отдельная будущая итерация, без изменения завершённых Base/Execution API сейчас.
+
 ## Расширенное выполнение
 
 Произвольный C# Task нельзя универсально принудительно остановить и продолжить с произвольного места. Кооперативный запрос не гарантирует остановку Action.Run или предметную очистку.
