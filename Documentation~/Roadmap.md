@@ -4,6 +4,17 @@
 
 Core1 Base создан параллельно старому Core: A/Abstractions плоский, RuleState = data, RunnerContext = infrastructure, RuleRun скрывает типы от BaseEngine. В prototype уже выбран синхронный classic C# event dispatcher с immediate/reentrant Fire; ALL CONDITIONS → ALL ACTIONS принадлежит BaseEngine. Reuse через ExecutionRuleRunner и ScopeRuleRunner реализован; следующий обязательный шаг — review Core1 Execution/Scope (ToDo). Возможности ниже не реализованы этим prototype.
 
+## Core2: adapters внешних событий — следующая отдельная итерация
+
+Предоставить несколько способов адаптации источников к одному public порту `IEcaEventEmitter.Fire<E>(IEcaEvent<E> ecaEvent, E eventState)`:
+
+- [ ] C# events и callback APIs.
+- [ ] IObservable / reactive streams.
+- [ ] Polling sources.
+- [ ] UnityEvent, InputAction / Unity callbacks и другие adapters по практическим сценариям.
+
+Все adapters сходятся в прямой typed Fire<E>; сейчас они не реализованы. Текущая итерация предоставляет только простой Emitter API, без универсального binding mechanism, Systems, Signals или State.
+
 ## Core2: согласованность Runtime и registries
 
 Текущий Execution предполагает согласованные изменения RuleRegistry / ExecutionGroupRegistry через Runtime и стабильные Rule.Id и другие metadata, влияющие на identity, после регистрации. Ручная внешняя мутация registries или изменение Rule.Id может рассинхронизировать Runtime. Scope сохраняет эти предположения; защита в этой итерации не добавляется.
