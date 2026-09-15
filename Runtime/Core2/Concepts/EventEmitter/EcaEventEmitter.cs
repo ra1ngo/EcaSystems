@@ -2,7 +2,7 @@ using System;
 
 namespace EcaSystems.Core2
 {
-    public sealed class EcaEventEmitter : IEcaEventEmitter
+    internal sealed class EcaEventEmitter : IEcaEventEmitter
     {
         private readonly IEcaEventRegistry _events;
         private IEcaEventHandler _handler;
