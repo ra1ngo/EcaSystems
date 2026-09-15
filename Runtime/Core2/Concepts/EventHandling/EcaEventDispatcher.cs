@@ -26,7 +26,7 @@ namespace EcaSystems.Core2
             if (ecaEvent.EventStateType != typeof(E))
                 throw new ArgumentException("Event metadata disagrees with its generic contract.", nameof(ecaEvent));
 
-            _fired?.Invoke(new EcaEventOccurrence<E>(ecaEvent, eventState));
+            _fired?.Invoke(EcaEventOccurrence.Create(ecaEvent, eventState));
         }
     }
 }

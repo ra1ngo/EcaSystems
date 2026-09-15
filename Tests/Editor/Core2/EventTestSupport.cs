@@ -42,16 +42,8 @@ namespace EcaSystems.Tests.Core2
                 remove { Removes++; _fired -= value; }
             }
             public void Emit(EcaEventOccurrence occurrence) => _fired?.Invoke(occurrence);
+            public void Fire<E>(IEcaEvent<E> ecaEvent, E eventState) => Emit(EcaEventOccurrence.Create(ecaEvent, eventState));
             public Action<EcaEventOccurrence> Snapshot() => _fired;
-        }
-
-        internal sealed class Occurrence<E> : EcaEventOccurrence
-        {
-            private readonly IEcaEvent<E> _event;
-            private readonly E _state;
-            public int AcceptCalls { get; private set; }
-            public Occurrence(IEcaEvent<E> ecaEvent, E state) : base(ecaEvent) { _event = ecaEvent; _state = state; }
-            public override void Accept(IEcaEventHandler handler) { AcceptCalls++; handler.Handle(_event, _state); }
         }
 
         internal sealed class State<E> : IEcaRuleState<E>

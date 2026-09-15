@@ -6,12 +6,15 @@ namespace EcaSystems.Core2
     {
         public IEcaEvent Event { get; }
 
-        protected EcaEventOccurrence(IEcaEvent ecaEvent)
+        internal EcaEventOccurrence(IEcaEvent ecaEvent)
         {
             Event = ecaEvent ?? throw new ArgumentNullException(nameof(ecaEvent));
         }
 
-        public abstract void Accept(IEcaEventHandler handler);
+        public static EcaEventOccurrence Create<E>(IEcaEvent<E> ecaEvent, E eventState) =>
+            new EcaEventOccurrence<E>(ecaEvent, eventState);
+
+        internal abstract void Accept(IEcaEventHandler handler);
     }
 
     internal sealed class EcaEventOccurrence<E> : EcaEventOccurrence
@@ -25,7 +28,7 @@ namespace EcaSystems.Core2
             _eventState = eventState;
         }
 
-        public override void Accept(IEcaEventHandler handler)
+        internal override void Accept(IEcaEventHandler handler)
         {
             if (handler == null) throw new ArgumentNullException(nameof(handler));
             handler.Handle(_event, _eventState);

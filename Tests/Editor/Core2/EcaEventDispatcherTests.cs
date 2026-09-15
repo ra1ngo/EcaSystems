@@ -30,7 +30,10 @@ namespace EcaSystems.Tests.Core2
             Assert.That(occurrences[0].Event, Is.SameAs(messageEvent));
             Assert.That(occurrences[1].Event, Is.SameAs(scoreEvent));
             var handler = new RecordingHandler();
-            foreach (var occurrence in occurrences) occurrence.Accept(handler);
+            var replay = new Source();
+            using var receiver = new EcaEventReceiver(events, replay);
+            receiver.Subscribe(handler);
+            foreach (var occurrence in occurrences) replay.Emit(occurrence);
             Assert.That(handler.Types, Is.EqualTo(new[] { typeof(UserMessage), typeof(UserScore), typeof(UserMessage) }));
             Assert.That(handler.Events, Is.EqualTo(new IEcaEvent[] { messageEvent, scoreEvent, messageEvent }));
             Assert.That(handler.States[0], Is.SameAs(message));
@@ -95,19 +98,13 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void ConstructorFireAndAccept_RejectNullArguments()
+        public void ConstructorFireAndFactory_RejectNullArguments()
         {
             Assert.Throws<ArgumentNullException>(() => new EcaEventDispatcher(null));
             var events = new EcaBaseEventRegistry();
             var dispatcher = new EcaEventDispatcher(events);
             Assert.Throws<ArgumentNullException>(() => dispatcher.Fire<int>(null, 0));
-            var ecaEvent = new BaseTestSupport.Event<int>();
-            events.Register(ecaEvent);
-            EcaEventOccurrence seen = null;
-            ((IEcaEventOccurrenceSource)dispatcher).Fired += occurrence => seen = occurrence;
-            dispatcher.Fire(ecaEvent, 0);
-            Assert.Throws<ArgumentNullException>(() => seen.Accept(null));
-            Assert.Throws<ArgumentNullException>(() => new Occurrence<int>(null, 0));
+            Assert.Throws<ArgumentNullException>(() => EcaEventOccurrence.Create<int>(null, 0));
         }
 
         [Test]
