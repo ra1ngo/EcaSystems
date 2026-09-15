@@ -1,60 +1,74 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 
 namespace EcaSystems.Core2
 {
-    public sealed class EcaScopeRuntime
+    public sealed class EcaScopeRuntime : IDisposable
     {
-        private readonly EcaExecutionRuntime _executionRuntime;
+        private readonly IEcaEventRegistry _events;
+        private readonly Dictionary<string, EcaScope> _scopes = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, HashSet<EcaScope>> _children = new(StringComparer.Ordinal);
+        private long _nextScopeId = 1;
+        private bool _isDisposed;
 
-        public EcaScopeState State { get; }
-
-        public EcaScopeRuntime(EcaScopeState state, EcaExecutionRuntime executionRuntime)
+        public EcaScopeRuntime(IEcaEventRegistry events)
         {
-            State = state ?? throw new ArgumentNullException(nameof(state));
-            _executionRuntime = executionRuntime ?? throw new ArgumentNullException(nameof(executionRuntime));
+            _events = events ?? throw new ArgumentNullException(nameof(events));
         }
 
-        public void Register<E, R, C, A>(
-            IEcaRule<E, R, C, A> rule, EcaExecutionMode executionMode,
-            Func<IEcaExecutionRuleState<E>, EcaScopeState, R> extendState)
-            where R : IEcaScopeRuleState<E>
-            where C : IEcaScopeConditionContext
-            where A : IEcaScopeActionContext
+        public int ScopeCount => _scopes.Count;
+        public EcaScope CreateScope(string scopeId = null) => CreateScope(null, scopeId);
+
+        public bool TryGetScope(string scopeId, out EcaScope scope)
         {
-            if (extendState == null) throw new ArgumentNullException(nameof(extendState));
-            _executionRuntime.Register(rule, executionMode, (eventState, groupState) =>
-                extendState(new EcaExecutionRuleState<E>(eventState, groupState), State));
+            scope = null;
+            return scopeId != null && _scopes.TryGetValue(scopeId, out scope);
         }
 
-        public void Register<E, C, A>(IEcaRule<E, EcaScopeRuleState<E>, C, A> rule, EcaExecutionMode executionMode)
-            where C : IEcaScopeConditionContext
-            where A : IEcaScopeActionContext
+        internal EcaScope CreateScope(EcaScope parent, string scopeId)
         {
-            Register(rule, executionMode, (executionState, scopeState) => new EcaScopeRuleState<E>(
-                executionState.EventState, executionState.ExecutionGroupState, scopeState));
+            if (_isDisposed) throw new ObjectDisposedException(nameof(EcaScopeRuntime));
+            if (parent != null && (parent.IsDisposed || !TryGetScope(parent.ScopeId, out var activeParent) ||
+                !ReferenceEquals(activeParent, parent)))
+                throw new ObjectDisposedException(nameof(EcaScope));
+
+            if (scopeId == null)
+            {
+                do { scopeId = "scope-" + (_nextScopeId++).ToString(CultureInfo.InvariantCulture); }
+                while (_scopes.ContainsKey(scopeId));
+            }
+            else if (string.IsNullOrWhiteSpace(scopeId))
+                throw new ArgumentException("Scope id cannot be empty.", nameof(scopeId));
+            if (_scopes.ContainsKey(scopeId)) throw new InvalidOperationException($"Scope '{scopeId}' is already active.");
+
+            // Общий только EventRegistry; Rule/Group registries и весь Execution graph принадлежат одному Scope.
+            var execution = new EcaExecutionRuntime(new EcaBaseRuleRegistry(_events), new EcaExecutionGroupRegistry(),
+                new EcaBaseConditionChecker(), new EcaBaseActionRunner());
+            var scope = new EcaScope(this, new EcaScopeState(scopeId), execution, parent?.ScopeId);
+            _scopes.Add(scopeId, scope);
+            _children.Add(scopeId, new HashSet<EcaScope>());
+            if (parent != null) _children[parent.ScopeId].Add(scope);
+            return scope;
         }
 
-        public void Fire<E, R, C, A>(IEcaEvent<E> ecaEvent, E eventState, C conditionContext, A actionContext)
-            where R : IEcaScopeRuleState<E>
-            where C : IEcaScopeConditionContext
-            where A : IEcaScopeActionContext
+        internal void DisposeScope(EcaScope scope)
         {
-            _executionRuntime.Fire<E, R, C, A>(ecaEvent, eventState, conditionContext, actionContext);
+            // Старый экземпляр не может удалить replacement с тем же ScopeId.
+            if (!TryGetScope(scope.ScopeId, out var active) || !ReferenceEquals(active, scope)) return;
+            foreach (var child in new List<EcaScope>(_children[scope.ScopeId])) child.Dispose();
+            _children.Remove(scope.ScopeId);
+            if (scope.ParentScopeId != null && _children.TryGetValue(scope.ParentScopeId, out var siblings))
+                siblings.Remove(scope);
+            _scopes.Remove(scope.ScopeId);
         }
 
-        public bool Unregister(IEcaRule rule) => _executionRuntime.Unregister(rule);
-
-        public void ForceFire<E, R, C, A>(
-            IEcaEvent<E> ecaEvent, E eventState, Func<IEcaRule<E, R, C, A>, E, R> createState,
-            C conditionContext, A actionContext)
-            where R : IEcaRuleState<E>
-            where C : IEcaConditionContext
-            where A : IEcaActionContext
+        public void Dispose()
         {
-            _executionRuntime.ForceFire(ecaEvent, eventState, createState, conditionContext, actionContext);
+            if (_isDisposed) return;
+            _isDisposed = true;
+            foreach (var scope in new List<EcaScope>(_scopes.Values))
+                if (scope.ParentScopeId == null) scope.Dispose();
         }
-
-        public IEcaExecutionGroup GetGroup(string ruleId) => _executionRuntime.GetGroup(ruleId);
-        public bool TryGetGroup(string ruleId, out IEcaExecutionGroup group) => _executionRuntime.TryGetGroup(ruleId, out group);
     }
 }

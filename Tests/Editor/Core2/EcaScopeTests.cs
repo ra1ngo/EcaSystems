@@ -28,13 +28,21 @@ namespace EcaSystems.Tests.Core2
             }
         }
 
-        private EcaScopeRuntime _scope;
+        private EcaScopeRuntime _owner;
+        private EcaScope _scope;
         private readonly ScopeC _condition = new();
         private readonly ScopeA _action = new();
         private EcaExecutionMode Allow => new(EcaExecutionModeOverlap.Allow);
 
         [SetUp]
-        public void SetUpScope() => _scope = new EcaScopeRuntime(new EcaScopeState("A"), Runtime);
+        public void SetUpScope()
+        {
+            _owner = new EcaScopeRuntime(Events);
+            _scope = _owner.CreateScope("A");
+        }
+
+        [TearDown]
+        public void DisposeScopes() => _owner.Dispose();
 
         private Rule<int, R, ScopeC, ScopeA> MakeRule<R>(string id = "rule",
             Func<R, ScopeC, bool> check = null, Func<R, ScopeA, Task> run = null) where R : IEcaScopeRuleState<int>
@@ -81,8 +89,7 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public void Constructor_RejectsMissingDependencies()
         {
-            Assert.Throws<ArgumentNullException>(() => new EcaScopeRuntime(null, Runtime));
-            Assert.Throws<ArgumentNullException>(() => new EcaScopeRuntime(_scope.State, null));
+            Assert.Throws<ArgumentNullException>(() => new EcaScopeRuntime(null));
         }
 
         [Test]
@@ -92,7 +99,8 @@ namespace EcaSystems.Tests.Core2
             _scope.Register(rule, Allow);
             var group = _scope.GetGroup(rule.Id);
             Assert.That(group, Is.TypeOf<EcaExecutionGroup<int, EcaScopeRuleState<int>, ScopeC, ScopeA>>());
-            Assert.That(group, Is.SameAs(Runtime.GetGroup(rule.Id)));
+            Assert.That(_owner.TryGetScope("A", out var scope), Is.True);
+            Assert.That(scope, Is.SameAs(_scope));
             Assert.That(group.Rule, Is.SameAs(rule));
             Assert.That(_scope.TryGetGroup(rule.Id, out var found), Is.True);
             Assert.That(found, Is.SameAs(group));
@@ -100,7 +108,7 @@ namespace EcaSystems.Tests.Core2
             Assert.Throws<InvalidOperationException>(() => _scope.GetGroup("missing"));
             Assert.Throws<InvalidOperationException>(() => _scope.Register(rule, Allow));
             Assert.Throws<InvalidOperationException>(() => _scope.Register(MakeRule<EcaScopeRuleState<int>>(), Allow));
-            Assert.That(Rules.GetByEvent<int, EcaScopeRuleState<int>, ScopeC, ScopeA>(Event), Is.EqualTo(new[] { rule }));
+            Assert.That(group.State.TotalStarted, Is.Zero);
             Fire();
             Assert.That(group.State.TotalStarted, Is.EqualTo(1));
             Assert.That(group.State.TotalFinished, Is.EqualTo(1));
@@ -111,7 +119,7 @@ namespace EcaSystems.Tests.Core2
         {
             Assert.Throws<ArgumentNullException>(() => _scope.Register(MakeRule<RichState>(), Allow,
                 (Func<IEcaExecutionRuleState<int>, EcaScopeState, RichState>)null));
-            Assert.That(Rules.GetByEvent<int, RichState, ScopeC, ScopeA>(Event), Is.Empty);
+            _scope.Fire<int, RichState, ScopeC, ScopeA>(Event, 1, _condition, _action);
             Assert.That(_scope.TryGetGroup("rule", out _), Is.False);
         }
 
@@ -119,7 +127,7 @@ namespace EcaSystems.Tests.Core2
         public void Register_InvalidModeRetainsExecutionRollback()
         {
             Assert.Throws<ArgumentNullException>(() => _scope.Register(MakeRule<EcaScopeRuleState<int>>(), null));
-            Assert.That(Rules.GetByEvent<int, EcaScopeRuleState<int>, ScopeC, ScopeA>(Event), Is.Empty);
+            Fire();
             Assert.That(_scope.TryGetGroup("rule", out _), Is.False);
         }
 
@@ -214,9 +222,7 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public async Task Isolation_SharedEventAndRuleHaveIndependentGroupsAndLimits()
         {
-            var otherExecution = new EcaExecutionRuntime(new EcaBaseRuleRegistry(Events), new EcaExecutionGroupRegistry(),
-                new EcaBaseConditionChecker(), new EcaBaseActionRunner());
-            var other = new EcaScopeRuntime(new EcaScopeState("B"), otherExecution);
+            var other = _owner.CreateScope("B");
             var seen = new List<EcaScopeState>();
             var gate = NewGate();
             var rule = MakeRule<EcaScopeRuleState<int>>(run: (s, c) => { seen.Add(s.ScopeState); return gate.Task; });
