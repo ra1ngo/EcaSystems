@@ -55,6 +55,65 @@ namespace EcaSystems.Tests.Time
             }
         }
 
+        [Test]
+        public void WarmInstalledDelegate_DoesNotAllocateAtSameOrSmallerRunnerCount()
+        {
+            var systems = new TimeSystem[8];
+            try
+            {
+                for (var i = 0; i < systems.Length; i++)
+                {
+                    systems[i] = new TimeSystem();
+                    systems[i].CreateTimer(new TimerCreateOptions("timer", 1000000));
+                    systems[i].Start("timer");
+                }
+                var update = Find(PlayerLoop.GetCurrentPlayerLoop(), typeof(TimeSystemPlayerLoop)).updateDelegate;
+                for (var i = 0; i < 10; i++) update();
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                for (var i = 0; i < 100; i++) update();
+                var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+                Assert.That(allocated, Is.Zero);
+                for (var i = 1; i < systems.Length; i++) systems[i].Stop("timer");
+                before = GC.GetAllocatedBytesForCurrentThread();
+                for (var i = 0; i < 100; i++) update();
+                allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+                Assert.That(allocated, Is.Zero);
+            }
+            finally
+            {
+                foreach (var system in systems)
+                    if (system != null && system.TryGet("timer", out _)) system.DestroyTimer("timer");
+            }
+        }
+
+        [Test]
+        public void NestedInstalledDelegate_PreservesOuterIteration()
+        {
+            var first = new TimeSystem();
+            var second = new TimeSystem();
+            var a = first.CreateTimer(new TimerCreateOptions("timer", 0));
+            var b = second.CreateTimer(new TimerCreateOptions("timer", 0));
+            var completions = 0;
+            PlayerLoopSystem.UpdateFunction update = null;
+            a.Completed += _ => { completions++; update(); };
+            b.Completed += _ => { completions++; update(); };
+            try
+            {
+                first.Start(a.Id);
+                second.Start(b.Id);
+                update = Find(PlayerLoop.GetCurrentPlayerLoop(), typeof(TimeSystemPlayerLoop)).updateDelegate;
+                update();
+                Assert.That(completions, Is.EqualTo(2));
+                Assert.That(a.State, Is.EqualTo(TimerState.Completed));
+                Assert.That(b.State, Is.EqualTo(TimerState.Completed));
+            }
+            finally
+            {
+                first.DestroyTimer(a.Id);
+                second.DestroyTimer(b.Id);
+            }
+        }
+
         private static int Count(PlayerLoopSystem loop, Type type)
         {
             var count = loop.type == type ? 1 : 0;

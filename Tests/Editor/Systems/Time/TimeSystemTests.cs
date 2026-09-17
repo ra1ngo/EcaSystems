@@ -331,6 +331,48 @@ namespace EcaSystems.Tests.Time
         }
 
         [Test]
+        public void NestedTick_DoesNotOverwriteOuterSnapshot()
+        {
+            var first = Create(0);
+            var later = Create(0, id: "later");
+            var completed = new List<string>();
+            first.Completed += _ =>
+            {
+                completed.Add("first");
+                _system.Tick(_scaled, _unscaled);
+                _system.Start(later.Id);
+            };
+            later.Completed += _ => completed.Add("later");
+            _system.Start(first.Id);
+            _system.Start(later.Id);
+            Tick(0, 0);
+            Assert.That(completed, Is.EqualTo(new[] { "first", "later" }));
+            Assert.That(later.State, Is.EqualTo(TimerState.Running));
+            Tick(0, 0);
+            Assert.That(completed, Is.EqualTo(new[] { "first", "later", "later" }));
+        }
+
+        [Test]
+        public void WarmRunnerTick_DoesNotAllocateAtSameOrSmallerCount()
+        {
+            for (var i = 0; i < 16; i++)
+            {
+                var timer = Create(id: "timer-" + i);
+                _system.Start(timer.Id);
+            }
+            for (var i = 0; i < 10; i++) _system.Tick(_scaled, _unscaled);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 100; i++) _system.Tick(_scaled, _unscaled);
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.That(allocated, Is.Zero);
+            for (var i = 1; i < 16; i++) _system.DestroyTimer("timer-" + i);
+            before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 100; i++) _system.Tick(_scaled, _unscaled);
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.That(allocated, Is.Zero);
+        }
+
+        [Test]
         public void CallbackErrors_KeepCommittedTransitionsAndDoNotStarveOtherTimers()
         {
             var first = Create(0);

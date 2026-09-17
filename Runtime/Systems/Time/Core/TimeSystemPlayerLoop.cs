@@ -9,6 +9,7 @@ namespace EcaSystems.Time
     {
         // Only active work is rooted; idle systems/registries are never globally held.
         private static readonly HashSet<TimerRunner> Active = new();
+        private static readonly Stack<List<TimerRunner>> Snapshots = new();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetSession() => Active.Clear();
@@ -37,13 +38,23 @@ namespace EcaSystems.Time
             if (Active.Count == 0) return;
             var scaled = UnityEngine.Time.timeAsDouble;
             var unscaled = UnityEngine.Time.unscaledTimeAsDouble;
-            var snapshot = new TimerRunner[Active.Count];
-            Active.CopyTo(snapshot);
-            foreach (var runner in snapshot)
+            // Keep nested invocations separate from the snapshot still in flight.
+            var snapshot = Snapshots.Count == 0 ? new List<TimerRunner>() : Snapshots.Pop();
+            try
             {
-                if (!Active.Contains(runner)) continue;
-                try { runner.Tick(scaled, unscaled); }
-                catch (Exception error) { Debug.LogException(error); }
+                foreach (var runner in Active) snapshot.Add(runner);
+                foreach (var runner in snapshot)
+                {
+                    if (!Active.Contains(runner)) continue;
+                    try { runner.Tick(scaled, unscaled); }
+                    catch (Exception error) { Debug.LogException(error); }
+                }
+            }
+            finally
+            {
+                // Release runner references, retaining only reusable capacity.
+                snapshot.Clear();
+                Snapshots.Push(snapshot);
             }
         }
 

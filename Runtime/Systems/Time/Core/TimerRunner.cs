@@ -6,6 +6,7 @@ namespace EcaSystems.Time
     internal sealed class TimerRunner
     {
         private readonly List<Timer> _active = new();
+        private readonly Stack<List<(Timer timer, long version)>> _snapshots = new();
         private readonly Action<TimerRunner, bool> _setActive;
 
         internal TimerRunner(Action<TimerRunner, bool> setActive) => _setActive = setActive;
@@ -25,22 +26,32 @@ namespace EcaSystems.Time
         {
             // Capture run identity as well as object identity. A prior callback may
             // stop/restart a later timer, which must wait for the next tick.
-            var snapshot = new (Timer timer, long version)[_active.Count];
-            for (var i = 0; i < snapshot.Length; i++) snapshot[i] = (_active[i], _active[i].Version);
-            List<Exception> errors = null;
-            foreach (var entry in snapshot)
+            // An in-flight snapshot is not pooled until iteration finishes, so even
+            // a nested Tick gets its own buffer. Capacity is retained after warm-up.
+            var snapshot = _snapshots.Count == 0 ? new List<(Timer timer, long version)>() : _snapshots.Pop();
+            try
             {
-                if (entry.timer.Version != entry.version) continue;
-                try
+                foreach (var timer in _active) snapshot.Add((timer, timer.Version));
+                List<Exception> errors = null;
+                foreach (var entry in snapshot)
                 {
-                    entry.timer.Tick(entry.timer.ScaleMode == TimerScaleMode.Scaled ? nowScaled : nowUnscaled);
+                    if (entry.timer.Version != entry.version) continue;
+                    try
+                    {
+                        entry.timer.Tick(entry.timer.ScaleMode == TimerScaleMode.Scaled ? nowScaled : nowUnscaled);
+                    }
+                    catch (Exception error)
+                    {
+                        (errors ??= new List<Exception>()).Add(error);
+                    }
                 }
-                catch (Exception error)
-                {
-                    (errors ??= new List<Exception>()).Add(error);
-                }
+                if (errors != null) throw new AggregateException("Timer completion callback failed.", errors);
             }
-            if (errors != null) throw new AggregateException("Timer completion callback failed.", errors);
+            finally
+            {
+                snapshot.Clear();
+                _snapshots.Push(snapshot);
+            }
         }
     }
 }

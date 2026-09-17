@@ -21,6 +21,14 @@ Unity **6000.5.6f1**, два локальных batchmode EditMode runs:
 
 Это EditMode compilation/runtime verification, не PlayMode scene/frame run и не IL2CPP/player build. Scene independence следует из отсутствия scene objects/dependencies; смена сцен отдельным тестом не запускалась. Удалённый GameCI не запускался. API Unity сверены с [PlayerLoop](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/LowLevel.PlayerLoop.html) и [AwaitableCompletionSource](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/AwaitableCompletionSource.html).
 
+## PR #16: устранение tick allocations — 2026-09-17
+
+TimeSystemPlayerLoop.Update и TimerRunner.Tick переиспользуют snapshot lists из внутренних Stack pools. Capacity растёт только при необходимости; вложенный tick получает отдельный свободный buffer. В finally списки очищаются от references и возвращаются в pool, включая exception path. Snapshot до callbacks, проверка Active.Contains, пары (Timer, Version), restart/mutation protection и aggregation ошибок сохранены. Public API, lifecycle, Wait и архитектура не менялись.
+
+42 прежних Time cases сохранены без изменений; добавлены 4 focused tests в TimeSystemTests/TimePlayerLoopTests: вложенные Tick/Update и allocation checks при прежнем/меньшем числе объектов. После 10 warm-up вызовов GC.GetAllocatedBytesForCurrentThread показывает **0 bytes** за 100 вызовов в каждом измеренном блоке: 16 timers и затем 1; 8 runners и затем 1. Setup, создание объектов, installation и NUnit assertions находятся вне измеряемого участка. Это проверка steady-state пути без callbacks/errors; allocation при capacity growth, первой новой глубине вложенности и обработке exceptions допустима.
+
+Unity **6000.5.6f1** batchmode EditMode: Time **46/46 passed**, полный suite **329/329 passed** (Core 37, Core1 77, Core2 169, Time 46). Оба запуска: 0 failed/skipped/inconclusive, exit code 0. XML/log в игнорируемой `.validation~` с префиксами `time-allocation-focused` и `time-allocation-full`. GitHub Actions отдельно не проверялся. Из документации изменён только Testing.md.
+
 ## Структура
 
 - `Tests/Editor/Base/` — создание Rule, registry/selector, payload, роли контекстов и Fire.
