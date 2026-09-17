@@ -11,6 +11,69 @@ namespace EcaSystems.Tests.Core2
     public sealed class EcaCommandRegistryTests
     {
         [Test]
+        public async Task Register_NonGenericCommandKeepsOriginalInstanceAndRuns()
+        {
+            IEcaCommand<Context, int> typed = new Command<Context, int>
+            {
+                Handler = (c, a) => { c.Value += a; return Task.CompletedTask; }
+            };
+            IEcaCommand command = typed;
+            var registry = new EcaCommandRegistry();
+            registry.Register(command);
+            Assert.That(registry.Resolve(command.Id), Is.SameAs(command));
+            var context = new Context();
+            await new EcaCommandRunner(registry).Bind(context).Run(command.Id, 7);
+            Assert.That(context.Value, Is.EqualTo(7));
+        }
+
+        [Test]
+        public void NonGenericCommand_DefaultMetadataAndBridgePreserveDeclaredTypesAndTask()
+        {
+            Context seenContext = null;
+            Args seenArgs = null;
+            var task = Task.FromResult(1);
+            IEcaCommand command = new Command<Context, Args>
+            {
+                Handler = (c, a) => { seenContext = c; seenArgs = a; return task; }
+            };
+            var context = new DerivedContext();
+            var args = new DerivedArgs();
+            Assert.That(command.ContextType, Is.EqualTo(typeof(Context)));
+            Assert.That(command.ArgsType, Is.EqualTo(typeof(Args)));
+            Assert.That(command.Run(context, args), Is.SameAs(task));
+            Assert.That(seenContext, Is.SameAs(context));
+            Assert.That(seenArgs, Is.SameAs(args));
+        }
+
+        [Test]
+        public async Task Register_HeterogeneousNonGenericArrayRunsDifferentContextsAndArgs()
+        {
+            IEcaCommand[] commands =
+            {
+                new Command<Context, int> { Id = "number", Handler = (c, a) => { c.Value += a; return Task.CompletedTask; } },
+                new Command<CommandsContext, Args> { Id = "args", Handler = (c, a) => { c.Total += a.Value; return Task.CompletedTask; } }
+            };
+            var registry = new EcaCommandRegistry();
+            foreach (IEcaCommand command in commands) registry.Register(command);
+            Assert.That(commands[0].ContextType, Is.EqualTo(typeof(Context)));
+            Assert.That(commands[0].ArgsType, Is.EqualTo(typeof(int)));
+            Assert.That(commands[1].ContextType, Is.EqualTo(typeof(CommandsContext)));
+            Assert.That(commands[1].ArgsType, Is.EqualTo(typeof(Args)));
+            var runner = new EcaCommandRunner(registry);
+            var first = new Context();
+            var second = new CommandsContext(runner);
+            var boundFirst = runner.Bind(first);
+            await boundFirst.Run("number", 5);
+            await second.Commands.Run("args", new Args { Value = 9 });
+            Assert.That(first.Value, Is.EqualTo(5));
+            Assert.That(second.Total, Is.EqualTo(9));
+            Assert.Throws<InvalidOperationException>(() => boundFirst.Run("args", new Args()));
+            Assert.Throws<ArgumentException>(() => second.Commands.Run("args", 9));
+            Assert.That(first.Value, Is.EqualTo(5));
+            Assert.That(second.Total, Is.EqualTo(9));
+        }
+
+        [Test]
         public async Task Register_MultipleCommandsResolveByOrdinalId()
         {
             var registry = new EcaCommandRegistry();
@@ -50,7 +113,7 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public void Register_RejectsNullCommand()
         {
-            Assert.Throws<ArgumentNullException>(() => new EcaCommandRegistry().Register<Context, int>(null));
+            Assert.Throws<ArgumentNullException>(() => new EcaCommandRegistry().Register(null));
         }
 
         [Test]
