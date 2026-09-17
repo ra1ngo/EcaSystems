@@ -13,11 +13,11 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public async Task Register_NonGenericCommandKeepsOriginalInstanceAndRuns()
         {
-            IEcaCommand<Context, int> typed = new Command<Context, int>
+            AEcaCommand<Context, int> typed = new Command<Context, int>
             {
                 Handler = (c, a) => { c.Value += a; return Task.CompletedTask; }
             };
-            IEcaCommand command = typed;
+            AEcaCommand command = typed;
             var registry = new EcaCommandRegistry();
             registry.Register(command);
             Assert.That(registry.Resolve(command.Id), Is.SameAs(command));
@@ -32,7 +32,7 @@ namespace EcaSystems.Tests.Core2
             Context seenContext = null;
             Args seenArgs = null;
             var task = Task.FromResult(1);
-            IEcaCommand command = new Command<Context, Args>
+            AEcaCommand command = new Command<Context, Args>
             {
                 Handler = (c, a) => { seenContext = c; seenArgs = a; return task; }
             };
@@ -48,13 +48,13 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public async Task Register_HeterogeneousNonGenericArrayRunsDifferentContextsAndArgs()
         {
-            IEcaCommand[] commands =
+            AEcaCommand[] commands =
             {
-                new Command<Context, int> { Id = "number", Handler = (c, a) => { c.Value += a; return Task.CompletedTask; } },
-                new Command<CommandsContext, Args> { Id = "args", Handler = (c, a) => { c.Total += a.Value; return Task.CompletedTask; } }
+                new Command<Context, int> { CommandId = "number", Handler = (c, a) => { c.Value += a; return Task.CompletedTask; } },
+                new Command<CommandsContext, Args> { CommandId = "args", Handler = (c, a) => { c.Total += a.Value; return Task.CompletedTask; } }
             };
             var registry = new EcaCommandRegistry();
-            foreach (IEcaCommand command in commands) registry.Register(command);
+            foreach (AEcaCommand command in commands) registry.Register(command);
             Assert.That(commands[0].ContextType, Is.EqualTo(typeof(Context)));
             Assert.That(commands[0].ArgsType, Is.EqualTo(typeof(int)));
             Assert.That(commands[1].ContextType, Is.EqualTo(typeof(CommandsContext)));
@@ -78,8 +78,8 @@ namespace EcaSystems.Tests.Core2
         {
             var registry = new EcaCommandRegistry();
             var calls = new List<string>();
-            registry.Register(new Command<Context, int> { Id = "one", Handler = (c, a) => { calls.Add("one"); return Task.CompletedTask; } });
-            registry.Register(new Command<Context, int> { Id = "One", Handler = (c, a) => { calls.Add("One"); return Task.CompletedTask; } });
+            registry.Register(new Command<Context, int> { CommandId = "one", Handler = (c, a) => { calls.Add("one"); return Task.CompletedTask; } });
+            registry.Register(new Command<Context, int> { CommandId = "One", Handler = (c, a) => { calls.Add("One"); return Task.CompletedTask; } });
             var commands = new EcaCommandRunner(registry).Bind(new Context());
             await commands.Run("One", 1);
             await commands.Run("one", 1);
@@ -104,7 +104,7 @@ namespace EcaSystems.Tests.Core2
         public void RegistryAndLookup_RejectInvalidIds(string id)
         {
             var registry = new EcaCommandRegistry();
-            Assert.Throws<ArgumentException>(() => registry.Register(new Command<Context, int> { Id = id }));
+            Assert.Throws<ArgumentException>(() => registry.Register(new Command<Context, int> { CommandId = id }));
             Assert.Throws<ArgumentException>(() => registry.Unregister(id));
             var commands = new EcaCommandRunner(registry).Bind(new Context());
             Assert.Throws<ArgumentException>(() => commands.Run(id, 1));

@@ -5,9 +5,9 @@ namespace EcaSystems.Core2
 {
     public sealed class EcaCommandRegistry
     {
-        private readonly Dictionary<string, IEcaCommand> _commands = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, AEcaCommand> _commands = new(StringComparer.Ordinal);
 
-        public void Register(IEcaCommand command)
+        public void Register(AEcaCommand command)
         {
             if (command == null) throw new ArgumentNullException(nameof(command));
             var id = command.Id;
@@ -23,7 +23,13 @@ namespace EcaSystems.Core2
             return _commands.Remove(commandId);
         }
 
-        internal IEcaCommand Resolve(string commandId)
+        public bool Contains(string commandId)
+        {
+            ValidateId(commandId);
+            return _commands.ContainsKey(commandId);
+        }
+
+        internal AEcaCommand Resolve(string commandId)
         {
             ValidateId(commandId);
             if (_commands.TryGetValue(commandId, out var command)) return command;

@@ -11,11 +11,12 @@ namespace EcaSystems.Tests.Core2
         internal class Args { public int Value { get; set; } }
         internal sealed class DerivedArgs : Args { }
 
-        internal sealed class Command<C, A> : IEcaCommand<C, A> where C : IEcaActionContext
+        internal sealed class Command<C, A> : AEcaCommand<C, A> where C : IEcaActionContext
         {
-            public string Id { get; set; } = "command";
+            public string CommandId { get; set; } = "command";
+            public override string Id => CommandId;
             public Func<C, A, Task> Handler { get; set; } = (context, args) => Task.CompletedTask;
-            public Task Run(C context, A args) => Handler(context, args);
+            public override Task Run(C context, A args) => Handler(context, args);
         }
 
         internal sealed class CommandsContext : IEcaCommandsActionContext
