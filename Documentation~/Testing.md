@@ -103,3 +103,11 @@ Unity 6000.5.6f1, три batchmode EditMode запуска: EventEmitter — **1
 Public оставлен только IEcaEventEmitter; EcaEventEmitter стал internal sealed, IEcaEventHandler — internal. Bind остался internal. Поведение и tests не менялись; существующий InternalsVisibleTo обеспечивает доступ тестовой композиции.
 
 Unity 6000.5.6f1 batchmode EditMode: EventEmitter **16/16 passed**, Core2 **166/166 passed**, полный suite **280/280 passed** (Core — 37, Core1 — 77, Core2 — 166). Во всех трёх запусках 0 failed/skipped/inconclusive, exit code 0. XML/log сохранены в игнорируемой `.validation~` с префиксами `pr13-accessibility-focused`, `pr13-accessibility-core2`, `pr13-accessibility-full`. Commands/Base/Execution/Scope/Core/Core1 не изменены. PlayMode и удалённый GameCI не запускались.
+
+## Core2 Command abstraction — 2026-09-17
+
+Добавлены 3 cases: non-generic registration с сохранением Command instance, runtime metadata/default erased bridge с derived context/args и исходным Task, heterogeneous IEcaCommand[] с разными C/A и регистрацией одним foreach. Один прежний null-registration case адаптирован к Register(IEcaCommand); остальные behavioural tests сохранены, concrete test Commands не получили metadata/casts/bridge boilerplate.
+
+Default interface implementation IEcaCommand<C,A> реально скомпилирована и выполнена в Unity 6000.5.6f1. Три batchmode EditMode запуска: Commands **31/31 passed**, все Core2 **169/169 passed**, полный suite **283/283 passed** (Core — 37, Core1 — 77, Core2 — 169). Везде 0 failed/skipped/inconclusive, exit code 0. Новых compiler warnings нет; остаётся прежний CS0108 в EcaScopeTests.Fire(int), вне scope задачи. Проверка не включает IL2CPP/player build; PlayMode и удалённый GameCI не запускались.
+
+XML/log сохранены в игнорируемой `.validation~` с префиксами `command-abstraction-focused`, `command-abstraction-core2`, `command-abstraction-full`. Существующие `.meta` сохранены, GUID уникальны. Base/Execution/Scope/EventEmitter/Core/Core1 не изменены; Systems не реализованы.

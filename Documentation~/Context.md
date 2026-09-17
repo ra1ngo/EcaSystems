@@ -20,9 +20,17 @@ Test-only `EcaTestBaseRuntime : EcaBaseRuntime, IEcaEventHandler` один ра�
 
 Core2 `ForceFire` переименован в `Fire` во всех трёх runtime API и call sites. Overload с createState сохраняет прежнюю Base semantics, включая fire-and-forget Actions и обход ExecutionMode/lifecycle; overload без createState в Execution/Scope сохраняет layer-aware semantics. Будущий assembled runtime предоставит `Fire<E>(event, state)` для будущей FireEventCommand; сейчас этот простой adapter есть только в tests. FireEventCommand, Commands integration, Scope routing, global bus и Unity bridge не реализованы. Core/Core1 не менялись.
 
+## Core2 Commands abstraction — 2026-09-17
+
+`IEcaCommand` — non-generic runtime abstraction: `Id`, `Type ContextType`, `Type ArgsType`, `Task Run(IEcaActionContext context, object args)`. Typed authoring остаётся в `IEcaCommand<in C,in A>` с `C : IEcaActionContext` и `Task Run(C context, A args)`. Default interface implementation автоматически предоставляет typeof(C)/typeof(A) и bridge с casts к typed Run. Concrete Command реализует Id и typed Run; metadata и erased bridge вручную не требуются.
+
+`EcaCommandRegistry.Register(IEcaCommand command)` заменяет generic Register. Registry хранит исходный IEcaCommand напрямую; internal Resolve возвращает его же. Промежуточные Entry удалены. Null/Id/duplicate/Ordinal semantics сохранены. Runner без изменения проверок валидирует context, declared args type и null, затем вызывает IEcaCommand.Run и отклоняет null Task. Прямой erased Run — низкоуровневый bridge; проверка совместимости выполняется Runner до вызова.
+
+Это позволяет хранить heterogeneous `IEcaCommand[]` / `IReadOnlyList<IEcaCommand>` и регистрировать Commands разных C/A без generic information на call site. Refactor снимает blocker для будущего EcaSystemConnector; Systems не реализованы. Reflection/dynamic, replacement Entry, registration descriptor и abstract base command не добавлены.
+
 ## Core2 Commands validation — 2026-09-15
 
-`Core2/Concepts/Commands` проверен как самостоятельный horizontal Concept: standalone registry/runner/binding и end-to-end `Commands + EcaBaseRuntime`. Production Commands API и реализация не менялись. Commands подключаются тестовым composition context через `IEcaCommandsActionContext.Commands`; Base получает обычный `A : IEcaActionContext` и не знает о Commands. Production integration с Execution/Scope contexts пока не реализована.
+`Core2/Concepts/Commands` проверен как самостоятельный horizontal Concept: standalone registry/runner/binding и end-to-end `Commands + EcaBaseRuntime`. В validation-итерации production API не менялся; последующий refactor 2026-09-17 описан выше. Commands подключаются тестовым composition context через `IEcaCommandsActionContext.Commands`; Base получает обычный `A : IEcaActionContext` и не знает о Commands. Production integration с Execution/Scope contexts пока не реализована.
 
 `Bind` удерживает ровно переданный ActionContext instance; bindings одного runner/registry/command не смешиваются, в том числе при overlapping async calls. Lookup выполняется заново на каждом Run, поэтому existing binding видит unregister/re-registration. Публичного Get/TryGet у CommandRegistry нет, как и в старом Core: internal Resolve проверен через публичный Run, новый inspection API не добавлялся. Базовое функциональное parity со старым Core сохранено: registration, lookup, binding, typed invocation, несколько Commands и Task.
 
