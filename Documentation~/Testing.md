@@ -111,3 +111,11 @@ Unity 6000.5.6f1 batchmode EditMode: EventEmitter **16/16 passed**, Core2 **166/
 Default interface implementation IEcaCommand<C,A> реально скомпилирована и выполнена в Unity 6000.5.6f1. Три batchmode EditMode запуска: Commands **31/31 passed**, все Core2 **169/169 passed**, полный suite **283/283 passed** (Core — 37, Core1 — 77, Core2 — 169). Везде 0 failed/skipped/inconclusive, exit code 0. Новых compiler warnings нет; остаётся прежний CS0108 в EcaScopeTests.Fire(int), вне scope задачи. Проверка не включает IL2CPP/player build; PlayMode и удалённый GameCI не запускались.
 
 XML/log сохранены в игнорируемой `.validation~` с префиксами `command-abstraction-focused`, `command-abstraction-core2`, `command-abstraction-full`. Существующие `.meta` сохранены, GUID уникальны. Base/Execution/Scope/EventEmitter/Core/Core1 не изменены; Systems не реализованы.
+
+## Core2 Systems v1 / AEcaCommand — 2026-09-17
+
+Новых Systems tests и новых test cases не добавлено по согласованному scope. CommandTestSupport переведён на AEcaCommand<C,A> с override Id/Run, существующие Commands registry tests используют AEcaCommand и новый test-only CommandId для задания Id. Единственный test EventRegistry адаптирован к расширенному interface. Semantic assertions сохранены.
+
+Unity 6000.5.6f1 batchmode EditMode: существующий Core2 suite **169/169 passed**; полный suite после финальной правки Connector **283/283 passed** (Core — 37, Core1 — 77, Core2 — 169). Везде 0 failed/skipped/inconclusive, exit code 0. Systems production code скомпилирован, но отдельных runtime tests Attach/Detach/rollback в этой итерации нет; они проверены review кода, не тестовыми сценариями. Новых compiler warnings нет; прежний CS0108 в Scope tests сохранён.
+
+XML/log: `.validation~/systems-v1-core2-results.xml` / `systems-v1-core2.log`, `systems-v1-full-results.xml` / `systems-v1-full.log`; не коммитятся. IL2CPP/player build, PlayMode и удалённый GameCI не запускались. Существующий Command .meta/GUID сохранён при rename; новые Systems metadata добавлены, GUID уникальны.

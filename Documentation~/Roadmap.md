@@ -148,10 +148,11 @@ Scope v1: hierarchy определяет только время жизни; Fir
 
 ## Управление Systems
 
+- [ ] Развить роль Core2 Namespace и пересмотреть частичное дублирование EcaSystem.Id / EcaSystemNamespace.Id: устранить или явно развести identity; согласовать namespace/stable ID semantics. Сейчас Namespace содержит только Id, automatic prefixing отсутствует.
+- [ ] Решить, должен ли EcaSystem требовать хотя бы один export (Event или Command). В Systems v1 полностью пустой descriptor разрешён.
 - [ ] Возможность отключить все Commands конкретной EcaSystem.
 - [ ] Возможность отключить EcaSystem целиком.
 - [ ] Хранить ownership exports явно, а не выводить только из namespace/string prefix.
-- [ ] Отдельно спроектировать namespaces для Command/Event IDs и возможные stable IDs/GUIDs.
 
 ## State
 

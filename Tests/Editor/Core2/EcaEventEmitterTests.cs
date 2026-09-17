@@ -145,7 +145,19 @@ namespace EcaSystems.Tests.Core2
         {
             public IEcaEvent Registered;
             public IEcaEvent Checked;
+            public void Register(IEcaEvent ecaEvent) => Registered = ecaEvent;
             public void Register<E>(IEcaEvent<E> ecaEvent) => Registered = ecaEvent;
+            public bool Contains(string eventId)
+            {
+                if (string.IsNullOrWhiteSpace(eventId)) throw new ArgumentException(nameof(eventId));
+                return Registered != null && Registered.Id == eventId;
+            }
+            public bool Unregister(string eventId)
+            {
+                if (!Contains(eventId)) return false;
+                Registered = null;
+                return true;
+            }
             public bool CheckRegistered(IEcaEvent ecaEvent) { Checked = ecaEvent; return ReferenceEquals(Registered, ecaEvent); }
         }
 
