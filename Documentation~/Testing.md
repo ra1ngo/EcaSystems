@@ -2,6 +2,25 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## Standalone TimeSystem Core v1 — 2026-09-17
+
+Новая изолированная assembly `EcaSystems.Time.Editor.Tests` в `Tests/Editor/Systems/Time` references только `EcaSystems.Time` и TestAssemblies. Runtime assembly использует UnityEngine и не references ECA assemblies. Добавлены **42 NUnit cases**, существующие 283 cases не менялись.
+
+Покрыты creation/lookup/Ordinal IDs/instance isolation, null/invalid IDs/options/duration/scale, все разрешённые и запрещённые lifecycle transitions, event order/count, timing values, pause/resume/reset-on-stop, restart-after-completion, destroy из всех live states, terminal old instance и ID reuse из callback. Дополнительно проверены double precision/overshoot, independent Scaled/Unscaled clocks, zero-duration, reentrant start/destroy/replacement, callback errors без потери остальных timers, повторные Wait и Awaitable continuation, отсутствие Wait в public registry.
+
+Deterministic seam — internal constructor с time reader/active-runner callback и internal Tick(nowScaled, nowUnscaled), доступные через InternalsVisibleTo только Time test assembly. Нет sleeps, public clock/Tick или ECA test dependencies. Awaitable потребляется один раз; test-only Task используется лишь для наблюдения окончания async continuation. PlayerLoop tests работают с реальным GetCurrentPlayerLoop/SetPlayerLoop, проверяют повторную установку одного hook и исполняют установленный delegate с двумя public TimeSystem instances; исходный loop восстанавливается в TearDown.
+
+Unity **6000.5.6f1**, два локальных batchmode EditMode runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Time focused | 42 | 42 | 0 | 0 | 0 |
+| Полный regression suite | 325 | 325 | 0 | 0 | 0 |
+
+Полный run: Core 37, Core1 77, Core2 169, Time 42. Оба запуска завершились с exit code 0. Новых compiler warnings нет; при первой компиляции остался прежний CS0108 в Core2 EcaScopeTests.Fire(int), вне scope. XML/log сохранены в игнорируемой `.validation~`: `time-v1-focused-results.xml` / `time-v1-focused.log`, `time-v1-full-results.xml` / `time-v1-full.log`.
+
+Это EditMode compilation/runtime verification, не PlayMode scene/frame run и не IL2CPP/player build. Scene independence следует из отсутствия scene objects/dependencies; смена сцен отдельным тестом не запускалась. Удалённый GameCI не запускался. API Unity сверены с [PlayerLoop](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/LowLevel.PlayerLoop.html) и [AwaitableCompletionSource](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/AwaitableCompletionSource.html).
+
 ## Структура
 
 - `Tests/Editor/Base/` — создание Rule, registry/selector, payload, роли контекстов и Fire.
@@ -10,12 +29,13 @@
 - `Tests/Editor/Scope/` — идентификаторы, иерархия, lifetime и закрытые операции.
 - `Tests/Editor/Integration/` — Execution + Commands и Scope + Execution + Commands.
 - `Tests/Editor/Support/` — небольшие recording doubles и управляемые async Actions.
+- `Tests/Editor/Systems/Time/` — standalone TimeSystem, отдельная `EcaSystems.Time.Editor.Tests` с reference только на `EcaSystems.Time` и TestAssemblies; нет ECA dependencies.
 
 `EcaSystems.Editor.Tests.asmdef` ссылается на фактическую assembly `EcaSystems.Core`, включает только Editor и использует `optionalUnityReferences: ["TestAssemblies"]`.
 
 Основная масса Core-сценариев — EditMode: `[TestFixture]`, `[Test]`, при необходимости `[TestCase]` и `async Task`. Controlled Actions завершаются явно; ограниченное ожидание продолжений Task не зависит от кадров. TearDown освобождает управляемые Actions и при падении проверки. Reflection используется для недоступного извне начального Pending, внутреннего Bind guard и проверки generic type contracts; production API для этого не расширяется.
 
-PlayMode нужен для PlayerLoop, frames/coroutines, MonoBehaviour lifecycle, scenes и будущих Unity adapters/TimeSystem/Wait. Сейчас таких сценариев нет, поэтому Runtime test assembly и placeholder tests не создаются. С первым настоящим lifecycle-тестом добавятся `Tests/Runtime/Unity/` и `EcaSystems.Runtime.Tests.asmdef` с runtime reference и `TestAssemblies`.
+PlayMode нужен для настоящих frame/scene/MonoBehaviour lifecycle scenarios и будущих Unity adapters. TimeSystem Core v1 проверяет timing детерминированно и PlayerLoop install/delegate в EditMode, без scene dependencies и heavyweight PlayMode test. Runtime test assembly и placeholder tests не создаются; они появятся с первым сценарием, которому реально нужны PlayMode/сцены.
 
 ## Локальный запуск
 

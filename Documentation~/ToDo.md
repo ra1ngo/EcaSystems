@@ -12,7 +12,8 @@
 - [x] EventEmitter concept: public IEcaEventEmitter.Fire<E>, internal Bind одного IEcaEventHandler, прямой generic callback; Base integration через test runtime. Core2 runtime API переименован в Fire с сохранением semantics overloads.
 - [x] NUnit/Unity EditMode tests для Execution и недостающие Unity metadata.
 - [x] Systems v1: passive EcaSystem/Namespace, отдельные registries, EcaSystemConnector.Attach/Detach с prevalidation и локальным rollback; EventRegistry расширен non-generic Register/Unregister/Contains.
-- [ ] TimeSystem — следующий отдельный этап. State и расширенная Systems composition остаются будущими итерациями; EcaSystemsRuntime пока не реализован.
+- [x] Standalone TimeSystem Core v1: независимая Unity assembly, ID timers, lifecycle events, PlayerLoop и Awaitable Wait; изолированные tests.
+- [ ] Time ECA adapter — следующий отдельный Time step. State и расширенная Systems composition остаются будущими итерациями; EcaSystemsRuntime пока не реализован.
 - [ ] Следующей отдельной итерацией рассмотреть external event adapters к IEcaEventEmitter.Fire<E>: C# events, callbacks, observables, polling, UnityEvent/InputAction и другие источники; список в Roadmap. Сейчас реализован только прямой Emitter API.
 - [ ] Рассмотреть StateBuilder/StateFactory позже, если последовательное расширение RuleState между слоями станет достаточно сложным, повторяемым или неудобным через Func. Execution использует Func<E, EcaExecutionGroupState, R>, Scope — Func<IEcaExecutionRuleState<E>, EcaScopeState, R>; отдельный builder не проектируется.
 - [ ] Следующие слои согласовывать отдельными итерациями. Core2 production Commands/EventEmitter composition с Execution/Scope, FireEventCommand, Unity bridge, cancellation и Reset/Queue сейчас не реализованы.
@@ -67,7 +68,8 @@
 
 ## 4. TimeSystem
 
-- [ ] После архитектуры Systems реализовать TimeSystem / EcaTimeSystem и EcaWaitCommand. В текущую итерацию они не входят.
+- [x] Standalone TimeSystem Core v1 в Runtime/Systems/Time/Core, без ECA dependencies; отдельные runtime/test assemblies.
+- [ ] Time ECA adapter в зарезервированном Runtime/Systems/Time/Eca: отдельно согласовать descriptor, Events и Commands, включая адаптацию Awaitable Wait. Сейчас не реализован.
 
 ## 5. Global State / переменные
 

@@ -4,6 +4,18 @@
 
 Core1 Base создан параллельно старому Core: A/Abstractions плоский, RuleState = data, RunnerContext = infrastructure, RuleRun скрывает типы от BaseEngine. В prototype уже выбран синхронный classic C# event dispatcher с immediate/reentrant Fire; ALL CONDITIONS → ALL ACTIONS принадлежит BaseEngine. Reuse через ExecutionRuleRunner и ScopeRuleRunner реализован; следующий обязательный шаг — review Core1 Execution/Scope (ToDo). Возможности ниже не реализованы этим prototype.
 
+## Standalone TimeSystem: будущие возможности
+
+Core v1 реализует только одноразовые ID timers и Awaitable Wait через обычную Update phase. Следующий обязательный шаг — отдельный Time ECA adapter (ToDo). Дополнительные candidates, не входящие в v1:
+
+- [ ] Repeat/looping timers, restart/reset convenience.
+- [ ] Cancellation для Wait.
+- [ ] Groups/tags/bulk operations.
+- [ ] Local/custom scale и time channels.
+- [ ] Дополнительные PlayerLoop phases.
+- [ ] Conditional/frame waits.
+- [ ] Timer debug/editor tooling.
+
 ## Core2: adapters внешних событий — следующая отдельная итерация
 
 Предоставить несколько способов адаптации источников к одному public порту `IEcaEventEmitter.Fire<E>(IEcaEvent<E> ecaEvent, E eventState)`:
