@@ -22,10 +22,10 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void EventRegistry_CheckRegistered_UsesIdAndStateType()
+        public void EventRegistry_CheckRegistered_UsesCanonicalInstance()
         {
             Assert.That(_events.CheckRegistered(_event), Is.True);
-            Assert.That(_events.CheckRegistered(new Event<int>()), Is.True);
+            Assert.That(_events.CheckRegistered(new Event<int>()), Is.False);
             Assert.That(_events.CheckRegistered(new Event<int> { Id = "other" }), Is.False);
             Assert.That(_events.CheckRegistered(new Event<string>()), Is.False);
             Assert.That(_events.CheckRegistered(null), Is.False);
@@ -49,12 +49,12 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void EventRegistry_Register_RejectsNullAndMismatchedMetadata()
+        public void EventRegistry_Register_RejectsNull_StoresMetadataWithoutTypedValidation()
         {
-            Assert.Throws<ArgumentNullException>(() => _events.Register<int>(null));
+            Assert.Throws<ArgumentNullException>(() => _events.Register(null));
             var invalid = new Event<int> { Id = "invalid", EventStateType = typeof(string) };
-            Assert.Throws<ArgumentException>(() => _events.Register(invalid));
-            Assert.That(_events.CheckRegistered(invalid), Is.False);
+            _events.Register(invalid);
+            Assert.That(_events.CheckRegistered(invalid), Is.True);
         }
 
         [Test]
@@ -69,7 +69,7 @@ namespace EcaSystems.Tests.Core2
             registry.Register(new Rule { Id = "other.rule", Event = other });
             registry.Register(second);
 
-            var matching = registry.GetByEvent<int, State, ConditionContext, ActionContext>(new Event<int>());
+            var matching = registry.GetByEvent<int, State, ConditionContext, ActionContext>(_event);
             Assert.That(matching, Is.EqualTo(new[] { first, second }));
             Assert.That(matching[0].Condition, Is.Null);
         }
@@ -109,8 +109,8 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public void RuleRegistry_Register_RejectsMismatchedEventContract()
         {
-            _events.Register(new Event<string> { Id = "string" });
             var invalid = new Event<int> { Id = "string", EventStateType = typeof(string) };
+            _events.Register(invalid);
             Assert.Throws<ArgumentException>(() => _rules.Register(new Rule { Event = invalid }));
         }
 

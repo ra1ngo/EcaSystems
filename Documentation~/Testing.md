@@ -2,6 +2,61 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## PR #17 follow-up: Time/Eca structure и PlayerLoop separation — 2026-09-18
+
+Commands перенесены в Eca/Commands, TimeWaitArgs — в standalone Time/Core (namespace EcaSystems.Time); GUID всех перемещённых файлов сохранены. Internal EcaTimeEvent и local internal Event/Command key → string mappings заменяют вложенную declaration и public raw ID constants. Строковые runtime IDs не изменились. Добавлены 3 Time/Eca tests: полное и уникальное соответствие event keys, command keys (включая отклонение неизвестного key), принадлежность TimeWaitArgs standalone assembly. Прежние tests проверяют concrete EcaTimeEvent, canonical caching, Commands delegation, lifecycle snapshots, Connect/Disconnect и Wait.
+
+TimeSystemPlayerLoop владеет Unity hook/initialization и передаёт одну пару clocks в TimeTicker. PlayerLoop tests адаптированы к этой границе без ослабления assertions: idempotent installation, сохранение чужих entries, общие ticks независимых instances, nested ticks и 0 managed bytes на 100 warmed updates при прежнем/меньшем количестве активных Systems. TimeTicker сохраняет cached subscriber snapshot, clocks-before-callbacks и failure isolation. TimerTickProcessor, ScaleMode/lifecycle architecture и Core/Core1/Core2 не менялись.
+
+Unity **6000.5.6f1**, фактически выполненные batchmode EditMode runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Focused Time/Core assembly | 53 | 53 | 0 | 0 | 0 |
+| Focused Time/Eca assembly | 16 | 16 | 0 | 0 | 0 |
+| Focused TimePlayerLoopTests | 4 | 4 | 0 | 0 | 0 |
+| Полный regression suite | 376 | 376 | 0 | 0 | 0 |
+
+Полный suite: Core 37, Core1 77, Core2 193, standalone Time 53, Time/Eca 16. Все четыре запуска завершились с exit code 0. После focused Time/Eca run mapping assertions усилены с EquivalentTo до EqualTo для проверки соответствия порядку ключей; финальный полный suite выполнил усиленные assertions. В логах этих запусков нет compiler errors/warnings. XML/log находятся в игнорируемой .validation~ с префиксами pr17-structure-core, pr17-structure-eca, pr17-structure-playerloop, pr17-structure-full. PlayMode, IL2CPP и удалённый CI не запускались. ScaleMode/SOLID cleanup остаётся отдельной будущей итерацией.
+
+## PR #17 follow-up: canonical registries и Time/Eca cleanup — 2026-09-18
+
+Четыре simple registries используют live read-only items, public Resolve и exact-instance CheckRegistered. Generic Event Register<E> удалён; typed metadata проверяется потребителем. EcaSystem хранит local Event/Command registries, Connector передаёт exact references и отклоняет foreign replacements до Detach mutation. EventEmitter production/API, RuleRegistry/ExecutionGroupRegistry и standalone Time/Core не менялись.
+
+Добавлены 24 Core2 cases: 16 для четырёх registries (live view, identity, lookup, duplicate, Ordinal, unregister/re-registration, null/invalid IDs), 7 для System/Connector (local/global identity, unrelated registrations, foreign export/namespace replacement, Attach/Detach rollback, обязательные constructor dependencies), 1 для canonical-only Fire. Прежние Event tests адаптированы к non-generic registration и identity. Rule metadata validation проверяется на canonical зарегистрированной declaration, не на чужом instance.
+
+Time/Eca прежние 8 cases переведены на local registries/concrete Commands; добавлены 5 cases для однократного resolve/cache, missing events, несовместимых interface/metadata и null constructor dependencies. EcaTimeEventState сохраняет immutable/reentrant snapshot semantics; metadata GUID сохранён при rename. TimeEcaEvents/TimeEcaCommandIds удалены, команды проверяются по concrete types. Всего добавлено **29 cases**, standalone Time tests сохранены без изменений.
+
+Unity **6000.5.6f1**, фактически выполненные EditMode runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Focused Core2 registry/System/EventEmitter | 62 | 62 | 0 | 0 | 0 |
+| Focused Time/Eca | 13 | 13 | 0 | 0 | 0 |
+| Полный regression suite | 373 | 373 | 0 | 0 | 0 |
+
+Полный suite: Core 37, Core1 77, Core2 193, standalone Time 53, Time/Eca 13. После финального review сохранена прежняя System ID validation в Connector.Detach через Resolve; повторный полный run pr17-cleanup-final также дал 373/373 passed, 0 failed/skipped/inconclusive. Все четыре запуска завершились с exit code 0. Standalone Time отдельно не запускался, поскольку его code/tests не менялись; все 53 cases выполнены полным suite. Первоначальная компиляция повторила прежний CS0108 в EcaScopeTests.Fire(int), новых compiler warnings нет.
+
+XML/log находятся в игнорируемой .validation~ с префиксами pr17-registry-focused, pr17-time-eca, pr17-cleanup-full, pr17-cleanup-final. PlayMode/IL2CPP и удалённый CI не запускались. Политика rollback по-прежнему требует стабильной configuration и exception-safe registry operations; tests инъецируют отказ до mutation, не утверждают универсальную атомарность произвольного custom registry.
+## TimeSystem refactor + Time/Eca — 2026-09-18
+
+Актуальная архитектура заменяет исторические TimerRunner/snapshot детали ниже: TimeTicker, один TimerRegistry, TimerController/TimerTickProcessor с due-only двухфазным batch и отдельные WaitRegistry/WaitTimer/WaitTickProcessor. Предыдущие 46 standalone cases адаптированы к system-level lifecycle events и frame-visible Timer data, без потери lifecycle/error/reentrancy coverage. Добавлены 7 архитектурных cases: subscription/unsubscription по Timer/Wait work, ticker clocks и изоляция failures, Timer error без starvation Wait/другой System, новые Timer/Wait из callbacks, обновление всех frame values до callbacks, Pause/Destroy по текущим clocks и failing Wait continuation без starvation.
+
+Добавлена отдельная assembly EcaSystems.Time.Eca.Editor.Tests в Tests/Editor/Systems/Time/Eca: references EcaSystems.Time, EcaSystems.Time.Eca, EcaSystems.Core2 и TestAssemblies. Её 8 cases проверяют шесть typed Event exports по identity, семь Commands, все lifecycle forwards, immutable reentrant completion snapshot, Connect/Disconnect/reconnect, Attach-before-Connect и Disconnect-before-Detach, Wait Task для двух scale modes, validation/typed args. Используется test-only IEcaEventEmitter double с реальным EcaBaseEventRegistry; production Core2 composition/internal emitter binding не добавлялись. Standalone test assembly не зависит от adapter/Core2.
+
+Unity **6000.5.6f1**, фактически завершённые batchmode EditMode runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Focused standalone Time, final | 53 | 53 | 0 | 0 | 0 |
+| Focused Time/Eca | 8 | 8 | 0 | 0 | 0 |
+| Полный regression suite | 344 | 344 | 0 | 0 | 0 |
+
+Все три финальных запуска — exit code 0. Полный suite: Core 37, Core1 77, Core2 169, Time 53, Time/Eca 8. До них первый запуск с namespace filter захватил обе Time assemblies: 59 passed / 2 failed из 61 из-за ожидания заголовка AggregateException вместо первой строки inner exception в Unity log. Исправлены только LogAssert expectations; для отдельных focused runs затем использован assemblyNames.
+
+Сохранённые allocation cases показывают 0 managed bytes за 100 steady-state ticks после прогрева при прежнем/меньшем числе timers/systems. Due buffers и cached ticker invocation list переиспользуются; изменение подписок, capacity growth и ошибки находятся вне этого steady-state утверждения. Ticker subscriber exceptions в error tests ожидаемо логируются; остальные tests не генерируют неожиданных ошибок. В logs запусков этой итерации compiler warnings не обнаружены.
+
+Результаты/logs в игнорируемой .validation~: time-adapter-core-results.xml / time-adapter-core.log (первая попытка), time-adapter-core-final-results.xml / time-adapter-core-final.log, time-adapter-eca-results.xml / time-adapter-eca.log, time-adapter-full-results.xml / time-adapter-full.log. PlayMode/Sandbox, IL2CPP/player build и удалённый CI в этой итерации не запускались. Core/Core1/Core2 production и tests не менялись.
 ## Standalone TimeSystem Core v1 — 2026-09-17
 
 Новая изолированная assembly `EcaSystems.Time.Editor.Tests` в `Tests/Editor/Systems/Time` references только `EcaSystems.Time` и TestAssemblies. Runtime assembly использует UnityEngine и не references ECA assemblies. Добавлены **42 NUnit cases**, существующие 283 cases не менялись.

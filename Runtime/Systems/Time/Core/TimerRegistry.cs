@@ -6,6 +6,15 @@ namespace EcaSystems.Time
     internal sealed class TimerRegistry
     {
         private readonly Dictionary<string, Timer> _timers = new(StringComparer.Ordinal);
+        internal Dictionary<string, Timer>.ValueCollection Values => _timers.Values;
+        internal bool HasActive
+        {
+            get
+            {
+                foreach (var timer in _timers.Values) if (timer.IsActive) return true;
+                return false;
+            }
+        }
 
         internal void Register(Timer timer)
         {

@@ -7,12 +7,8 @@ namespace EcaSystems.Time
 {
     internal static class TimeSystemPlayerLoop
     {
-        // Only active work is rooted; idle systems/registries are never globally held.
-        private static readonly HashSet<TimerRunner> Active = new();
-        private static readonly Stack<List<TimerRunner>> Snapshots = new();
-
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetSession() => Active.Clear();
+        private static void ResetSession() => TimeTicker.Instance.Reset();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         internal static void Install()
@@ -21,41 +17,14 @@ namespace EcaSystems.Time
             RemoveHooks(ref loop);
             if (!InsertHook(ref loop)) throw new InvalidOperationException("Unity Update phase was not found.");
             PlayerLoop.SetPlayerLoop(loop);
-        }
-
-        internal static void SetActive(TimerRunner runner, bool active)
-        {
-            if (active)
-            {
-                if (Active.Count == 0) Install();
-                Active.Add(runner);
-            }
-            else Active.Remove(runner);
+            TimeTicker.Instance.UpdateTime(UnityEngine.Time.timeAsDouble, UnityEngine.Time.unscaledTimeAsDouble);
         }
 
         private static void Update()
         {
-            if (Active.Count == 0) return;
             var scaled = UnityEngine.Time.timeAsDouble;
             var unscaled = UnityEngine.Time.unscaledTimeAsDouble;
-            // Keep nested invocations separate from the snapshot still in flight.
-            var snapshot = Snapshots.Count == 0 ? new List<TimerRunner>() : Snapshots.Pop();
-            try
-            {
-                foreach (var runner in Active) snapshot.Add(runner);
-                foreach (var runner in snapshot)
-                {
-                    if (!Active.Contains(runner)) continue;
-                    try { runner.Tick(scaled, unscaled); }
-                    catch (Exception error) { Debug.LogException(error); }
-                }
-            }
-            finally
-            {
-                // Release runner references, retaining only reusable capacity.
-                snapshot.Clear();
-                Snapshots.Push(snapshot);
-            }
+            TimeTicker.Instance.Publish(scaled, unscaled);
         }
 
         private static void RemoveHooks(ref PlayerLoopSystem loop)

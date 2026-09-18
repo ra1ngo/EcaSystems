@@ -56,7 +56,7 @@ namespace EcaSystems.Tests.Time
         }
 
         [Test]
-        public void WarmInstalledDelegate_DoesNotAllocateAtSameOrSmallerRunnerCount()
+        public void WarmInstalledDelegate_DoesNotAllocateAtSameOrSmallerSystemCount()
         {
             var systems = new TimeSystem[8];
             try
@@ -95,8 +95,8 @@ namespace EcaSystems.Tests.Time
             var b = second.CreateTimer(new TimerCreateOptions("timer", 0));
             var completions = 0;
             PlayerLoopSystem.UpdateFunction update = null;
-            a.Completed += _ => { completions++; update(); };
-            b.Completed += _ => { completions++; update(); };
+            first.TimerCompleted += _ => { completions++; update(); };
+            second.TimerCompleted += _ => { completions++; update(); };
             try
             {
                 first.Start(a.Id);

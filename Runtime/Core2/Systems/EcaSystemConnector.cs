@@ -30,12 +30,12 @@ namespace EcaSystems.Core2
             {
                 _namespaces.Register(system.Namespace);
                 undo.Push(() => RequireRemoved(_namespaces.Unregister(system.Namespace.Id)));
-                foreach (var ecaEvent in system.Events)
+                foreach (var ecaEvent in system.Events.Events)
                 {
                     _events.Register(ecaEvent);
                     undo.Push(() => RequireRemoved(_events.Unregister(ecaEvent.Id)));
                 }
-                foreach (var command in system.Commands)
+                foreach (var command in system.Commands.Commands)
                 {
                     _commands.Register(command);
                     undo.Push(() => RequireRemoved(_commands.Unregister(command.Id)));
@@ -61,12 +61,12 @@ namespace EcaSystems.Core2
             {
                 RequireRemoved(_systems.Unregister(system.Id));
                 undo.Push(() => _systems.Register(system));
-                foreach (var command in system.Commands)
+                foreach (var command in system.Commands.Commands)
                 {
                     RequireRemoved(_commands.Unregister(command.Id));
                     undo.Push(() => _commands.Register(command));
                 }
-                foreach (var ecaEvent in system.Events)
+                foreach (var ecaEvent in system.Events.Events)
                 {
                     RequireRemoved(_events.Unregister(ecaEvent.Id));
                     undo.Push(() => _events.Register(ecaEvent));
@@ -84,24 +84,24 @@ namespace EcaSystems.Core2
         {
             if (system.Namespace == null) throw new ArgumentException("System namespace is required.", nameof(system));
             ValidateId(system.Namespace.Id);
-            RequirePresence(_namespaces.Contains(system.Namespace.Id), attached, "Namespace", system.Namespace.Id);
+            RequirePresence(attached ? _namespaces.CheckRegistered(system.Namespace) : _namespaces.Contains(system.Namespace.Id), attached, "Namespace", system.Namespace.Id);
             var eventIds = attached ? null : new HashSet<string>(StringComparer.Ordinal);
-            foreach (var ecaEvent in system.Events)
+            foreach (var ecaEvent in system.Events.Events)
             {
                 if (ecaEvent == null) throw new ArgumentException("System event cannot be null.", nameof(system));
                 ValidateId(ecaEvent.Id);
                 if (eventIds != null && !eventIds.Add(ecaEvent.Id))
                     throw new ArgumentException($"Duplicate event '{ecaEvent.Id}' in System.", nameof(system));
-                RequirePresence(_events.Contains(ecaEvent.Id), attached, "Event", ecaEvent.Id);
+                RequirePresence(attached ? _events.CheckRegistered(ecaEvent) : _events.Contains(ecaEvent.Id), attached, "Event", ecaEvent.Id);
             }
             var commandIds = attached ? null : new HashSet<string>(StringComparer.Ordinal);
-            foreach (var command in system.Commands)
+            foreach (var command in system.Commands.Commands)
             {
                 if (command == null) throw new ArgumentException("System command cannot be null.", nameof(system));
                 ValidateId(command.Id);
                 if (commandIds != null && !commandIds.Add(command.Id))
                     throw new ArgumentException($"Duplicate command '{command.Id}' in System.", nameof(system));
-                RequirePresence(_commands.Contains(command.Id), attached, "Command", command.Id);
+                RequirePresence(attached ? _commands.CheckRegistered(command) : _commands.Contains(command.Id), attached, "Command", command.Id);
             }
         }
 

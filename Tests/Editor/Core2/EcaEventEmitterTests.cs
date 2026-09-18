@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using EcaSystems.Core2;
 using NUnit.Framework;
 using static EcaSystems.Tests.Core2.EventTestSupport;
@@ -22,6 +23,20 @@ namespace EcaSystems.Tests.Core2
             IEcaEventEmitter externalEmitter = emitter;
             externalEmitter.Fire(ecaEvent, 7);
             Assert.That(handler.States, Is.EqualTo(new object[] { 7 }));
+        }
+
+        [Test]
+        public void Fire_RejectsDifferentInstanceWithSameIdAndType()
+        {
+            var events = new EcaBaseEventRegistry();
+            var canonical = new BaseTestSupport.Event<int>();
+            events.Register(canonical);
+            var emitter = new EcaEventEmitter(events);
+            var handler = new RecordingHandler();
+            emitter.Bind(handler);
+            Assert.Throws<InvalidOperationException>(() => emitter.Fire(new BaseTestSupport.Event<int>(), 1));
+            emitter.Fire(canonical, 2);
+            Assert.That(handler.States, Is.EqualTo(new object[] { 2 }));
         }
 
         [Test]
@@ -72,8 +87,8 @@ namespace EcaSystems.Tests.Core2
         public void Fire_RejectsLyingMetadataEvenWhenRegistryCheckPasses()
         {
             var events = new EcaBaseEventRegistry();
-            events.Register(new BaseTestSupport.Event<int>());
             var liar = new BaseTestSupport.Event<string> { EventStateType = typeof(int) };
+            events.Register(liar);
             Assert.That(events.CheckRegistered(liar), Is.True);
             var emitter = new EcaEventEmitter(events);
             var handler = new RecordingHandler();
@@ -146,7 +161,8 @@ namespace EcaSystems.Tests.Core2
             public IEcaEvent Registered;
             public IEcaEvent Checked;
             public void Register(IEcaEvent ecaEvent) => Registered = ecaEvent;
-            public void Register<E>(IEcaEvent<E> ecaEvent) => Registered = ecaEvent;
+            public IReadOnlyCollection<IEcaEvent> Events => Registered == null ? Array.Empty<IEcaEvent>() : new[] { Registered };
+            public IEcaEvent Resolve(string id) => Contains(id) ? Registered : throw new InvalidOperationException();
             public bool Contains(string eventId)
             {
                 if (string.IsNullOrWhiteSpace(eventId)) throw new ArgumentException(nameof(eventId));
