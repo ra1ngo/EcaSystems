@@ -6,16 +6,15 @@ namespace EcaSystems.Time.Eca
 {
     public sealed class EcaStartTimerCommand : AEcaCommand<IEcaActionContext, string>
     {
-        public const string ID = "time.timer.start";
-        public override string Id => ID;
+        public override string Id => EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_START_ID);
         private readonly TimeSystem _time;
 
         public EcaStartTimerCommand(TimeSystem time) =>
             _time = time ?? throw new ArgumentNullException(nameof(time));
 
-        public override Task Run(IEcaActionContext context, string args)
+        public override Task Run(IEcaActionContext context, string timerId)
         {
-            _time.Start(args);
+            _time.Start(timerId);
             return Task.CompletedTask;
         }
     }

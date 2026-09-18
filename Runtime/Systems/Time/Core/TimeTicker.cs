@@ -1,11 +1,9 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.LowLevel;
 
 namespace EcaSystems.Time
 {
-    /// <summary>Main-thread PlayerLoop clock source shared by TimeSystem instances.</summary>
+    /// <summary>Main-thread clock and tick source shared by TimeSystem instances.</summary>
     public sealed class TimeTicker
     {
         public static TimeTicker Instance { get; } = new();
@@ -23,26 +21,12 @@ namespace EcaSystems.Time
         internal TimeTicker() { }
         internal int SubscriberCount => _subscribers.Length;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetSession()
+        internal void Reset()
         {
-            Instance._tick = null;
-            Instance._subscribers = Array.Empty<Delegate>();
-            Instance.CurrentTime = Instance.CurrentUnscaledTime = 0;
+            _tick = null;
+            _subscribers = Array.Empty<Delegate>();
+            CurrentTime = CurrentUnscaledTime = 0;
         }
-
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        internal static void Install()
-        {
-            var loop = PlayerLoop.GetCurrentPlayerLoop();
-            RemoveHooks(ref loop);
-            if (!InsertHook(ref loop)) throw new InvalidOperationException("Unity Update phase was not found.");
-            PlayerLoop.SetPlayerLoop(loop);
-            Instance.CurrentTime = UnityEngine.Time.timeAsDouble;
-            Instance.CurrentUnscaledTime = UnityEngine.Time.unscaledTimeAsDouble;
-        }
-
-        private static void Update() => Instance.Publish(UnityEngine.Time.timeAsDouble, UnityEngine.Time.unscaledTimeAsDouble);
 
         internal void Publish(double scaled, double unscaled)
         {
@@ -61,34 +45,6 @@ namespace EcaSystems.Time
         {
             CurrentTime = scaled;
             CurrentUnscaledTime = unscaled;
-        }
-        private static void RemoveHooks(ref PlayerLoopSystem loop)
-        {
-            if (loop.subSystemList == null) return;
-            var children = new List<PlayerLoopSystem>();
-            foreach (var original in loop.subSystemList)
-            {
-                if (original.type == typeof(TimeTicker)) continue;
-                var child = original;
-                RemoveHooks(ref child);
-                children.Add(child);
-            }
-            loop.subSystemList = children.ToArray();
-        }
-
-        private static bool InsertHook(ref PlayerLoopSystem loop)
-        {
-            if (loop.type == typeof(UnityEngine.PlayerLoop.Update))
-            {
-                var children = new List<PlayerLoopSystem>(loop.subSystemList ?? Array.Empty<PlayerLoopSystem>());
-                children.Add(new PlayerLoopSystem { type = typeof(TimeTicker), updateDelegate = Update });
-                loop.subSystemList = children.ToArray();
-                return true;
-            }
-            if (loop.subSystemList == null) return false;
-            for (var i = 0; i < loop.subSystemList.Length; i++)
-                if (InsertHook(ref loop.subSystemList[i])) return true;
-            return false;
         }
     }
 }

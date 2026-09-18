@@ -22,7 +22,7 @@ namespace EcaSystems.Time
         public event Action<Timer> TimerCompleted;
         public event Action<Timer> TimerDestroyed;
 
-        public TimeSystem() : this(TimeTicker.Instance) { TimeTicker.Install(); }
+        public TimeSystem() : this(TimeTicker.Instance) { TimeSystemPlayerLoop.Install(); }
         internal TimeSystem(TimeTicker ticker)
         {
             _ticker = ticker;

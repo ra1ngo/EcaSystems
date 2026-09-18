@@ -1,4 +1,4 @@
-namespace EcaSystems.Time.Eca
+namespace EcaSystems.Time
 {
     public readonly struct TimeWaitArgs
     {

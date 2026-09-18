@@ -6,16 +6,15 @@ namespace EcaSystems.Time.Eca
 {
     public sealed class EcaDestroyTimerCommand : AEcaCommand<IEcaActionContext, string>
     {
-        public const string ID = "time.timer.destroy";
-        public override string Id => ID;
+        public override string Id => EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_DESTROY_ID);
         private readonly TimeSystem _time;
 
         public EcaDestroyTimerCommand(TimeSystem time) =>
             _time = time ?? throw new ArgumentNullException(nameof(time));
 
-        public override Task Run(IEcaActionContext context, string args)
+        public override Task Run(IEcaActionContext context, string timerId)
         {
-            _time.DestroyTimer(args);
+            _time.DestroyTimer(timerId);
             return Task.CompletedTask;
         }
     }

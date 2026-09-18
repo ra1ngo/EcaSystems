@@ -6,8 +6,7 @@ namespace EcaSystems.Time.Eca
 {
     public sealed class EcaWaitCommand : AEcaCommand<IEcaActionContext, TimeWaitArgs>
     {
-        public const string ID = "time.wait";
-        public override string Id => ID;
+        public override string Id => EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_WAIT_ID);
         private readonly TimeSystem _time;
 
         public EcaWaitCommand(TimeSystem time) =>

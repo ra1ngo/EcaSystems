@@ -20,12 +20,12 @@ namespace EcaSystems.Tests.Time
         public void Install_IsIdempotentAndPreservesOtherUpdateEntries()
         {
             var before = Count(_original, typeof(UnityEngine.PlayerLoop.Update.ScriptRunBehaviourUpdate));
-            TimeTicker.Install();
-            TimeTicker.Install();
+            TimeSystemPlayerLoop.Install();
+            TimeSystemPlayerLoop.Install();
             var installed = PlayerLoop.GetCurrentPlayerLoop();
-            Assert.That(Count(installed, typeof(TimeTicker)), Is.EqualTo(1));
+            Assert.That(Count(installed, typeof(TimeSystemPlayerLoop)), Is.EqualTo(1));
             Assert.That(Count(installed, typeof(UnityEngine.PlayerLoop.Update.ScriptRunBehaviourUpdate)), Is.EqualTo(before));
-            Assert.That(Find(Find(installed, typeof(UnityEngine.PlayerLoop.Update)), typeof(TimeTicker)).updateDelegate, Is.Not.Null);
+            Assert.That(Find(Find(installed, typeof(UnityEngine.PlayerLoop.Update)), typeof(TimeSystemPlayerLoop)).updateDelegate, Is.Not.Null);
         }
 
         [Test]
@@ -41,7 +41,7 @@ namespace EcaSystems.Tests.Time
                 second.Start(b.Id);
                 var wait = first.Wait(0).GetAwaiter();
                 Assert.That(wait.IsCompleted, Is.False);
-                var hook = Find(PlayerLoop.GetCurrentPlayerLoop(), typeof(TimeTicker));
+                var hook = Find(PlayerLoop.GetCurrentPlayerLoop(), typeof(TimeSystemPlayerLoop));
                 hook.updateDelegate();
                 Assert.That(a.State, Is.EqualTo(TimerState.Completed));
                 Assert.That(b.State, Is.EqualTo(TimerState.Completed));
@@ -56,7 +56,7 @@ namespace EcaSystems.Tests.Time
         }
 
         [Test]
-        public void WarmInstalledDelegate_DoesNotAllocateAtSameOrSmallerRunnerCount()
+        public void WarmInstalledDelegate_DoesNotAllocateAtSameOrSmallerSystemCount()
         {
             var systems = new TimeSystem[8];
             try
@@ -67,7 +67,7 @@ namespace EcaSystems.Tests.Time
                     systems[i].CreateTimer(new TimerCreateOptions("timer", 1000000));
                     systems[i].Start("timer");
                 }
-                var update = Find(PlayerLoop.GetCurrentPlayerLoop(), typeof(TimeTicker)).updateDelegate;
+                var update = Find(PlayerLoop.GetCurrentPlayerLoop(), typeof(TimeSystemPlayerLoop)).updateDelegate;
                 for (var i = 0; i < 10; i++) update();
                 var before = GC.GetAllocatedBytesForCurrentThread();
                 for (var i = 0; i < 100; i++) update();
@@ -101,7 +101,7 @@ namespace EcaSystems.Tests.Time
             {
                 first.Start(a.Id);
                 second.Start(b.Id);
-                update = Find(PlayerLoop.GetCurrentPlayerLoop(), typeof(TimeTicker)).updateDelegate;
+                update = Find(PlayerLoop.GetCurrentPlayerLoop(), typeof(TimeSystemPlayerLoop)).updateDelegate;
                 update();
                 Assert.That(completions, Is.EqualTo(2));
                 Assert.That(a.State, Is.EqualTo(TimerState.Completed));

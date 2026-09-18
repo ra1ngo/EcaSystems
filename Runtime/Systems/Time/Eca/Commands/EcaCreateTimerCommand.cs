@@ -6,8 +6,7 @@ namespace EcaSystems.Time.Eca
 {
     public sealed class EcaCreateTimerCommand : AEcaCommand<IEcaActionContext, TimerCreateOptions>
     {
-        public const string ID = "time.timer.create";
-        public override string Id => ID;
+        public override string Id => EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_CREATE_ID);
         private readonly TimeSystem _time;
 
         public EcaCreateTimerCommand(TimeSystem time) =>

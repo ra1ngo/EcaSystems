@@ -6,13 +6,6 @@ namespace EcaSystems.Time.Eca
     /// <summary>Attach exports before Connect; Disconnect before detaching exports.</summary>
     public sealed class TimeEcaAdapter
     {
-        public const string ECA_EVENT_TIMER_STARTED_ID = "time.timer.started";
-        public const string ECA_EVENT_TIMER_STOPPED_ID = "time.timer.stopped";
-        public const string ECA_EVENT_TIMER_PAUSED_ID = "time.timer.paused";
-        public const string ECA_EVENT_TIMER_RESUMED_ID = "time.timer.resumed";
-        public const string ECA_EVENT_TIMER_COMPLETED_ID = "time.timer.completed";
-        public const string ECA_EVENT_TIMER_DESTROYED_ID = "time.timer.destroyed";
-
         private readonly TimeSystem _time;
         private readonly IEcaEventEmitter _emitter;
         private readonly IEcaEvent<EcaTimeEventState> _started, _stopped, _paused, _resumed, _completed, _destroyed;
@@ -23,16 +16,17 @@ namespace EcaSystems.Time.Eca
             _time = time ?? throw new ArgumentNullException(nameof(time));
             _emitter = emitter ?? throw new ArgumentNullException(nameof(emitter));
             if (events == null) throw new ArgumentNullException(nameof(events));
-            _started = Resolve(events, ECA_EVENT_TIMER_STARTED_ID);
-            _stopped = Resolve(events, ECA_EVENT_TIMER_STOPPED_ID);
-            _paused = Resolve(events, ECA_EVENT_TIMER_PAUSED_ID);
-            _resumed = Resolve(events, ECA_EVENT_TIMER_RESUMED_ID);
-            _completed = Resolve(events, ECA_EVENT_TIMER_COMPLETED_ID);
-            _destroyed = Resolve(events, ECA_EVENT_TIMER_DESTROYED_ID);
+            _started = Resolve(events, EcaTimeEventKey.ECA_EVENT_TIMER_STARTED_ID);
+            _stopped = Resolve(events, EcaTimeEventKey.ECA_EVENT_TIMER_STOPPED_ID);
+            _paused = Resolve(events, EcaTimeEventKey.ECA_EVENT_TIMER_PAUSED_ID);
+            _resumed = Resolve(events, EcaTimeEventKey.ECA_EVENT_TIMER_RESUMED_ID);
+            _completed = Resolve(events, EcaTimeEventKey.ECA_EVENT_TIMER_COMPLETED_ID);
+            _destroyed = Resolve(events, EcaTimeEventKey.ECA_EVENT_TIMER_DESTROYED_ID);
         }
 
-        private static IEcaEvent<EcaTimeEventState> Resolve(IEcaEventRegistry events, string id)
+        private static IEcaEvent<EcaTimeEventState> Resolve(IEcaEventRegistry events, EcaTimeEventKey key)
         {
+            var id = EcaTimeEventIds.Get(key);
             var declaration = events.Resolve(id);
             if (declaration is not IEcaEvent<EcaTimeEventState> typed || declaration.EventStateType != typeof(EcaTimeEventState))
                 throw new ArgumentException($"Event '{id}' must declare IEcaEvent<EcaTimeEventState> and matching metadata.", nameof(events));

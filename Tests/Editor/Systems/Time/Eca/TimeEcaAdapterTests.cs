@@ -46,20 +46,48 @@ namespace EcaSystems.Tests.TimeEca
         private void Attach() { _connector.Attach(_system); _adapter.Connect(); }
 
         [Test]
+        public void EventKeys_MapEveryKeyToUniqueStableId()
+        {
+            var ids = Enum.GetValues(typeof(EcaTimeEventKey)).Cast<EcaTimeEventKey>().Select(EcaTimeEventIds.Get).ToArray();
+            Assert.That(ids, Is.EqualTo(new[] { "time.timer.started", "time.timer.stopped", "time.timer.paused",
+                "time.timer.resumed", "time.timer.completed", "time.timer.destroyed" }));
+            Assert.That(ids.Distinct().Count(), Is.EqualTo(ids.Length));
+            Assert.Throws<ArgumentOutOfRangeException>(() => EcaTimeEventIds.Get((EcaTimeEventKey)(-1)));
+        }
+
+        [Test]
+        public void CommandKeys_MapEveryKeyToUniqueStableId()
+        {
+            var ids = Enum.GetValues(typeof(EcaTimeCommandKey)).Cast<EcaTimeCommandKey>().Select(EcaTimeCommandIds.Get).ToArray();
+            Assert.That(ids, Is.EqualTo(new[] { "time.timer.create", "time.timer.start", "time.timer.stop",
+                "time.timer.pause", "time.timer.resume", "time.timer.destroy", "time.wait" }));
+            Assert.That(ids.Distinct().Count(), Is.EqualTo(ids.Length));
+            Assert.Throws<ArgumentOutOfRangeException>(() => EcaTimeCommandIds.Get((EcaTimeCommandKey)(-1)));
+        }
+
+        [Test]
+        public void WaitArguments_BelongToStandaloneTimeAssembly()
+        {
+            Assert.That(typeof(TimeWaitArgs).Assembly, Is.SameAs(typeof(TimeSystem).Assembly));
+            Assert.That(typeof(TimeWaitArgs).Namespace, Is.EqualTo("EcaSystems.Time"));
+            Assert.That(new EcaWaitCommand(_time).ArgsType, Is.EqualTo(typeof(TimeWaitArgs)));
+        }
+
+        [Test]
         public void Descriptor_ExportsLocalRegistriesAndSevenConcreteCommands()
         {
             Assert.That(_system.Id, Is.EqualTo("time"));
             Assert.That(_system.Namespace.Id, Is.EqualTo("time"));
-            var typed = new[] { (IEcaEvent<EcaTimeEventState>)_system.Events.Resolve(TimeEcaAdapter.ECA_EVENT_TIMER_STARTED_ID), (IEcaEvent<EcaTimeEventState>)_system.Events.Resolve(TimeEcaAdapter.ECA_EVENT_TIMER_STOPPED_ID),
-                (IEcaEvent<EcaTimeEventState>)_system.Events.Resolve(TimeEcaAdapter.ECA_EVENT_TIMER_PAUSED_ID), (IEcaEvent<EcaTimeEventState>)_system.Events.Resolve(TimeEcaAdapter.ECA_EVENT_TIMER_RESUMED_ID),
-                (IEcaEvent<EcaTimeEventState>)_system.Events.Resolve(TimeEcaAdapter.ECA_EVENT_TIMER_COMPLETED_ID), (IEcaEvent<EcaTimeEventState>)_system.Events.Resolve(TimeEcaAdapter.ECA_EVENT_TIMER_DESTROYED_ID) };
+            var typed = new[] { (IEcaEvent<EcaTimeEventState>)_system.Events.Resolve(EcaTimeEventIds.Get(EcaTimeEventKey.ECA_EVENT_TIMER_STARTED_ID)), (IEcaEvent<EcaTimeEventState>)_system.Events.Resolve(EcaTimeEventIds.Get(EcaTimeEventKey.ECA_EVENT_TIMER_STOPPED_ID)),
+                (IEcaEvent<EcaTimeEventState>)_system.Events.Resolve(EcaTimeEventIds.Get(EcaTimeEventKey.ECA_EVENT_TIMER_PAUSED_ID)), (IEcaEvent<EcaTimeEventState>)_system.Events.Resolve(EcaTimeEventIds.Get(EcaTimeEventKey.ECA_EVENT_TIMER_RESUMED_ID)),
+                (IEcaEvent<EcaTimeEventState>)_system.Events.Resolve(EcaTimeEventIds.Get(EcaTimeEventKey.ECA_EVENT_TIMER_COMPLETED_ID)), (IEcaEvent<EcaTimeEventState>)_system.Events.Resolve(EcaTimeEventIds.Get(EcaTimeEventKey.ECA_EVENT_TIMER_DESTROYED_ID)) };
             Assert.That(_system.Events.Events, Is.EqualTo(typed));
             Assert.That(typed.Select(e => e.Id), Is.EqualTo(new[] {
                 "time.timer.started", "time.timer.stopped", "time.timer.paused",
                 "time.timer.resumed", "time.timer.completed", "time.timer.destroyed" }));
             Assert.That(_system.Commands.Commands.Select(c => c.Id), Is.EquivalentTo(new[] {
-                EcaCreateTimerCommand.ID, EcaStartTimerCommand.ID, EcaStopTimerCommand.ID,
-                EcaPauseTimerCommand.ID, EcaResumeTimerCommand.ID, EcaDestroyTimerCommand.ID, EcaWaitCommand.ID }));
+                EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_CREATE_ID), EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_START_ID), EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_STOP_ID),
+                EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_PAUSE_ID), EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_RESUME_ID), EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_DESTROY_ID), EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_WAIT_ID) }));
             Assert.That(_system.Commands.Commands.All(c => c.ContextType == typeof(IEcaActionContext)), Is.True);
             Assert.That(_system.Commands.Commands.Select(c => c.GetType()), Is.EquivalentTo(new[] {
                 typeof(EcaCreateTimerCommand), typeof(EcaStartTimerCommand), typeof(EcaStopTimerCommand),
@@ -67,6 +95,7 @@ namespace EcaSystems.Tests.TimeEca
             Attach();
             foreach (var declaration in typed)
             {
+                Assert.That(declaration, Is.TypeOf<EcaTimeEvent>());
                 Assert.That(_events.Resolve(declaration.Id), Is.SameAs(declaration));
                 Assert.That(_events.CheckRegistered(declaration), Is.True);
             }
@@ -77,12 +106,12 @@ namespace EcaSystems.Tests.TimeEca
         {
             Attach();
             var commands = Bind();
-            Assert.That(commands.Run(EcaCreateTimerCommand.ID, new TimerCreateOptions("timer", 10)).IsCompletedSuccessfully, Is.True);
-            commands.Run(EcaStartTimerCommand.ID, "timer").GetAwaiter().GetResult();
-            commands.Run(EcaPauseTimerCommand.ID, "timer").GetAwaiter().GetResult();
-            commands.Run(EcaResumeTimerCommand.ID, "timer").GetAwaiter().GetResult();
-            commands.Run(EcaStopTimerCommand.ID, "timer").GetAwaiter().GetResult();
-            commands.Run(EcaDestroyTimerCommand.ID, "timer").GetAwaiter().GetResult();
+            Assert.That(commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_CREATE_ID), new TimerCreateOptions("timer", 10)).IsCompletedSuccessfully, Is.True);
+            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_START_ID), "timer").GetAwaiter().GetResult();
+            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_PAUSE_ID), "timer").GetAwaiter().GetResult();
+            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_RESUME_ID), "timer").GetAwaiter().GetResult();
+            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_STOP_ID), "timer").GetAwaiter().GetResult();
+            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_DESTROY_ID), "timer").GetAwaiter().GetResult();
             Assert.That(_time.TryGet("timer", out _), Is.False);
             Assert.That(_emitter.Records.Select(r => r.state.State), Is.EqualTo(new[] {
                 TimerState.Running, TimerState.Paused, TimerState.Running, TimerState.Stopped, TimerState.Destroyed }));
@@ -105,7 +134,7 @@ namespace EcaSystems.Tests.TimeEca
             EcaTimeEventState snapshot = null;
             _emitter.OnFire = (id, state) =>
             {
-                if (id != "time.timer.completed") return;
+                if (id != EcaTimeEventIds.Get(EcaTimeEventKey.ECA_EVENT_TIMER_COMPLETED_ID)) return;
                 snapshot = state;
                 _time.Start("timer");
                 Assert.That(state.State, Is.EqualTo(TimerState.Completed));
@@ -155,7 +184,7 @@ namespace EcaSystems.Tests.TimeEca
         public void WaitCommand_TaskRemainsPendingUntilUnderlyingTick(TimerScaleMode mode)
         {
             Attach();
-            var task = Bind().Run(EcaWaitCommand.ID, new TimeWaitArgs(0, mode));
+            var task = Bind().Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_WAIT_ID), new TimeWaitArgs(0, mode));
             Assert.That(task.IsCompleted, Is.False);
             Assert.That(_time.TryGet("timer", out _), Is.False);
             Tick();
@@ -168,9 +197,9 @@ namespace EcaSystems.Tests.TimeEca
         {
             Attach();
             var commands = Bind();
-            Assert.Throws<ArgumentOutOfRangeException>(() => commands.Run(EcaCreateTimerCommand.ID, new TimerCreateOptions("timer", -1)));
-            Assert.Throws<ArgumentException>(() => commands.Run(EcaStartTimerCommand.ID, 12));
-            Assert.Throws<InvalidOperationException>(() => commands.Run(EcaStartTimerCommand.ID, "missing"));
+            Assert.Throws<ArgumentOutOfRangeException>(() => commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_CREATE_ID), new TimerCreateOptions("timer", -1)));
+            Assert.Throws<ArgumentException>(() => commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_START_ID), 12));
+            Assert.Throws<InvalidOperationException>(() => commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_START_ID), "missing"));
         }
 
         [Test]
@@ -208,7 +237,7 @@ namespace EcaSystems.Tests.TimeEca
         [TestCase(true)]
         public void Adapter_RejectsWrongInterfaceOrMetadata(bool wrongMetadata)
         {
-            var id = TimeEcaAdapter.ECA_EVENT_TIMER_STARTED_ID;
+            var id = EcaTimeEventIds.Get(EcaTimeEventKey.ECA_EVENT_TIMER_STARTED_ID);
             _system.Events.Unregister(id);
             _system.Events.Register(wrongMetadata
                 ? (IEcaEvent)new Declaration<EcaTimeEventState>(id, typeof(int))
@@ -262,12 +291,12 @@ namespace EcaSystems.Tests.TimeEca
 
         private static PlayerLoopSystem Find(PlayerLoopSystem loop)
         {
-            if (loop.type == typeof(TimeTicker)) return loop;
+            if (loop.type?.FullName == "EcaSystems.Time.TimeSystemPlayerLoop") return loop;
             if (loop.subSystemList != null)
                 foreach (var child in loop.subSystemList)
                 {
                     var found = Find(child);
-                    if (found.type == typeof(TimeTicker)) return found;
+                    if (found.type?.FullName == "EcaSystems.Time.TimeSystemPlayerLoop") return found;
                 }
             return default;
         }
