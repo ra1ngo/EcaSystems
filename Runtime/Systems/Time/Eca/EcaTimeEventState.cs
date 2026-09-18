@@ -1,6 +1,6 @@
 namespace EcaSystems.Time.Eca
 {
-    public sealed class TimerEventState
+    public sealed class EcaTimeEventState
     {
         public string TimerId { get; }
         public double Duration { get; }
@@ -10,7 +10,7 @@ namespace EcaSystems.Time.Eca
         public TimerScaleMode ScaleMode { get; }
         public TimerState State { get; }
 
-        internal TimerEventState(Timer timer)
+        internal EcaTimeEventState(Timer timer)
         {
             TimerId = timer.Id;
             Duration = timer.Duration;

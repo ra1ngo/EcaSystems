@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace EcaSystems.Core2
 {
@@ -9,18 +8,18 @@ namespace EcaSystems.Core2
         public string Name { get; }
         public string Description { get; }
         public EcaSystemNamespace Namespace { get; }
-        public IReadOnlyCollection<IEcaEvent> Events { get; }
-        public IReadOnlyCollection<AEcaCommand> Commands { get; }
+        public IEcaEventRegistry Events { get; }
+        public EcaCommandRegistry Commands { get; }
 
         public EcaSystem(string id, EcaSystemNamespace systemNamespace,
-            IReadOnlyCollection<IEcaEvent> events = null, IReadOnlyCollection<AEcaCommand> commands = null,
+            IEcaEventRegistry events, EcaCommandRegistry commands,
             string name = null, string description = null)
         {
             Id = id;
-            Namespace = systemNamespace;
-            // Configuration is immutable by convention; retain the caller's collections.
-            Events = events ?? Array.Empty<IEcaEvent>();
-            Commands = commands ?? Array.Empty<AEcaCommand>();
+            Namespace = systemNamespace ?? throw new ArgumentNullException(nameof(systemNamespace));
+            // Local exports and metadata must remain stable while attached.
+            Events = events ?? throw new ArgumentNullException(nameof(events));
+            Commands = commands ?? throw new ArgumentNullException(nameof(commands));
             Name = name;
             Description = description;
         }

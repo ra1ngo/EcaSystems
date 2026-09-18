@@ -160,6 +160,9 @@ Scope v1: hierarchy определяет только время жизни; Fir
 
 ## Управление Systems
 
+- [ ] После canonical registry cleanup проверить production composition и Rule creation по Event ID; не добавлять ID-based Emitter или generic Registry abstraction без нового реального сценария.
+- [ ] Определить политику изменения local exports уже attached System: сейчас registries/metadata должны оставаться стабильными; automatic sync и ownership tracking отсутствуют.
+
 - [ ] Развить роль Core2 Namespace и пересмотреть частичное дублирование EcaSystem.Id / EcaSystemNamespace.Id: устранить или явно развести identity; согласовать namespace/stable ID semantics. Сейчас Namespace содержит только Id, automatic prefixing отсутствует.
 - [ ] Решить, должен ли EcaSystem требовать хотя бы один export (Event или Command). В Systems v1 полностью пустой descriptor разрешён.
 - [ ] Возможность отключить все Commands конкретной EcaSystem.

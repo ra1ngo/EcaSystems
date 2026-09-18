@@ -6,7 +6,8 @@
 
 - [x] Standalone TimeSystem.
 - [x] TimeSystem architecture refactor + Time/Eca adapter.
-- [ ] Production Core2 composition: согласовать Attach/Connect и Disconnect/Detach ownership, typed Event discoverability.
+- [x] PR #17 registry cleanup: canonical CheckRegistered, live items/public Resolve, local System registries, concrete Time Commands и cached Events.
+- [ ] Production Core2 composition: согласовать Attach/Connect и Disconnect/Detach ownership; обсудить RuleCreator/CreateRule<E>(eventId, ...) и typed consumption через registries. Сейчас RuleCreator не реализован.
 - [ ] Global State / Variables standalone System + ECA.
 - [ ] Небольшой end-to-end Sandbox / PlayMode scenario.
 - [ ] External event adapters.

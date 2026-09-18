@@ -6,12 +6,13 @@ namespace EcaSystems.Core2
     public sealed class EcaSystemRegistry
     {
         private readonly Dictionary<string, EcaSystem> _systems = new(StringComparer.Ordinal);
+        public IReadOnlyCollection<EcaSystem> Systems => _systems.Values;
 
         public void Register(EcaSystem system)
         {
             if (system == null) throw new ArgumentNullException(nameof(system));
             ValidateId(system.Id);
-            if (_systems.ContainsKey(system.Id)) throw new InvalidOperationException($"System '{system.Id}' is already registered.");
+            if (_systems.ContainsKey(system.Id)) throw new InvalidOperationException($"system '{system.Id}' is already registered.");
             _systems.Add(system.Id, system);
         }
 
@@ -27,16 +28,20 @@ namespace EcaSystems.Core2
             return _systems.ContainsKey(systemId);
         }
 
-        internal EcaSystem Resolve(string systemId)
+        public EcaSystem Resolve(string systemId)
         {
             ValidateId(systemId);
-            if (_systems.TryGetValue(systemId, out var system)) return system;
-            throw new InvalidOperationException($"System '{systemId}' is not registered.");
+            if (_systems.TryGetValue(systemId, out var item)) return item;
+            throw new InvalidOperationException($"system '{systemId}' is not registered.");
         }
+
+        public bool CheckRegistered(EcaSystem system) =>
+            system != null && system.Id != null &&
+            _systems.TryGetValue(system.Id, out var registered) && ReferenceEquals(registered, system);
 
         private static void ValidateId(string systemId)
         {
-            if (string.IsNullOrWhiteSpace(systemId)) throw new ArgumentException("System id cannot be empty.", nameof(systemId));
+            if (string.IsNullOrWhiteSpace(systemId)) throw new ArgumentException("system id cannot be empty or whitespace.", nameof(systemId));
         }
     }
 }
