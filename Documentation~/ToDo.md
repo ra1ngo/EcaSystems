@@ -2,6 +2,17 @@
 
 Здесь только работа до первого полноценного применения в играх. Execution v1, Scope v1, Base context refactor и Commands v1 завершены. Актуальные решения — в [Context.md](Context.md), необязательные будущие возможности — в [Roadmap.md](Roadmap.md). Документы ведутся на русском языке.
 
+## Актуальный порядок следующих итераций — 2026-09-18
+
+- [x] Standalone TimeSystem.
+- [x] TimeSystem architecture refactor + Time/Eca adapter.
+- [ ] Production Core2 composition: согласовать Attach/Connect и Disconnect/Detach ownership, typed Event discoverability.
+- [ ] Global State / Variables standalone System + ECA.
+- [ ] Небольшой end-to-end Sandbox / PlayMode scenario.
+- [ ] External event adapters.
+- [ ] Project cleanup/consolidation.
+- [ ] Signals / FireEvent / routing только после конкретного сценария.
+- [ ] Продолжать Roadmap по приоритету.
 ## Core2 — checkpoint 2026-09-17
 
 - [x] Core2/Base завершён; API и архитектура не меняются в Execution-итерации.
@@ -13,8 +24,8 @@
 - [x] NUnit/Unity EditMode tests для Execution и недостающие Unity metadata.
 - [x] Systems v1: passive EcaSystem/Namespace, отдельные registries, EcaSystemConnector.Attach/Detach с prevalidation и локальным rollback; EventRegistry расширен non-generic Register/Unregister/Contains.
 - [x] Standalone TimeSystem Core v1: независимая Unity assembly, ID timers, lifecycle events, PlayerLoop и Awaitable Wait; изолированные tests.
-- [ ] Time ECA adapter — следующий отдельный Time step. State и расширенная Systems composition остаются будущими итерациями; EcaSystemsRuntime пока не реализован.
-- [ ] Следующей отдельной итерацией рассмотреть external event adapters к IEcaEventEmitter.Fire<E>: C# events, callbacks, observables, polling, UnityEvent/InputAction и другие источники; список в Roadmap. Сейчас реализован только прямой Emitter API.
+- [x] TimeSystem architecture refactor + первый Time/Eca adapter: aggregate lifecycle, typed event snapshots, семь Commands.
+- [ ] После production composition / Global State / Sandbox рассмотреть external event adapters к IEcaEventEmitter.Fire<E>: C# events, callbacks, observables, polling, UnityEvent/InputAction и другие источники; список в Roadmap. Сейчас реализованы прямой Emitter API и конкретный TimeEcaAdapter.
 - [ ] Рассмотреть StateBuilder/StateFactory позже, если последовательное расширение RuleState между слоями станет достаточно сложным, повторяемым или неудобным через Func. Execution использует Func<E, EcaExecutionGroupState, R>, Scope — Func<IEcaExecutionRuleState<E>, EcaScopeState, R>; отдельный builder не проектируется.
 - [ ] Следующие слои согласовывать отдельными итерациями. Core2 production Commands/EventEmitter composition с Execution/Scope, FireEventCommand, Unity bridge, cancellation и Reset/Queue сейчас не реализованы.
 
@@ -69,7 +80,7 @@
 ## 4. TimeSystem
 
 - [x] Standalone TimeSystem Core v1 в Runtime/Systems/Time/Core, без ECA dependencies; отдельные runtime/test assemblies.
-- [ ] Time ECA adapter в зарезервированном Runtime/Systems/Time/Eca: отдельно согласовать descriptor, Events и Commands, включая адаптацию Awaitable Wait. Сейчас не реализован.
+- [x] Time/Eca adapter в Runtime/Systems/Time/Eca: passive descriptor, шесть Events и семь Commands, включая адаптацию Awaitable Wait.
 
 ## 5. Global State / переменные
 

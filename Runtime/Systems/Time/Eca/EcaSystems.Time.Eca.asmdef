@@ -1,0 +1,5 @@
+{
+  "name": "EcaSystems.Time.Eca",
+  "references": ["EcaSystems.Time", "EcaSystems.Core2"],
+  "noEngineReferences": false
+}

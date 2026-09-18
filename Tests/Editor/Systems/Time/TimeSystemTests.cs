@@ -11,18 +11,42 @@ namespace EcaSystems.Tests.Time
         private TimeSystem _system;
         private double _scaled;
         private double _unscaled;
-        private readonly HashSet<TimerRunner> _active = new();
+        private TimeTicker _ticker;
+        private readonly Dictionary<Timer, TimerEvents> _events = new();
 
         [SetUp]
         public void SetUp()
         {
             _scaled = 100;
             _unscaled = 200;
-            _active.Clear();
-            _system = new TimeSystem(mode => mode == TimerScaleMode.Scaled ? _scaled : _unscaled,
-                (runner, active) => { if (active) _active.Add(runner); else _active.Remove(runner); });
+            _events.Clear();
+            _ticker = new TimeTicker();
+            _ticker.UpdateTime(_scaled, _unscaled);
+            _system = new TimeSystem(_ticker);
         }
 
+        // Adapt existing per-timer assertions to the new aggregate observation API.
+        private TimerEvents Events(Timer timer)
+        {
+            if (_events.TryGetValue(timer, out var events)) return events;
+            events = new TimerEvents(_system, timer);
+            _events.Add(timer, events);
+            return events;
+        }
+
+        private sealed class TimerEvents
+        {
+            internal event Action<Timer> Started, Stopped, Paused, Resumed, Completed, Destroyed;
+            internal TimerEvents(TimeSystem system, Timer timer)
+            {
+                system.TimerStarted += t => { if (t == timer) Started?.Invoke(t); };
+                system.TimerStopped += t => { if (t == timer) Stopped?.Invoke(t); };
+                system.TimerPaused += t => { if (t == timer) Paused?.Invoke(t); };
+                system.TimerResumed += t => { if (t == timer) Resumed?.Invoke(t); };
+                system.TimerCompleted += t => { if (t == timer) Completed?.Invoke(t); };
+                system.TimerDestroyed += t => { if (t == timer) Destroyed?.Invoke(t); };
+            }
+        }
         private Timer Create(double duration = 10, TimerScaleMode mode = TimerScaleMode.Scaled, string id = "timer") =>
             _system.CreateTimer(new TimerCreateOptions(id, duration, mode));
 
@@ -30,7 +54,7 @@ namespace EcaSystems.Tests.Time
         {
             _scaled += scaled;
             _unscaled += unscaled;
-            _system.Tick(_scaled, _unscaled);
+            _ticker.UpdateTime(_scaled, _unscaled); _system.Tick(_scaled, _unscaled);
         }
 
         private static void Values(Timer timer, TimerState state, double elapsed, double remaining, double progress)
@@ -54,7 +78,7 @@ namespace EcaSystems.Tests.Time
             Assert.That(found, Is.SameAs(timer));
             Assert.That(_system.TryGet("missing", out found), Is.False);
             Assert.That(found, Is.Null);
-            Assert.That(_active, Is.Empty);
+            Assert.That(_ticker.SubscriberCount, Is.Zero);
         }
 
         [Test]
@@ -64,7 +88,7 @@ namespace EcaSystems.Tests.Time
             Assert.Throws<InvalidOperationException>(() => Create());
             Assert.That(_system.Get("timer"), Is.SameAs(original));
             Assert.That(Create(id: "Timer"), Is.Not.SameAs(original));
-            var other = new TimeSystem(_ => 0, (_, __) => { });
+            var other = new TimeSystem(new TimeTicker());
             Assert.That(other.CreateTimer(new TimerCreateOptions("timer", 1)), Is.Not.SameAs(original));
         }
 
@@ -92,7 +116,7 @@ namespace EcaSystems.Tests.Time
             Assert.Throws<ArgumentOutOfRangeException>(() => Create(duration));
             Assert.Throws<ArgumentOutOfRangeException>(() => _system.Wait(duration));
             Assert.That(_system.TryGet("timer", out _), Is.False);
-            Assert.That(_active, Is.Empty);
+            Assert.That(_ticker.SubscriberCount, Is.Zero);
         }
 
         [Test]
@@ -125,28 +149,28 @@ namespace EcaSystems.Tests.Time
         {
             var timer = Create();
             var events = new List<string>();
-            timer.Started += value => { Assert.That(value, Is.SameAs(timer)); events.Add("start"); };
-            timer.Paused += _ => events.Add("pause");
-            timer.Resumed += _ => events.Add("resume");
-            timer.Completed += _ => events.Add("complete");
-            timer.Stopped += _ => events.Add("stop");
+            Events(timer).Started += value => { Assert.That(value, Is.SameAs(timer)); events.Add("start"); };
+            Events(timer).Paused += _ => events.Add("pause");
+            Events(timer).Resumed += _ => events.Add("resume");
+            Events(timer).Completed += _ => events.Add("complete");
+            Events(timer).Stopped += _ => events.Add("stop");
             _system.Start("timer");
             Values(timer, TimerState.Running, 0, 10, 0);
             Tick(3, 3);
             Values(timer, TimerState.Running, 3, 7, .3);
             _system.Pause("timer");
-            Assert.That(_active, Is.Empty);
+            Assert.That(_ticker.SubscriberCount, Is.Zero);
             Tick(50, 50);
             Values(timer, TimerState.Paused, 3, 7, .3);
             _system.Resume("timer");
-            Assert.That(_active.Count, Is.EqualTo(1));
+            Assert.That(_ticker.SubscriberCount, Is.EqualTo(1));
             Tick(6, 6);
             Values(timer, TimerState.Running, 9, 1, .9);
             Tick(1, 1);
             Values(timer, TimerState.Completed, 10, 0, 1);
             Assert.That(_system.Get("timer"), Is.SameAs(timer));
             Tick(50, 50);
-            Assert.That(_active, Is.Empty);
+            Assert.That(_ticker.SubscriberCount, Is.Zero);
             _system.Start("timer");
             Values(timer, TimerState.Running, 0, 10, 0);
             _system.Stop("timer");
@@ -162,12 +186,12 @@ namespace EcaSystems.Tests.Time
             var timer = Create();
             MoveTo(state);
             var count = 0;
-            timer.Stopped += t => { Values(t, TimerState.Stopped, 0, 10, 0); count++; };
+            Events(timer).Stopped += t => { Values(t, TimerState.Stopped, 0, 10, 0); count++; };
             _system.Stop("timer");
             Tick(100, 100);
             Values(timer, TimerState.Stopped, 0, 10, 0);
             Assert.That(count, Is.EqualTo(1));
-            Assert.That(_active, Is.Empty);
+            Assert.That(_ticker.SubscriberCount, Is.Zero);
         }
 
         [TestCase(TimerState.Stopped)]
@@ -181,10 +205,10 @@ namespace EcaSystems.Tests.Time
             var elapsed = timer.Elapsed;
             var progress = timer.Progress;
             var events = new List<string>();
-            timer.Stopped += _ => events.Add("stop");
-            timer.Completed += _ => events.Add("complete");
+            Events(timer).Stopped += _ => events.Add("stop");
+            Events(timer).Completed += _ => events.Add("complete");
             Timer replacement = null;
-            timer.Destroyed += t =>
+            Events(timer).Destroyed += t =>
             {
                 Assert.That(t, Is.SameAs(timer));
                 Assert.That(t.State, Is.EqualTo(TimerState.Destroyed));
@@ -198,11 +222,6 @@ namespace EcaSystems.Tests.Time
             Values(timer, TimerState.Destroyed, elapsed, 10 - elapsed, progress);
             Assert.That(_system.Get("timer"), Is.SameAs(replacement));
             Assert.That(events, Is.EqualTo(new[] { "destroy" }));
-            Assert.Throws<InvalidOperationException>(() => timer.Start());
-            Assert.Throws<InvalidOperationException>(() => timer.Stop());
-            Assert.Throws<InvalidOperationException>(() => timer.Pause());
-            Assert.Throws<InvalidOperationException>(() => timer.Resume());
-            Assert.Throws<InvalidOperationException>(() => timer.Destroy());
         }
 
         [TestCase(TimerState.Running, "start")]
@@ -219,10 +238,10 @@ namespace EcaSystems.Tests.Time
             var timer = Create();
             MoveTo(state);
             var count = 0;
-            timer.Started += _ => count++;
-            timer.Paused += _ => count++;
-            timer.Resumed += _ => count++;
-            timer.Stopped += _ => count++;
+            Events(timer).Started += _ => count++;
+            Events(timer).Paused += _ => count++;
+            Events(timer).Resumed += _ => count++;
+            Events(timer).Stopped += _ => count++;
             Action action = operation switch
             {
                 "start" => () => _system.Start("timer"),
@@ -259,15 +278,17 @@ namespace EcaSystems.Tests.Time
         }
 
         [Test]
-        public void ReadValues_UseAbsoluteDoubleTimeWithoutNeedingTick_ClampOvershoot()
+        public void ReadValues_AreFrameData_UseAbsoluteDoubleTimeOnTick_ClampOvershoot()
         {
             var timer = Create(.125);
             _system.Start(timer.Id);
             _scaled += .03125;
+            Values(timer, TimerState.Running, 0, .125, 0);
+            _system.Tick(_scaled, _unscaled);
             Values(timer, TimerState.Running, .03125, .09375, .25);
             _scaled += 100;
-            Values(timer, TimerState.Running, .125, 0, 1);
-            _system.Tick(_scaled, _unscaled);
+            Values(timer, TimerState.Running, .03125, .09375, .25);
+            _ticker.UpdateTime(_scaled, _unscaled); _system.Tick(_scaled, _unscaled);
             Values(timer, TimerState.Completed, .125, 0, 1);
         }
 
@@ -276,8 +297,8 @@ namespace EcaSystems.Tests.Time
         {
             var timer = Create(0);
             var events = new List<string>();
-            timer.Started += _ => events.Add("start");
-            timer.Completed += _ => events.Add("complete");
+            Events(timer).Started += _ => events.Add("start");
+            Events(timer).Completed += _ => events.Add("complete");
             Values(timer, TimerState.Stopped, 0, 0, 0);
             _system.Start(timer.Id);
             Values(timer, TimerState.Running, 0, 0, 0);
@@ -294,15 +315,15 @@ namespace EcaSystems.Tests.Time
         {
             var timer = Create(0);
             var count = 0;
-            timer.Completed += t => { count++; if (count == 1) _system.Start(t.Id); };
+            Events(timer).Completed += t => { count++; if (count == 1) _system.Start(t.Id); };
             _system.Start(timer.Id);
             Tick(0, 0);
             Assert.That(count, Is.EqualTo(1));
             Assert.That(timer.State, Is.EqualTo(TimerState.Running));
-            Assert.That(_active.Count, Is.EqualTo(1));
+            Assert.That(_ticker.SubscriberCount, Is.EqualTo(1));
             Tick(0, 0);
             Assert.That(count, Is.EqualTo(2));
-            Assert.That(_active, Is.Empty);
+            Assert.That(_ticker.SubscriberCount, Is.Zero);
         }
 
         [Test]
@@ -310,7 +331,7 @@ namespace EcaSystems.Tests.Time
         {
             var first = Create(0);
             var later = Create(0, id: "later");
-            first.Completed += _ => { _system.Stop(later.Id); _system.Start(later.Id); };
+            Events(first).Completed += _ => { _system.Stop(later.Id); _system.Start(later.Id); };
             _system.Start(first.Id);
             _system.Start(later.Id);
             Tick(0, 0);
@@ -323,7 +344,7 @@ namespace EcaSystems.Tests.Time
         public void StartedCallback_CanDestroyAndReplaceWithoutRunningOldTimer()
         {
             var old = Create(0);
-            old.Started += t => { _system.DestroyTimer(t.Id); Create(0); _system.Start(t.Id); };
+            Events(old).Started += t => { _system.DestroyTimer(t.Id); Create(0); _system.Start(t.Id); };
             _system.Start(old.Id);
             Tick(0, 0);
             Assert.That(old.State, Is.EqualTo(TimerState.Destroyed));
@@ -336,13 +357,13 @@ namespace EcaSystems.Tests.Time
             var first = Create(0);
             var later = Create(0, id: "later");
             var completed = new List<string>();
-            first.Completed += _ =>
+            Events(first).Completed += _ =>
             {
                 completed.Add("first");
-                _system.Tick(_scaled, _unscaled);
+                _ticker.UpdateTime(_scaled, _unscaled); _system.Tick(_scaled, _unscaled);
                 _system.Start(later.Id);
             };
-            later.Completed += _ => completed.Add("later");
+            Events(later).Completed += _ => completed.Add("later");
             _system.Start(first.Id);
             _system.Start(later.Id);
             Tick(0, 0);
@@ -353,7 +374,7 @@ namespace EcaSystems.Tests.Time
         }
 
         [Test]
-        public void WarmRunnerTick_DoesNotAllocateAtSameOrSmallerCount()
+        public void WarmRegistryTick_DoesNotAllocateAtSameOrSmallerCount()
         {
             for (var i = 0; i < 16; i++)
             {
@@ -377,15 +398,15 @@ namespace EcaSystems.Tests.Time
         {
             var first = Create(0);
             var second = Create(0, id: "second");
-            first.Started += _ => throw new InvalidOperationException("start callback");
-            first.Completed += _ => throw new InvalidOperationException("completion callback");
+            Events(first).Started += _ => throw new InvalidOperationException("start callback");
+            Events(first).Completed += _ => throw new InvalidOperationException("completion callback");
             Assert.Throws<InvalidOperationException>(() => _system.Start(first.Id));
             _system.Start(second.Id);
             var error = Assert.Throws<AggregateException>(() => Tick(0, 0));
             Assert.That(error.InnerExceptions.Count, Is.EqualTo(1));
             Assert.That(first.State, Is.EqualTo(TimerState.Completed));
             Assert.That(second.State, Is.EqualTo(TimerState.Completed));
-            Assert.That(_active, Is.Empty);
+            Assert.That(_ticker.SubscriberCount, Is.Zero);
         }
     }
 }

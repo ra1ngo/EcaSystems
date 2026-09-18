@@ -1,0 +1,7 @@
+{
+  "name": "EcaSystems.Time.Eca.Editor.Tests",
+  "references": ["EcaSystems.Time", "EcaSystems.Time.Eca", "EcaSystems.Core2"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": []
+}

@@ -6,7 +6,7 @@ Core1 Base создан параллельно старому Core: A/Abstractio
 
 ## Standalone TimeSystem: будущие возможности
 
-Core v1 реализует только одноразовые ID timers и Awaitable Wait через обычную Update phase. Следующий обязательный шаг — отдельный Time ECA adapter (ToDo). Дополнительные candidates, не входящие в v1:
+Core v1 реализует только одноразовые ID timers и Awaitable Wait через обычную Update phase. Time ECA adapter реализован; следующий этап — production Core2 composition (ToDo). Дополнительные candidates, не входящие в v1:
 
 - [ ] Repeat/looping timers, restart/reset convenience.
 - [ ] Cancellation для Wait.
@@ -16,7 +16,7 @@ Core v1 реализует только одноразовые ID timers и Awai
 - [ ] Conditional/frame waits.
 - [ ] Timer debug/editor tooling.
 
-## Core2: adapters внешних событий — следующая отдельная итерация
+## Core2: adapters внешних событий — после composition / Global State / Sandbox
 
 Предоставить несколько способов адаптации источников к одному public порту `IEcaEventEmitter.Fire<E>(IEcaEvent<E> ecaEvent, E eventState)`:
 
@@ -25,7 +25,7 @@ Core v1 реализует только одноразовые ID timers и Awai
 - [ ] Polling sources.
 - [ ] UnityEvent, InputAction / Unity callbacks и другие adapters по практическим сценариям.
 
-Все adapters сходятся в прямой typed Fire<E>; сейчас они не реализованы. Текущая итерация предоставляет только простой Emitter API, без универсального binding mechanism, Systems, Signals или State.
+Первый конкретный TimeEcaAdapter уже использует typed Fire<E>. Перечисленные generic adapters остаются будущими возможностями после production composition / Global State / Sandbox; универсальный binding framework, Signals и State не реализованы. Общую adapter abstraction следует обсуждать после нескольких реальных adapters.
 
 ## Core2: согласованность Runtime и registries
 
