@@ -69,7 +69,7 @@ namespace EcaSystems.Tests.Core2
             registry.Register(new Rule { Id = "other.rule", Event = other });
             registry.Register(second);
 
-            var matching = registry.GetByEvent<int, State, ConditionContext, ActionContext>(_event);
+            var matching = registry.GetByEvent<int, State>(_event);
             Assert.That(matching, Is.EqualTo(new[] { first, second }));
             Assert.That(matching[0].Condition, Is.Null);
         }
@@ -87,7 +87,7 @@ namespace EcaSystems.Tests.Core2
             _rules.Register(rule);
             Assert.Throws<InvalidOperationException>(() => _rules.Register(rule));
             Assert.Throws<InvalidOperationException>(() => _rules.Register(new Rule { Event = _event }));
-            Assert.That(_rules.GetByEvent<int, State, ConditionContext, ActionContext>(_event), Has.Count.EqualTo(1));
+            Assert.That(_rules.GetByEvent<int, State>(_event), Has.Count.EqualTo(1));
         }
 
         [TestCase(null)]
@@ -101,7 +101,7 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public void RuleRegistry_Register_RejectsMissingRequiredMembers()
         {
-            Assert.Throws<ArgumentNullException>(() => _rules.Register<int, State, ConditionContext, ActionContext>(null));
+            Assert.Throws<ArgumentNullException>(() => _rules.Register<int, State>(null));
             Assert.Throws<ArgumentException>(() => _rules.Register(new Rule()));
             Assert.Throws<ArgumentException>(() => _rules.Register(new Rule { Event = _event, Action = null }));
         }
@@ -120,34 +120,35 @@ namespace EcaSystems.Tests.Core2
             var rule = new Rule { Event = _event };
             _rules.Register(rule);
             Assert.That(_rules.Unregister(new Rule { Event = _event }), Is.False);
-            Assert.That(_rules.GetByEvent<int, State, ConditionContext, ActionContext>(_event), Is.EqualTo(new[] { rule }));
+            Assert.That(_rules.GetByEvent<int, State>(_event), Is.EqualTo(new[] { rule }));
             Assert.That(_rules.Unregister(rule), Is.True);
             Assert.That(_rules.Unregister(rule), Is.False);
-            Assert.That(_rules.GetByEvent<int, State, ConditionContext, ActionContext>(_event), Is.Empty);
+            Assert.That(_rules.GetByEvent<int, State>(_event), Is.Empty);
             _rules.Register(rule);
             Assert.That(_rules.Unregister(rule), Is.True);
             Assert.Throws<ArgumentNullException>(() => _rules.Unregister(null));
         }
 
         [Test]
-        public void RuleRegistry_GetByEvent_RejectsIncompatibleSpecializations()
+        public void RuleRegistry_GetByEvent_RejectsIncompatibleStateAndEventSpecializations()
         {
             _rules.Register(new Rule { Event = _event });
             Assert.Throws<InvalidOperationException>(() =>
-                _rules.GetByEvent<int, OtherState, ConditionContext, ActionContext>(_event));
-            Assert.Throws<InvalidOperationException>(() =>
-                _rules.GetByEvent<int, State, OtherConditionContext, ActionContext>(_event));
-            Assert.Throws<InvalidOperationException>(() =>
-                _rules.GetByEvent<int, State, ConditionContext, OtherActionContext>(_event));
+                _rules.GetByEvent<int, OtherState>(_event));
+            Assert.That(_rules.GetByEvent(_event), Has.Count.EqualTo(1));
+            _events.Unregister(_event.Id);
+            var replacement = new Event<string> { Id = _event.Id };
+            _events.Register(replacement);
+            Assert.Throws<InvalidOperationException>(() => _rules.GetByEvent(replacement));
         }
 
         [Test]
         public void RuleRegistry_GetByEvent_ValidatesEventAndAllowsNoMatchingRules()
         {
-            Assert.That(_rules.GetByEvent<int, State, ConditionContext, ActionContext>(_event), Is.Empty);
-            Assert.Throws<ArgumentNullException>(() => _rules.GetByEvent<int, State, ConditionContext, ActionContext>(null));
+            Assert.That(_rules.GetByEvent<int, State>(_event), Is.Empty);
+            Assert.Throws<ArgumentNullException>(() => _rules.GetByEvent<int, State>(null));
             Assert.Throws<InvalidOperationException>(() =>
-                _rules.GetByEvent<int, State, ConditionContext, ActionContext>(new Event<int> { Id = "missing" }));
+                _rules.GetByEvent<int, State>(new Event<int> { Id = "missing" }));
             Assert.Throws<ArgumentNullException>(() => new EcaBaseRuleRegistry(null));
         }
     }

@@ -13,10 +13,8 @@ namespace EcaSystems.Core2
             _events = events ?? throw new ArgumentNullException(nameof(events));
         }
 
-        public void Register<E, R, C, A>(IEcaRule<E, R, C, A> rule)
+        public void Register<E, R>(IEcaRule<E, R> rule)
             where R : IEcaRuleState<E>
-            where C : IEcaConditionContext
-            where A : IEcaActionContext
         {
             ValidateRule(rule);
             _rules.Add(rule);
@@ -36,32 +34,41 @@ namespace EcaSystems.Core2
             return false;
         }
 
-        public IReadOnlyList<IEcaRule<E, R, C, A>> GetByEvent<E, R, C, A>(IEcaEvent<E> ecaEvent)
-            where R : IEcaRuleState<E>
-            where C : IEcaConditionContext
-            where A : IEcaActionContext
+        public IReadOnlyList<IEcaRule<E>> GetByEvent<E>(IEcaEvent<E> ecaEvent)
         {
             if (ecaEvent == null) throw new ArgumentNullException(nameof(ecaEvent));
             if (!_events.CheckRegistered(ecaEvent))
                 throw new InvalidOperationException($"Event '{ecaEvent.Id}' is not registered.");
+            if (ecaEvent.EventStateType != typeof(E))
+                throw new ArgumentException("Event metadata disagrees with its generic contract.", nameof(ecaEvent));
 
-            var matching = new List<IEcaRule<E, R, C, A>>();
+            var matching = new List<IEcaRule<E>>();
             foreach (var rule in _rules)
             {
                 if (rule.Event.Id != ecaEvent.Id) continue;
-                if (rule is not IEcaRule<E, R, C, A> typedRule)
-                    throw new InvalidOperationException($"Rule '{rule.Id}' is incompatible with requested runtime types.");
-
+                if (rule is not IEcaRule<E> typedRule)
+                    throw new InvalidOperationException($"Rule '{rule.Id}' is incompatible with requested event type.");
                 matching.Add(typedRule);
             }
-
             return matching.AsReadOnly();
         }
 
-        private void ValidateRule<E, R, C, A>(IEcaRule<E, R, C, A> rule)
+        // Caller-state Base Fire still requires one compatible R before checking any Conditions.
+        public IReadOnlyList<IEcaRule<E, R>> GetByEvent<E, R>(IEcaEvent<E> ecaEvent)
             where R : IEcaRuleState<E>
-            where C : IEcaConditionContext
-            where A : IEcaActionContext
+        {
+            var matching = new List<IEcaRule<E, R>>();
+            foreach (var rule in GetByEvent(ecaEvent))
+            {
+                if (rule is not IEcaRule<E, R> typedRule)
+                    throw new InvalidOperationException($"Rule '{rule.Id}' is incompatible with requested state type.");
+                matching.Add(typedRule);
+            }
+            return matching.AsReadOnly();
+        }
+
+        private void ValidateRule<E, R>(IEcaRule<E, R> rule)
+            where R : IEcaRuleState<E>
         {
             if (rule == null) throw new ArgumentNullException(nameof(rule));
             if (string.IsNullOrWhiteSpace(rule.Id)) throw new ArgumentException("Rule id cannot be empty.", nameof(rule));

@@ -12,12 +12,14 @@ namespace EcaSystems.Core2
         IReadOnlyList<EcaExecution> Executions { get; }
     }
 
-    public interface IEcaExecutionGroup<E, R, C, A> : IEcaExecutionGroup
-        where R : IEcaExecutionRuleState<E>
-        where C : IEcaExecutionConditionContext
-        where A : IEcaExecutionActionContext
+    public interface IEcaExecutionGroup<E> : IEcaExecutionGroup
     {
-        bool Check(E eventState, C context);
-        Task Run(E eventState, A context);
+        bool Check(E eventState, IEcaConditionContext context);
+        Task Run(E eventState, IEcaActionContext context);
+    }
+
+    public interface IEcaExecutionGroup<E, R> : IEcaExecutionGroup<E>
+        where R : IEcaExecutionRuleState<E>
+    {
     }
 }

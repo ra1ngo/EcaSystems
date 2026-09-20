@@ -13,7 +13,7 @@ namespace EcaSystems.Tests.Core2
         public void OneBinding_HandlesArbitraryUserClassAndStructRegisteredLater()
         {
             var events = new EcaBaseEventRegistry();
-            var emitter = new EcaEventEmitter(events);
+            var emitter = new EcaEventEmitter();
             var runtime = new EcaTestBaseRuntime(events, emitter);
             IEcaEventEmitter externalEmitter = emitter;
             var messageEvent = new BaseTestSupport.Event<UserMessage> { Id = "message" };
@@ -51,7 +51,7 @@ namespace EcaSystems.Tests.Core2
             var events = new EcaBaseEventRegistry();
             var ecaEvent = new BaseTestSupport.Event<UserScore>();
             events.Register(ecaEvent);
-            var emitter = new EcaEventEmitter(events);
+            var emitter = new EcaEventEmitter();
             var runtime = new EcaTestBaseRuntime(events, emitter);
             IEcaEventEmitter externalEmitter = emitter;
             var checks = 0;
@@ -75,7 +75,7 @@ namespace EcaSystems.Tests.Core2
             var other = new BaseTestSupport.Event<UserScore> { Id = "other" };
             events.Register(ecaEvent);
             events.Register(other);
-            var emitter = new EcaEventEmitter(events);
+            var emitter = new EcaEventEmitter();
             var runtime = new EcaTestBaseRuntime(events, emitter);
             IEcaEventEmitter externalEmitter = emitter;
             var trace = new List<string>();
@@ -100,7 +100,7 @@ namespace EcaSystems.Tests.Core2
             var second = new BaseTestSupport.Event<UserScore> { Id = "second" };
             events.Register(first);
             events.Register(second);
-            var emitter = new EcaEventEmitter(events);
+            var emitter = new EcaEventEmitter();
             var runtime = new EcaTestBaseRuntime(events, emitter);
             IEcaEventEmitter externalEmitter = emitter;
             var trace = new List<string>();

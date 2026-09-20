@@ -247,7 +247,7 @@ namespace EcaSystems.Tests.Core2
                 }), new EcaExecutionMode(EcaExecutionModeOverlap.Ignore, 0),
                     (value, state) => throw new Exception("Execution state creator must not be used"));
             }
-            Runtime.Fire<int, State, ConditionContext, ActionContext>(Event, 42, (rule, value) =>
+            Runtime.Fire<int, State>(Event, 42, (rule, value) =>
             {
                 created++;
                 return new State(value, forceState);
@@ -273,7 +273,7 @@ namespace EcaSystems.Tests.Core2
                 Action = new BaseTestSupport.Action { RunHandler = (state, context) => { called = true; return Task.CompletedTask; } }
             };
             Rules.Register(rule);
-            Runtime.Fire<int, BaseTestSupport.State, BaseTestSupport.ConditionContext, BaseTestSupport.ActionContext>(
+            Runtime.Fire<int, BaseTestSupport.State>(
                 Event, 1, (matching, value) => new BaseTestSupport.State { EventState = value },
                 new BaseTestSupport.ConditionContext(), new BaseTestSupport.ActionContext());
             Assert.That(called, Is.True);
@@ -287,7 +287,7 @@ namespace EcaSystems.Tests.Core2
             var evt = new BaseTestSupport.Event<object> { Id = "object" };
             Events.Register(evt);
             EcaExecutionRuleState<object> seen = null;
-            var rule = new Rule<object, EcaExecutionRuleState<object>, ConditionContext, ActionContext>
+            var rule = new Rule<object, EcaExecutionRuleState<object>>
             {
                 Event = evt,
                 Action = new ExecutionTestSupport.Action<EcaExecutionRuleState<object>, ActionContext>
@@ -296,21 +296,22 @@ namespace EcaSystems.Tests.Core2
                 }
             };
             Runtime.Register(rule, Allow, (value, state) => new EcaExecutionRuleState<object>(value, state));
-            Runtime.Fire<object, EcaExecutionRuleState<object>, ConditionContext, ActionContext>(evt, payload, Conditions, Actions);
+            Runtime.Fire<object>(evt, payload, Conditions, Actions);
             Assert.That(seen.EventState, Is.SameAs(payload));
             Assert.That(seen.ExecutionGroupState, Is.SameAs(Runtime.GetGroup(rule.Id).State));
             Assert.That(seen.ExecutionGroupState.TotalFinished, Is.EqualTo(1));
-            Assert.Throws<InvalidOperationException>(() => Runtime.Fire<object, IEcaExecutionRuleState<object>,
-                ConditionContext, ActionContext>(evt, payload, Conditions, Actions));
+            // R is still checked by caller-state Base Fire, but is no longer a normal Fire parameter.
+            Assert.Throws<InvalidOperationException>(() => Runtime.Fire<object, IEcaExecutionRuleState<object>>(
+                evt, payload, (r, value) => new EcaExecutionRuleState<object>(value, new EcaExecutionGroupState()), Conditions, Actions));
         }
 
         [Test]
         public void Fire_ValidatesEventAndAllowsEmptySelection()
         {
             Fire();
-            Assert.Throws<ArgumentNullException>(() => Runtime.Fire<int, State, ConditionContext, ActionContext>(
+            Assert.Throws<ArgumentNullException>(() => Runtime.Fire<int>(
                 null, 1, Conditions, Actions));
-            Assert.Throws<InvalidOperationException>(() => Runtime.Fire<int, State, ConditionContext, ActionContext>(
+            Assert.Throws<InvalidOperationException>(() => Runtime.Fire<int>(
                 new BaseTestSupport.Event<int> { Id = "missing" }, 1, Conditions, Actions));
         }
     }

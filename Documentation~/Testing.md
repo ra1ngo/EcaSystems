@@ -2,6 +2,60 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## PR #18 follow-up: emitter только transport/binding — 2026-09-20
+
+EcaEventEmitter больше не содержит Registry, Event validation или lifecycle callback; semantic validation выполняется Scope.Fire → ExecutionRuntime → RuleRegistry. Исторические описания standalone emitter validation ниже относятся к прежнему контракту.
+
+В EcaEventEmitterTests содержательно заменены четыре cases:
+- Fire_RejectsDifferentInstanceWithSameIdAndType → Fire_ForwardsExactEventStateAndBothContextReferences.
+- Fire_RejectsNullAndUnregisteredEventsBeforeCallbackAndSeesLaterRegistration → Fire_ForwardsNullEventWithoutSemanticValidation.
+- Fire_RejectsLyingMetadataEvenWhenRegistryCheckPasses → Fire_DoesNotInspectEventMetadata.
+- Fire_UsesSuppliedRegistryContractForEachCall → Fire_ForwardsOmittedAndExplicitNullContexts.
+
+ConstructionAndBind case переименован в Bind_RejectsNullAndAllowsFirstValidBinding: obsolete null Registry constructor assertion удалён, Bind(null)/первый Bind сохранены. Unit suite больше не использует Registry; остальные assertions binding, arbitrary E, declared type, payload identity и unchanged handler exception сохранены. RecordingHandler дополнен записью двух contexts. Base integration изменена только механически на parameterless emitter. Scope integration усилена сравнением ArgumentNullException/ParamName для direct/emitter null Event; canonical/unregistered/metadata и stale/disposed/replacement coverage сохранено. Production TimeEcaAdapter не менялся.
+
+Unity **6000.5.6f1**, фактически завершённые EditMode runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Focused Emitter + Base integration + FireContext | 34 | 34 | 0 | 0 | 0 |
+| Полный Core2 | 210 | 210 | 0 | 0 | 0 |
+| Time/Eca | 17 | 17 | 0 | 0 | 0 |
+| Полный EditMode | 394 | 394 | 0 | 0 | 0 |
+
+Focused: EcaEventEmitterTests 12, EcaEventEmitterBaseRuntimeTests 5, EcaFireContextTests 17. Все четыре запуска завершились с exit code 0. При первой перекомпиляции повторён прежний CS0108 в EcaScopeTests.Fire(int); новых compiler warnings/errors нет. XML/log: .validation~/pr18-transport-focused, pr18-transport-core2, pr18-transport-time-eca, pr18-transport-full. PlayMode/IL2CPP/remote CI не запускались.
+
+## Core2 Fire/Context + Scope-owned EventEmitter — 2026-09-20
+
+Добавлены **18 cases**: 17 в EcaFireContextTests и 1 в TimeEcaAdapterTests. Проверяются разные concrete contexts для одного IEcaRule<E,R>, exact references, null/null и независимо optional contexts, разные RuleState для одного event-only Fire с condition barrier, отдельные local emitters parent/child/sibling, stale emitter после ScopeId reuse (включая disposed failure до null/unregistered event validation), эквивалентность direct/emitter, immediate reentrant Allow/Ignore/Limit и поздний admission после nested Fire из Condition, recursive Dispose без отмены Action и потери её context, live canonical registry/metadata, null contexts Base caller-state Fire. Time integration использует настоящий scope.EventEmitter и проверяет шесть lifecycle forwards с null contexts и изоляцией другого Scope.
+
+### Миграция существующих тестов
+
+Все прежние **193 Core2 + 16 Time/Eca cases сохранены**. Не удалялись tests/assertions ради обхода failures; существующие barrier, order, state factory, lifetime, failures, Commands, unregister и Scope isolation гарантии сохранены.
+
+- Только механическая API migration: EcaBaseRuntimeTests, EcaRuleRunnerTests, EcaCommandsBaseRuntimeTests, EcaExecutionGroupTests, EcaScopeTests, EcaScopeRuntimeTests. Убраны C/A type arguments, normal Fire стал event-only; caller-state Fire сохранил R. TypeOf assertions проверяют новое имя Group<E,R>, ожидаемые значения/identity/status/count не менялись.
+- BaseTestSupport, ExecutionTestSupport, CommandTestSupport: Rule implements IEcaRule<E,R>; test Condition/Action реализуют base context signature и сами cast'ят context для существующих test delegates. Это только test-level интерпретация, production typed helpers/context bridge не добавлены.
+- EventTestSupport: signature Handle расширена; test runtime теперь передаёт полученные contexts вместо создания своих. EcaEventEmitterTests и EcaEventEmitterBaseRuntimeTests не изменены и прошли, включая arbitrary multi-E/declared generic preservation.
+- EcaRegistryTests.RuleRegistry_GetByEvent_RejectsIncompatibleSpecializations переименован в RejectsIncompatibleStateAndEventSpecializations. Устаревшие assertions о несовместимости C/A неприменимы к согласованному новому контракту: сохранён incompatible R check, добавлены event-only lookup и incompatible E rejection после canonical replacement. Разные C/A теперь явно разрешены и покрыты новыми identity tests.
+- EcaExecutionRegistryTests.Registry_MissingAndIncompatibleTypesAreExplicit: C/A rejection заменён event-only Get/TryGet identity и incompatible E Get/TryGet assertions; прежние missing/R/ID assertions сохранены.
+- EcaExecutionRuntimeTests.Fire_PreservesGenericExtensibilityForOtherPayloadAndContexts: incompatible R assertion перенесён с normal Fire (который больше не принимает R) на caller-state Base overload. Остальные изменения этого файла механические; state/payload/counters assertions сохранены.
+- TimeEcaAdapterTests: test emitter принимает optional contexts; к существующим forwards добавлены assertions null/null. Добавлен real Scope integration case; прежние expectations не ослаблены. Time/Eca production и Time/Core не изменены.
+
+Перечисленные изменения поведения test harness/контракта и усиление coverage нельзя считать исключительно механической заменой signatures; они отражают явно согласованную модель Fire.
+
+### Фактические запуски Unity 6000.5.6f1
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Core2 после миграции старых tests | 193 | 193 | 0 | 0 | 0 |
+| Core2 с новыми focused tests | 210 | 210 | 0 | 0 | 0 |
+| Focused Time/Eca | 17 | 17 | 0 | 0 | 0 |
+| Полный EditMode regression | 394 | 394 | 0 | 0 | 0 |
+
+Полный suite: Core 37, Core1 77, Core2 210, standalone Time 53, Time/Eca 17. Все четыре завершённых test runs дали exit code 0. Первая промежуточная compile-проверка остановилась до запуска tests на CS0411 (остаточная generic signature ValidateRule<E,R,C,A>); исправлено до успешных runs. При перекомпиляции Core2 повторён прежний CS0108: EcaScopeTests.Fire(int) скрывает ExecutionTestFixture.Fire(int). Новых compiler warnings нет; full run дополнительных warnings не вывел.
+
+XML/log находятся в игнорируемой .validation~: fire-context-core2-migration, fire-context-core2-final, fire-context-time-eca, fire-context-full; первоначальный compile log — fire-context-core2.log. PlayMode, IL2CPP и удалённый CI не запускались. Core/Core1, Commands production и вся TimeSystem architecture не изменены.
+
 ## PR #17 follow-up: Time/Eca structure и PlayerLoop separation — 2026-09-18
 
 Commands перенесены в Eca/Commands, TimeWaitArgs — в standalone Time/Core (namespace EcaSystems.Time); GUID всех перемещённых файлов сохранены. Internal EcaTimeEvent и local internal Event/Command key → string mappings заменяют вложенную declaration и public raw ID constants. Строковые runtime IDs не изменились. Добавлены 3 Time/Eca tests: полное и уникальное соответствие event keys, command keys (включая отклонение неизвестного key), принадлежность TimeWaitArgs standalone assembly. Прежние tests проверяют concrete EcaTimeEvent, canonical caching, Commands delegation, lifecycle snapshots, Connect/Disconnect и Wait.

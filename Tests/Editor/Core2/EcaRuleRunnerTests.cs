@@ -37,7 +37,7 @@ namespace EcaSystems.Tests.Core2
         public void ConditionChecker_RejectsNull()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new EcaBaseConditionChecker().Check<State, ConditionContext>(null, new State(), new ConditionContext()));
+                new EcaBaseConditionChecker().Check<State>(null, new State(), new ConditionContext()));
         }
 
         [Test]
@@ -71,7 +71,7 @@ namespace EcaSystems.Tests.Core2
         public void ActionRunner_RejectsNull()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new EcaBaseActionRunner().Run<State, ActionContext>(null, new State(), new ActionContext()));
+                new EcaBaseActionRunner().Run<State>(null, new State(), new ActionContext()));
         }
     }
 }

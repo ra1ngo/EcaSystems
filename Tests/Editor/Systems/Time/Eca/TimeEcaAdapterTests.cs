@@ -261,6 +261,98 @@ namespace EcaSystems.Tests.TimeEca
             Assert.Throws<ArgumentNullException>(() => new EcaWaitCommand(null));
         }
 
+        [Test]
+        public void Adapter_UsesRealScopeEmitterWithNullContextsAndLocalRouting()
+        {
+            using var owner = new EcaScopeRuntime(_events);
+            var scope = owner.CreateScope("time");
+            var other = owner.CreateScope("other");
+            var conditions = new List<IEcaConditionContext>();
+            var actions = new List<IEcaActionContext>();
+            var states = new List<EcaTimeEventState>();
+            var otherCalls = 0;
+            foreach (var declaration in _system.Events.Events)
+            {
+                var rule = new TimeRule
+                {
+                    Id = declaration.Id,
+                    Event = (IEcaEvent<EcaTimeEventState>)declaration,
+                    Condition = new TimeCondition { Observe = context => conditions.Add(context) },
+                    Action = new TimeAction { Observe = (state, context) => { states.Add(state.EventState); actions.Add(context); } }
+                };
+                // Registration requires attached canonical events.
+                if (!_events.CheckRegistered(declaration)) _events.Register(declaration);
+                scope.Register(rule, new EcaExecutionMode(EcaExecutionModeOverlap.Allow));
+                other.Register(new TimeRule
+                {
+                    Id = declaration.Id, Event = rule.Event,
+                    Action = new TimeAction { Observe = (state, context) => otherCalls++ }
+                }, new EcaExecutionMode(EcaExecutionModeOverlap.Allow));
+            }
+            _adapter = new TimeEcaAdapter(_time, _system.Events, scope.EventEmitter);
+            _adapter.Connect();
+            _time.CreateTimer(new TimerCreateOptions("timer", 0));
+            _time.Start("timer");
+            _time.Pause("timer");
+            _time.Resume("timer");
+            Tick();
+            _time.Stop("timer");
+            _time.DestroyTimer("timer");
+            Assert.That(states.Select(state => state.State), Is.EqualTo(new[] {
+                TimerState.Running, TimerState.Paused, TimerState.Running,
+                TimerState.Completed, TimerState.Stopped, TimerState.Destroyed }));
+            Assert.That(conditions, Has.Count.EqualTo(6));
+            Assert.That(actions, Has.Count.EqualTo(6));
+            Assert.That(conditions.All(context => context == null), Is.True);
+            Assert.That(actions.All(context => context == null), Is.True);
+            Assert.That(otherCalls, Is.Zero);
+            foreach (var declaration in _system.Events.Events)
+            {
+                Assert.That(scope.GetGroup(declaration.Id).State.TotalFinished, Is.EqualTo(1));
+                Assert.That(other.GetGroup(declaration.Id).State.TotalStarted, Is.Zero);
+            }
+            _adapter.Disconnect();
+        }
+
+        private sealed class TimeRule : IEcaRule<EcaTimeEventState, EcaScopeRuleState<EcaTimeEventState>>
+        {
+            public string Id { get; set; }
+            public string Name => Id;
+            public string Description => Id;
+            public IEcaEvent<EcaTimeEventState> Event { get; set; }
+            public IEcaCondition<EcaScopeRuleState<EcaTimeEventState>> Condition { get; set; }
+            public IEcaAction<EcaScopeRuleState<EcaTimeEventState>> Action { get; set; }
+            IEcaEvent IEcaRule.Event => Event;
+            IEcaCondition IEcaRule.Condition => Condition;
+            IEcaAction IEcaRule.Action => Action;
+        }
+
+        private sealed class TimeCondition : IEcaCondition<EcaScopeRuleState<EcaTimeEventState>>
+        {
+            public string Id => "observe";
+            public string Name => Id;
+            public string Description => Id;
+            internal Action<IEcaConditionContext> Observe;
+            public bool Check(EcaScopeRuleState<EcaTimeEventState> state, IEcaConditionContext context)
+            {
+                Observe(context);
+                return true;
+            }
+        }
+
+        private sealed class TimeAction : IEcaAction<EcaScopeRuleState<EcaTimeEventState>>
+        {
+            public string Id => "observe";
+            public string Name => Id;
+            public string Description => Id;
+            internal Action<EcaScopeRuleState<EcaTimeEventState>, IEcaActionContext> Observe;
+            public System.Threading.Tasks.Task Run(EcaScopeRuleState<EcaTimeEventState> state, IEcaActionContext context)
+            {
+                Observe(state, context);
+                return System.Threading.Tasks.Task.CompletedTask;
+            }
+        }
+
         private sealed class Declaration<E> : IEcaEvent<E>
         {
             public string Id { get; }
@@ -312,8 +404,10 @@ namespace EcaSystems.Tests.TimeEca
             internal readonly List<IEcaEvent> Declarations = new();
             internal Action<string, EcaTimeEventState> OnFire;
             internal RecordingEmitter(EcaBaseEventRegistry events) => _events = events;
-            public void Fire<E>(IEcaEvent<E> ecaEvent, E eventState)
+            public void Fire<E>(IEcaEvent<E> ecaEvent, E eventState, IEcaConditionContext conditionContext = null, IEcaActionContext actionContext = null)
             {
+                Assert.That(conditionContext, Is.Null);
+                Assert.That(actionContext, Is.Null);
                 if (!_events.CheckRegistered(ecaEvent)) throw new InvalidOperationException("Event is not registered.");
                 Assert.That(ecaEvent.EventStateType, Is.EqualTo(typeof(E)));
                 Assert.That(eventState, Is.TypeOf<EcaTimeEventState>());

@@ -15,28 +15,24 @@ namespace EcaSystems.Core2
             _conditionChecker = conditionChecker ?? throw new ArgumentNullException(nameof(conditionChecker));
         }
 
-        public void Register<E, R, C, A>(IEcaRule<E, R, C, A> rule)
+        public void Register<E, R>(IEcaRule<E, R> rule)
             where R : IEcaRuleState<E>
-            where C : IEcaConditionContext
-            where A : IEcaActionContext
         {
             _rules.Register(rule);
         }
 
         public bool Unregister(IEcaRule rule) => _rules.Unregister(rule);
 
-        public void Fire<E, R, C, A>(
+        public void Fire<E, R>(
             IEcaEvent<E> ecaEvent, E eventState,
-            Func<IEcaRule<E, R, C, A>, E, R> createState,
-            C conditionContext, A actionContext)
+            Func<IEcaRule<E, R>, E, R> createState,
+            IEcaConditionContext conditionContext = null, IEcaActionContext actionContext = null)
             where R : IEcaRuleState<E>
-            where C : IEcaConditionContext
-            where A : IEcaActionContext
         {
             if (ecaEvent == null) throw new ArgumentNullException(nameof(ecaEvent));
             if (createState == null) throw new ArgumentNullException(nameof(createState));
 
-            var rules = _rules.GetByEvent<E, R, C, A>(ecaEvent);
+            var rules = _rules.GetByEvent<E, R>(ecaEvent);
             var states = new R[rules.Count];
             var passed = new bool[rules.Count];
 

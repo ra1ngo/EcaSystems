@@ -22,17 +22,15 @@ namespace EcaSystems.Core2
             _baseRuntime = new EcaBaseRuntime(_rules, _actionRunner, _conditionChecker);
         }
 
-        public void Register<E, R, C, A>(
-            IEcaRule<E, R, C, A> rule, EcaExecutionMode executionMode,
+        public void Register<E, R>(
+            IEcaRule<E, R> rule, EcaExecutionMode executionMode,
             Func<E, EcaExecutionGroupState, R> createState)
             where R : IEcaExecutionRuleState<E>
-            where C : IEcaExecutionConditionContext
-            where A : IEcaExecutionActionContext
         {
             _baseRuntime.Register(rule);
             try
             {
-                var group = new EcaExecutionGroup<E, R, C, A>(
+                var group = new EcaExecutionGroup<E, R>(
                     rule, executionMode, createState, _conditionChecker, _actionRunner);
                 _groups.Register(group);
             }
@@ -50,16 +48,13 @@ namespace EcaSystems.Core2
             return true;
         }
 
-        public void Fire<E, R, C, A>(IEcaEvent<E> ecaEvent, E eventState, C conditionContext, A actionContext)
-            where R : IEcaExecutionRuleState<E>
-            where C : IEcaExecutionConditionContext
-            where A : IEcaExecutionActionContext
+        public void Fire<E>(IEcaEvent<E> ecaEvent, E eventState, IEcaConditionContext conditionContext = null, IEcaActionContext actionContext = null)
         {
-            var rules = _rules.GetByEvent<E, R, C, A>(ecaEvent);
-            var passedGroups = new List<IEcaExecutionGroup<E, R, C, A>>();
+            var rules = _rules.GetByEvent<E>(ecaEvent);
+            var passedGroups = new List<IEcaExecutionGroup<E>>();
             foreach (var rule in rules)
             {
-                var group = _groups.Get<E, R, C, A>(rule.Id);
+                var group = _groups.Get<E>(rule.Id);
                 if (group.Check(eventState, conditionContext)) passedGroups.Add(group);
             }
 
@@ -68,12 +63,10 @@ namespace EcaSystems.Core2
                 _ = group.Run(eventState, actionContext);
         }
 
-        public void Fire<E, R, C, A>(
-            IEcaEvent<E> ecaEvent, E eventState, Func<IEcaRule<E, R, C, A>, E, R> createState,
-            C conditionContext, A actionContext)
+        public void Fire<E, R>(
+            IEcaEvent<E> ecaEvent, E eventState, Func<IEcaRule<E, R>, E, R> createState,
+            IEcaConditionContext conditionContext = null, IEcaActionContext actionContext = null)
             where R : IEcaRuleState<E>
-            where C : IEcaConditionContext
-            where A : IEcaActionContext
         {
             _baseRuntime.Fire(ecaEvent, eventState, createState, conditionContext, actionContext);
         }

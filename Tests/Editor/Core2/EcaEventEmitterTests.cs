@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using EcaSystems.Core2;
 using NUnit.Framework;
 using static EcaSystems.Tests.Core2.EventTestSupport;
@@ -10,13 +9,10 @@ namespace EcaSystems.Tests.Core2
     public sealed class EcaEventEmitterTests
     {
         [Test]
-        public void ConstructionAndBind_RejectNullAndAllowFirstValidBinding()
+        public void Bind_RejectsNullAndAllowsFirstValidBinding()
         {
-            Assert.Throws<ArgumentNullException>(() => new EcaEventEmitter(null));
-            var events = new EcaBaseEventRegistry();
             var ecaEvent = new BaseTestSupport.Event<int>();
-            events.Register(ecaEvent);
-            var emitter = new EcaEventEmitter(events);
+            var emitter = new EcaEventEmitter();
             Assert.Throws<ArgumentNullException>(() => emitter.Bind(null));
             var handler = new RecordingHandler();
             emitter.Bind(handler);
@@ -26,26 +22,34 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_RejectsDifferentInstanceWithSameIdAndType()
+        public void Fire_ForwardsExactEventStateAndBothContextReferences()
         {
-            var events = new EcaBaseEventRegistry();
-            var canonical = new BaseTestSupport.Event<int>();
-            events.Register(canonical);
-            var emitter = new EcaEventEmitter(events);
+            var first = new BaseTestSupport.Event<UserMessage>();
+            var second = new BaseTestSupport.Event<UserMessage> { Id = first.Id };
+            var state = new DerivedMessage();
+            var condition = new BaseTestSupport.ConditionContext();
+            var action = new BaseTestSupport.ActionContext();
+            var emitter = new EcaEventEmitter();
             var handler = new RecordingHandler();
             emitter.Bind(handler);
-            Assert.Throws<InvalidOperationException>(() => emitter.Fire(new BaseTestSupport.Event<int>(), 1));
-            emitter.Fire(canonical, 2);
-            Assert.That(handler.States, Is.EqualTo(new object[] { 2 }));
+            emitter.Fire<UserMessage>(first, state, condition, action);
+            emitter.Fire<UserMessage>(second, state, condition, action);
+            Assert.That(handler.Events[0], Is.SameAs(first));
+            Assert.That(handler.Events[1], Is.SameAs(second));
+            for (var i = 0; i < 2; i++)
+            {
+                Assert.That(handler.States[i], Is.SameAs(state));
+                Assert.That(handler.Types[i], Is.EqualTo(typeof(UserMessage)));
+                Assert.That(handler.ConditionContexts[i], Is.SameAs(condition));
+                Assert.That(handler.ActionContexts[i], Is.SameAs(action));
+            }
         }
 
         [Test]
         public void Fire_BeforeBindFailsFast()
         {
-            var events = new EcaBaseEventRegistry();
             var ecaEvent = new BaseTestSupport.Event<int>();
-            events.Register(ecaEvent);
-            IEcaEventEmitter emitter = new EcaEventEmitter(events);
+            IEcaEventEmitter emitter = new EcaEventEmitter();
             Assert.Throws<InvalidOperationException>(() => emitter.Fire(ecaEvent, 1));
         }
 
@@ -53,10 +57,8 @@ namespace EcaSystems.Tests.Core2
         [TestCase(true)]
         public void Bind_RejectsSecondBindingWithoutReplacingHandler(bool sameInstance)
         {
-            var events = new EcaBaseEventRegistry();
             var ecaEvent = new BaseTestSupport.Event<int>();
-            events.Register(ecaEvent);
-            var emitter = new EcaEventEmitter(events);
+            var emitter = new EcaEventEmitter();
             var first = new RecordingHandler();
             var second = sameInstance ? first : new RecordingHandler();
             emitter.Bind(first);
@@ -67,44 +69,36 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_RejectsNullAndUnregisteredEventsBeforeCallbackAndSeesLaterRegistration()
+        public void Fire_ForwardsNullEventWithoutSemanticValidation()
         {
-            var events = new EcaBaseEventRegistry();
-            var emitter = new EcaEventEmitter(events);
+            var emitter = new EcaEventEmitter();
             var handler = new RecordingHandler();
             emitter.Bind(handler);
-            var ecaEvent = new BaseTestSupport.Event<int>();
-            Assert.Throws<ArgumentNullException>(() => emitter.Fire<int>(null, 1));
-            Assert.Throws<InvalidOperationException>(() => emitter.Fire(ecaEvent, 1));
-            Assert.That(handler.States, Is.Empty);
-            events.Register(ecaEvent);
-            emitter.Fire(ecaEvent, 3);
-            Assert.That(handler.Events[0], Is.SameAs(ecaEvent));
+            emitter.Fire<int>(null, 3);
+            Assert.That(handler.Events, Is.EqualTo(new IEcaEvent[] { null }));
             Assert.That(handler.States, Is.EqualTo(new object[] { 3 }));
+            Assert.That(handler.Types, Is.EqualTo(new[] { typeof(int) }));
         }
 
         [Test]
-        public void Fire_RejectsLyingMetadataEvenWhenRegistryCheckPasses()
+        public void Fire_DoesNotInspectEventMetadata()
         {
-            var events = new EcaBaseEventRegistry();
-            var liar = new BaseTestSupport.Event<string> { EventStateType = typeof(int) };
-            events.Register(liar);
-            Assert.That(events.CheckRegistered(liar), Is.True);
-            var emitter = new EcaEventEmitter(events);
+            var declaration = new BaseTestSupport.Event<string> { EventStateType = typeof(int) };
+            var emitter = new EcaEventEmitter();
             var handler = new RecordingHandler();
             emitter.Bind(handler);
-            Assert.Throws<ArgumentException>(() => emitter.Fire(liar, "wrong"));
-            Assert.That(handler.States, Is.Empty);
+            emitter.Fire(declaration, "payload");
+            Assert.That(handler.Events[0], Is.SameAs(declaration));
+            Assert.That(handler.Types, Is.EqualTo(new[] { typeof(string) }));
+            Assert.That(handler.States, Is.EqualTo(new object[] { "payload" }));
         }
 
         [TestCase(false)]
         [TestCase(true)]
         public void Fire_PreservesDeclaredBaseTypeAndReferenceIncludingNull(bool nullState)
         {
-            var events = new EcaBaseEventRegistry();
             IEcaEvent<UserMessage> ecaEvent = new BaseTestSupport.Event<UserMessage>();
-            events.Register(ecaEvent);
-            var emitter = new EcaEventEmitter(events);
+            var emitter = new EcaEventEmitter();
             var handler = new RecordingHandler();
             emitter.Bind(handler);
             UserMessage state = nullState ? null : new DerivedMessage { Text = "derived" };
@@ -118,14 +112,10 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public void OneBinding_HandlesThreeUnrelatedTypesAndPreservesValues()
         {
-            var events = new EcaBaseEventRegistry();
             var messageEvent = new BaseTestSupport.Event<UserMessage> { Id = "message" };
             var scoreEvent = new BaseTestSupport.Event<UserScore> { Id = "score" };
             var numberEvent = new BaseTestSupport.Event<int> { Id = "number" };
-            events.Register(messageEvent);
-            events.Register(scoreEvent);
-            events.Register(numberEvent);
-            var emitter = new EcaEventEmitter(events);
+            var emitter = new EcaEventEmitter();
             var handler = new RecordingHandler();
             emitter.Bind(handler);
             IEcaEventEmitter externalEmitter = emitter;
@@ -143,10 +133,8 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public void Fire_PropagatesHandlerFailureUnchangedAndKeepsBinding()
         {
-            var events = new EcaBaseEventRegistry();
             var ecaEvent = new BaseTestSupport.Event<int>();
-            events.Register(ecaEvent);
-            var emitter = new EcaEventEmitter(events);
+            var emitter = new EcaEventEmitter();
             var error = new InvalidOperationException("handler");
             var handler = new RecordingHandler { Callback = () => throw error };
             emitter.Bind(handler);
@@ -156,42 +144,18 @@ namespace EcaSystems.Tests.Core2
             Assert.That(handler.States, Is.EqualTo(new object[] { 1, 2 }));
         }
 
-        private sealed class Registry : IEcaEventRegistry
-        {
-            public IEcaEvent Registered;
-            public IEcaEvent Checked;
-            public void Register(IEcaEvent ecaEvent) => Registered = ecaEvent;
-            public IReadOnlyCollection<IEcaEvent> Events => Registered == null ? Array.Empty<IEcaEvent>() : new[] { Registered };
-            public IEcaEvent Resolve(string id) => Contains(id) ? Registered : throw new InvalidOperationException();
-            public bool Contains(string eventId)
-            {
-                if (string.IsNullOrWhiteSpace(eventId)) throw new ArgumentException(nameof(eventId));
-                return Registered != null && Registered.Id == eventId;
-            }
-            public bool Unregister(string eventId)
-            {
-                if (!Contains(eventId)) return false;
-                Registered = null;
-                return true;
-            }
-            public bool CheckRegistered(IEcaEvent ecaEvent) { Checked = ecaEvent; return ReferenceEquals(Registered, ecaEvent); }
-        }
-
         [Test]
-        public void Fire_UsesSuppliedRegistryContractForEachCall()
+        public void Fire_ForwardsOmittedAndExplicitNullContexts()
         {
-            var events = new Registry();
-            var ecaEvent = new BaseTestSupport.Event<int>();
-            events.Register(ecaEvent);
-            var emitter = new EcaEventEmitter(events);
+            var emitter = new EcaEventEmitter();
             var handler = new RecordingHandler();
             emitter.Bind(handler);
+            var ecaEvent = new BaseTestSupport.Event<int>();
             emitter.Fire(ecaEvent, 1);
-            Assert.That(events.Checked, Is.SameAs(ecaEvent));
-            Assert.That(handler.Events[0], Is.SameAs(events.Checked));
-            events.Registered = null;
-            Assert.Throws<InvalidOperationException>(() => emitter.Fire(ecaEvent, 2));
-            Assert.That(handler.States.Count, Is.EqualTo(1));
+            emitter.Fire(ecaEvent, 2, null, null);
+            Assert.That(handler.States, Is.EqualTo(new object[] { 1, 2 }));
+            Assert.That(handler.ConditionContexts, Is.EqualTo(new IEcaConditionContext[] { null, null }));
+            Assert.That(handler.ActionContexts, Is.EqualTo(new IEcaActionContext[] { null, null }));
         }
     }
 }

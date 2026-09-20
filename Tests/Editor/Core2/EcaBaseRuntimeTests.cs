@@ -76,7 +76,7 @@ namespace EcaSystems.Tests.Core2
                 Action = new Action { RunHandler = (state, context) => throw new AssertionException("Unmatched action") }
             });
 
-            _runtime.Fire<int, State, ConditionContext, ActionContext>(_event, 42, (rule, eventState) =>
+            _runtime.Fire<int, State>(_event, 42, (rule, eventState) =>
             {
                 created.Add(rule.Id);
                 var state = new State { EventState = eventState };
@@ -104,7 +104,7 @@ namespace EcaSystems.Tests.Core2
                 Action = new Action { RunHandler = (state, context) => throw new AssertionException("Failed rule action") }
             });
 
-            _runtime.Fire<int, State, ConditionContext, ActionContext>(
+            _runtime.Fire<int, State>(
                 _event, 7, (rule, value) => new State { EventState = value }, new ConditionContext(), new ActionContext());
 
             Assert.That(trace, Is.EqualTo(new[] { "Condition failed", "Action optional" }));
@@ -117,7 +117,7 @@ namespace EcaSystems.Tests.Core2
             _runtime.Register(rule);
             Assert.That(_runtime.Unregister(rule), Is.True);
             Assert.That(_runtime.Unregister(rule), Is.False);
-            _runtime.Fire<int, State, ConditionContext, ActionContext>(
+            _runtime.Fire<int, State>(
                 _event, 0, (matching, value) => throw new AssertionException("No matching rule"),
                 new ConditionContext(), new ActionContext());
         }
@@ -125,9 +125,9 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public void Fire_RejectsMissingArguments()
         {
-            Assert.Throws<ArgumentNullException>(() => _runtime.Fire<int, State, ConditionContext, ActionContext>(
+            Assert.Throws<ArgumentNullException>(() => _runtime.Fire<int, State>(
                 null, 0, (rule, value) => new State(), new ConditionContext(), new ActionContext()));
-            Assert.Throws<ArgumentNullException>(() => _runtime.Fire<int, State, ConditionContext, ActionContext>(
+            Assert.Throws<ArgumentNullException>(() => _runtime.Fire<int, State>(
                 _event, 0, null, new ConditionContext(), new ActionContext()));
         }
 

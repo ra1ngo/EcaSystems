@@ -10,13 +10,15 @@ namespace EcaSystems.Core2
         IEcaAction Action { get; }
     }
 
-    public interface IEcaRule<E, R, C, A> : IEcaRule
-        where R : IEcaRuleState<E>
-        where C : IEcaConditionContext
-        where A : IEcaActionContext
+    public interface IEcaRule<E> : IEcaRule
     {
         new IEcaEvent<E> Event { get; }
-        new IEcaCondition<R, C> Condition { get; }
-        new IEcaAction<R, A> Action { get; }
+    }
+
+    public interface IEcaRule<E, R> : IEcaRule<E>
+        where R : IEcaRuleState<E>
+    {
+        new IEcaCondition<R> Condition { get; }
+        new IEcaAction<R> Action { get; }
     }
 }
