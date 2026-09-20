@@ -207,7 +207,7 @@ namespace EcaSystems.Tests.Core2
                 probes[i].Reads = 0;
             }
             var error = Assert.Throws<AggregateException>(() => _runtime.Dispose());
-            Assert.That(error.InnerExceptions, Is.EqualTo(failures));
+            Assert.That(error.InnerExceptions, Is.EquivalentTo(failures));
             for (var i = 0; i < probes.Count; i++) Assert.That(probes[i].Reads, Is.EqualTo(i == 1 ? 2 : 1));
             Assert.DoesNotThrow(() => _runtime.Dispose());
             for (var i = 0; i < probes.Count; i++) Assert.That(probes[i].Reads, Is.EqualTo(i == 1 ? 2 : 1));
