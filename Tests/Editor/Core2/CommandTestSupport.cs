@@ -26,26 +26,26 @@ namespace EcaSystems.Tests.Core2
             public CommandsContext(IEcaCommandRunner runner) => Commands = runner.Bind(this);
         }
 
-        internal sealed class Rule : IEcaRule<int, BaseTestSupport.State, BaseTestSupport.ConditionContext, CommandsContext>
+        internal sealed class Rule : IEcaRule<int, BaseTestSupport.State>
         {
             public string Id { get; set; } = "rule";
             public string Name => Id;
             public string Description => Id;
             public IEcaEvent<int> Event { get; set; }
-            public IEcaCondition<BaseTestSupport.State, BaseTestSupport.ConditionContext> Condition { get; set; }
-            public IEcaAction<BaseTestSupport.State, CommandsContext> Action { get; set; }
+            public IEcaCondition<BaseTestSupport.State> Condition { get; set; }
+            public IEcaAction<BaseTestSupport.State> Action { get; set; }
             IEcaEvent IEcaRule.Event => Event;
             IEcaCondition IEcaRule.Condition => Condition;
             IEcaAction IEcaRule.Action => Action;
         }
 
-        internal sealed class CommandAction : IEcaAction<BaseTestSupport.State, CommandsContext>
+        internal sealed class CommandAction : IEcaAction<BaseTestSupport.State>
         {
             public string Id => "action";
             public string Name => Id;
             public string Description => Id;
             public Func<BaseTestSupport.State, CommandsContext, Task> Handler { get; set; }
-            public Task Run(BaseTestSupport.State state, CommandsContext context) => Handler(state, context);
+            public Task Run(BaseTestSupport.State state, IEcaActionContext context) => Handler(state, (CommandsContext)context);
         }
     }
 }

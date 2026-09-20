@@ -44,10 +44,10 @@ namespace EcaSystems.Tests.Core2
         [TearDown]
         public void DisposeScopes() => _owner.Dispose();
 
-        private Rule<int, R, ScopeC, ScopeA> MakeRule<R>(string id = "rule",
+        private Rule<int, R> MakeRule<R>(string id = "rule",
             Func<R, ScopeC, bool> check = null, Func<R, ScopeA, Task> run = null) where R : IEcaScopeRuleState<int>
         {
-            return new Rule<int, R, ScopeC, ScopeA>
+            return new Rule<int, R>
             {
                 Id = id, Event = Event,
                 Condition = check == null ? null : new Condition<R, ScopeC> { Handler = check },
@@ -55,7 +55,7 @@ namespace EcaSystems.Tests.Core2
             };
         }
 
-        private void Fire(int value = 42) => _scope.Fire<int, EcaScopeRuleState<int>, ScopeC, ScopeA>(
+        private void Fire(int value = 42) => _scope.Fire<int>(
             Event, value, _condition, _action);
 
         [Test]
@@ -98,7 +98,7 @@ namespace EcaSystems.Tests.Core2
             var rule = MakeRule<EcaScopeRuleState<int>>();
             _scope.Register(rule, Allow);
             var group = _scope.GetGroup(rule.Id);
-            Assert.That(group, Is.TypeOf<EcaExecutionGroup<int, EcaScopeRuleState<int>, ScopeC, ScopeA>>());
+            Assert.That(group, Is.TypeOf<EcaExecutionGroup<int, EcaScopeRuleState<int>>>());
             Assert.That(_owner.TryGetScope("A", out var scope), Is.True);
             Assert.That(scope, Is.SameAs(_scope));
             Assert.That(group.Rule, Is.SameAs(rule));
@@ -119,7 +119,7 @@ namespace EcaSystems.Tests.Core2
         {
             Assert.Throws<ArgumentNullException>(() => _scope.Register(MakeRule<RichState>(), Allow,
                 (Func<IEcaExecutionRuleState<int>, EcaScopeState, RichState>)null));
-            _scope.Fire<int, RichState, ScopeC, ScopeA>(Event, 1, _condition, _action);
+            _scope.Fire<int>(Event, 1, _condition, _action);
             Assert.That(_scope.TryGetGroup("rule", out _), Is.False);
         }
 
@@ -152,7 +152,7 @@ namespace EcaSystems.Tests.Core2
                 output.Add(enriched);
                 return enriched;
             });
-            _scope.Fire<int, RichState, ScopeC, ScopeA>(Event, 17, _condition, _action);
+            _scope.Fire<int>(Event, 17, _condition, _action);
             Assert.That(input, Has.Count.EqualTo(2));
             Assert.That(input[0], Is.TypeOf<EcaExecutionRuleState<int>>());
             Assert.That(input[0], Is.Not.SameAs(input[1]));
@@ -232,7 +232,7 @@ namespace EcaSystems.Tests.Core2
             Fire();
             Assert.That(seen, Is.EqualTo(new[] { _scope.State }));
             Assert.That(other.GetGroup("rule").State.TotalStarted, Is.Zero);
-            other.Fire<int, EcaScopeRuleState<int>, ScopeC, ScopeA>(Event, 1, _condition, _action);
+            other.Fire<int>(Event, 1, _condition, _action);
             Assert.That(seen, Is.EqualTo(new[] { _scope.State, other.State }));
             Assert.That(_scope.GetGroup("rule"), Is.Not.SameAs(other.GetGroup("rule")));
             Assert.That(_scope.GetGroup("rule").State, Is.Not.SameAs(other.GetGroup("rule").State));
@@ -307,10 +307,10 @@ namespace EcaSystems.Tests.Core2
             });
             if (conditionFailure)
                 Assert.That(Assert.Throws<InvalidOperationException>(() =>
-                    _scope.Fire<int, RichState, ScopeC, ScopeA>(Event, 1, _condition, _action)), Is.SameAs(error));
+                    _scope.Fire<int>(Event, 1, _condition, _action)), Is.SameAs(error));
             else
             {
-                _scope.Fire<int, RichState, ScopeC, ScopeA>(Event, 1, _condition, _action);
+                _scope.Fire<int>(Event, 1, _condition, _action);
                 Assert.That(failed.Status, Is.EqualTo(EcaExecutionStatus.Failed));
                 Assert.That(failed.Exception, Is.SameAs(error));
             }
@@ -332,7 +332,7 @@ namespace EcaSystems.Tests.Core2
                     new EcaExecutionMode(EcaExecutionModeOverlap.Ignore, 0),
                     (previous, scope) => throw new Exception("Must use caller createState"));
             }
-            _scope.Fire<int, EcaScopeRuleState<int>, ScopeC, ScopeA>(Event, 17,
+            _scope.Fire<int, EcaScopeRuleState<int>>(Event, 17,
                 (rule, value) => new EcaScopeRuleState<int>(value, callerGroup, callerScope), _condition, _action);
             Assert.That(trace, Is.EqualTo(new[] { "Condition A", "Condition B", "Action A" }));
             Assert.That(seen[0], Is.SameAs(seen[2]));

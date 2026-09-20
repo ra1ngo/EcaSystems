@@ -11,12 +11,12 @@ namespace EcaSystems.Tests.Core2
     [TestFixture]
     public sealed class EcaExecutionGroupTests : ExecutionTestFixture
     {
-        private EcaExecutionGroup<int, State, ConditionContext, ActionContext> CreateGroup(
+        private EcaExecutionGroup<int, State> CreateGroup(
             EcaExecutionModeOverlap overlap = EcaExecutionModeOverlap.Allow, int limit = -1,
             Func<State, ConditionContext, bool> check = null, Func<State, ActionContext, Task> run = null,
             Func<int, EcaExecutionGroupState, State> createState = null)
         {
-            return new EcaExecutionGroup<int, State, ConditionContext, ActionContext>(
+            return new EcaExecutionGroup<int, State>(
                 NewRule(check: check, run: run), new EcaExecutionMode(overlap, limit),
                 createState ?? ((value, state) => new State(value, state)),
                 new EcaBaseConditionChecker(), new EcaBaseActionRunner());
@@ -114,7 +114,7 @@ namespace EcaSystems.Tests.Core2
             EcaExecution observed = null;
             long startedInAction = -1, finishedInAction = -1;
             var group = CreateGroup(check: (state, context) => { checkedState = state; return true; });
-            ((ExecutionTestSupport.Action<State, ActionContext>)((IEcaRule<int, State, ConditionContext, ActionContext>)group.Rule).Action).Handler =
+            ((ExecutionTestSupport.Action<State, ActionContext>)((IEcaRule<int, State>)group.Rule).Action).Handler =
                 (state, context) =>
                 {
                     actionState = state;
@@ -156,7 +156,7 @@ namespace EcaSystems.Tests.Core2
         {
             var error = new InvalidOperationException("failure");
             EcaExecution execution = null;
-            EcaExecutionGroup<int, State, ConditionContext, ActionContext> group = null;
+            EcaExecutionGroup<int, State> group = null;
             group = CreateGroup(createState: (value, state) =>
             {
                 execution = group.Executions[0];
@@ -247,7 +247,7 @@ namespace EcaSystems.Tests.Core2
         public async Task Run_AdmissionIsVisibleBeforeReentrantStateCreation(EcaExecutionModeOverlap overlap, int limit)
         {
             var calls = 0;
-            EcaExecutionGroup<int, State, ConditionContext, ActionContext> group = null;
+            EcaExecutionGroup<int, State> group = null;
             group = CreateGroup(overlap, limit, createState: (value, state) =>
             {
                 calls++;
@@ -268,15 +268,15 @@ namespace EcaSystems.Tests.Core2
             Func<int, EcaExecutionGroupState, State> create = (value, state) => new State(value, state);
             var checker = new EcaBaseConditionChecker();
             var runner = new EcaBaseActionRunner();
-            Assert.Throws<ArgumentNullException>(() => new EcaExecutionGroup<int, State, ConditionContext, ActionContext>(
+            Assert.Throws<ArgumentNullException>(() => new EcaExecutionGroup<int, State>(
                 null, mode, create, checker, runner));
-            Assert.Throws<ArgumentNullException>(() => new EcaExecutionGroup<int, State, ConditionContext, ActionContext>(
+            Assert.Throws<ArgumentNullException>(() => new EcaExecutionGroup<int, State>(
                 rule, null, create, checker, runner));
-            Assert.Throws<ArgumentNullException>(() => new EcaExecutionGroup<int, State, ConditionContext, ActionContext>(
+            Assert.Throws<ArgumentNullException>(() => new EcaExecutionGroup<int, State>(
                 rule, mode, null, checker, runner));
-            Assert.Throws<ArgumentNullException>(() => new EcaExecutionGroup<int, State, ConditionContext, ActionContext>(
+            Assert.Throws<ArgumentNullException>(() => new EcaExecutionGroup<int, State>(
                 rule, mode, create, null, runner));
-            Assert.Throws<ArgumentNullException>(() => new EcaExecutionGroup<int, State, ConditionContext, ActionContext>(
+            Assert.Throws<ArgumentNullException>(() => new EcaExecutionGroup<int, State>(
                 rule, mode, create, checker, null));
         }
     }

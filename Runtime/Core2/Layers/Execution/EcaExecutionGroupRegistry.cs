@@ -34,24 +34,35 @@ namespace EcaSystems.Core2
             return _groups.TryGetValue(ruleId, out group);
         }
 
-        public IEcaExecutionGroup<E, R, C, A> Get<E, R, C, A>(string ruleId)
-            where R : IEcaExecutionRuleState<E>
-            where C : IEcaExecutionConditionContext
-            where A : IEcaExecutionActionContext
+        public IEcaExecutionGroup<E> Get<E>(string ruleId)
         {
             var group = Get(ruleId);
-            if (group is IEcaExecutionGroup<E, R, C, A> typedGroup) return typedGroup;
-            throw new InvalidOperationException($"Execution group '{ruleId}' is incompatible with requested runtime types.");
+            if (group is IEcaExecutionGroup<E> typedGroup) return typedGroup;
+            throw new InvalidOperationException($"Execution group '{ruleId}' is incompatible with requested event type.");
         }
 
-        public bool TryGet<E, R, C, A>(string ruleId, out IEcaExecutionGroup<E, R, C, A> group)
-            where R : IEcaExecutionRuleState<E>
-            where C : IEcaExecutionConditionContext
-            where A : IEcaExecutionActionContext
+        public bool TryGet<E>(string ruleId, out IEcaExecutionGroup<E> group)
         {
             group = null;
             if (!TryGet(ruleId, out var registered)) return false;
-            group = registered as IEcaExecutionGroup<E, R, C, A>;
+            group = registered as IEcaExecutionGroup<E>;
+            return group != null;
+        }
+
+        public IEcaExecutionGroup<E, R> Get<E, R>(string ruleId)
+            where R : IEcaExecutionRuleState<E>
+        {
+            var group = Get(ruleId);
+            if (group is IEcaExecutionGroup<E, R> typedGroup) return typedGroup;
+            throw new InvalidOperationException($"Execution group '{ruleId}' is incompatible with requested runtime types.");
+        }
+
+        public bool TryGet<E, R>(string ruleId, out IEcaExecutionGroup<E, R> group)
+            where R : IEcaExecutionRuleState<E>
+        {
+            group = null;
+            if (!TryGet(ruleId, out var registered)) return false;
+            group = registered as IEcaExecutionGroup<E, R>;
             return group != null;
         }
 

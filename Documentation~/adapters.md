@@ -18,7 +18,7 @@ Emitter валидирует регистрацию Event. Пока caller об�
 4. adapter.Disconnect().
 5. EcaSystemConnector.Detach(system).
 
-Connect не может универсально проверить Attach через один IEcaEventEmitter. Ошибка порядка обнаруживается при Fire. Connector не должен внезапно владеть произвольными внешними subscriptions; общее решение ownership/composition отложено до следующей production composition стадии. Disconnect снимает только external subscriptions, не останавливает standalone timers или Wait.
+Connect не может универсально проверить Attach через один IEcaEventEmitter. Ошибка порядка обнаруживается при Fire. Connector не должен внезапно владеть произвольными внешними subscriptions; lifecycle внешних Systems/adapters не является ответственностью Core или будущего EcaSystemsRuntime. Disconnect снимает только external subscriptions, не останавливает standalone timers или Wait.
 
 ## Typed Event discoverability
 
@@ -26,7 +26,7 @@ Connect не может универсально проверить Attach че�
 
 TimeEcaSetup.CreateSystem(time) заполняет local registries отдельными internal EcaTimeEvent и семью concrete Commands. EcaTimeEvent принимает internal EcaTimeEventKey; EcaTimeEventIds централизует key → string mapping. Caller создаёт TimeEcaAdapter(time, system.Events, emitter). Adapter один раз Resolve-ит шесть Events через mapping, проверяет IEcaEvent<EcaTimeEventState> и metadata и кеширует references. Generic Event Register<E> удалён; typed validation принадлежит потребителю. Commands находятся в Eca/Commands, получают Id через internal EcaTimeCommandKey/EcaTimeCommandIds и хранят TimeSystem. Public raw ID constants отсутствуют. Lifecycle args остаются string timerId. TimeWaitArgs принадлежит standalone Time/Core (namespace EcaSystems.Time); EcaWaitCommand распаковывает его в существующий Wait(double, TimerScaleMode). Это небольшой setup, не production composition framework.
 
-Emitter остаётся typed instance-based Fire<E>(IEcaEvent<E>, E); Fire(string id, ...) не добавлен. RuleCreator/CreateRule<E>(eventId, ...) и общий typed lookup обсуждаются на следующем production-composition этапе. Generic Registry abstraction сейчас сознательно не вводится.
+Emitter остаётся typed instance-based Fire<E>(IEcaEvent<E>, E, IEcaConditionContext = null, IEcaActionContext = null); Fire(string id, ...) не добавлен. RuleCreator/CreateRule<E>(eventId, ...) и общий typed lookup обсуждаются на следующем production-composition этапе. Generic Registry abstraction сейчас сознательно не вводится.
 
 Использованы stable IDs time.timer.started/stopped/paused/resumed/completed/destroyed и time.timer.create/start/stop/pause/resume/destroy, time.wait. Один descriptor относится к одному time namespace; совместная регистрация нескольких таких adapters требует отдельного будущего решения identity, automatic prefixing не добавлялся.
 
@@ -37,3 +37,14 @@ Emitter остаётся typed instance-based Fire<E>(IEcaEvent<E>, E); Fire(str
 State/Queries, Signals, FireEvent и routing — самостоятельные будущие concepts. Generic C# event/Observable/polling/UnityEvent/InputAction adapters, cancellation, Repeat, timer groups и другие Time features не входят в эту итерацию.
 
 TimeSystemPlayerLoop не хранит systems/runners: цепочка — PlayerLoop → TimeTicker → подписанные TimeSystem. Каждый TimeSystem имеет один TimerTickProcessor для многих timers в одном TimerRegistry. Two-phase processing, version protection и reentrant due buffers сохранены. ScaleMode/SOLID refactor отложен до отдельного обсуждения; clock resolver/provider, ITimeSource и TimeSnapshot не добавлены.
+
+
+## Scope-owned emitter и Context конкретного Fire — 2026-09-20
+
+Caller может передать TimeEcaAdapter готовый scope.EventEmitter. Scope определяет local routing и владеет emitter, привязанным к конкретному instance, не ScopeId. После Dispose stale emitter получает ObjectDisposedException; replacement с тем же ID имеет другой emitter. Вызовы immediate/reentrant. Time adapter не изменён: Fire(event,state) передаёт null/null contexts. Полная цепочка Time lifecycle → TimeEcaAdapter → реальный scoped emitter → Condition/Action покрыта integration test.
+
+Context = input конкретного Fire: ConditionContext и ActionContext раздельны, nullable и проходят без замены references. R создаётся runtime state factory и не входит в emitter payload. Game composition, framework helper или adapter могут сформировать contexts; Core не создаёт/enrich'ит их, не владеет lifetime. Механизм context composition/enrichment ещё не выбран.
+
+Core2 ничего не знает о lifecycle внешних систем и способе получения их событий. EcaSystem описывает ECA exports. Способы внешней адаптации могут различаться: callbacks, Unity events, observables, polling и другие. Framework может предоставлять готовые adapters/helpers, но они не являются обязательной частью Core-модели. Универсальная lifecycle adapter abstraction не вводится; Scope.Dispose не вызывает Disconnect внешнего adapter.
+
+EcaSystemsRuntime — следующая отдельная composition-root итерация поверх ScopeRuntime и global registries/Connector/CommandRunner, без автоматического root Scope. CreateRule и simplified Action/Condition API остаются Roadmap с учётом visual programming. После Attach local Event/Command exports стабильны по convention; изменение local registries может рассинхронизировать local/global. Freeze/snapshot/ownership/consistency не реализованы.

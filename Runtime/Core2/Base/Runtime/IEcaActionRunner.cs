@@ -4,8 +4,7 @@ namespace EcaSystems.Core2
 {
     public interface IEcaActionRunner
     {
-        Task Run<R, A>(IEcaAction<R, A> action, R state, A context)
-            where R : IEcaRuleState
-            where A : IEcaActionContext;
+        Task Run<R>(IEcaAction<R> action, R state, IEcaActionContext context)
+            where R : IEcaRuleState;
     }
 }

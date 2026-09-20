@@ -4,12 +4,10 @@ using System.Threading.Tasks;
 
 namespace EcaSystems.Core2
 {
-    public sealed class EcaExecutionGroup<E, R, C, A> : IEcaExecutionGroup<E, R, C, A>
+    public sealed class EcaExecutionGroup<E, R> : IEcaExecutionGroup<E, R>
         where R : IEcaExecutionRuleState<E>
-        where C : IEcaExecutionConditionContext
-        where A : IEcaExecutionActionContext
     {
-        private readonly IEcaRule<E, R, C, A> _rule;
+        private readonly IEcaRule<E, R> _rule;
         private readonly Func<E, EcaExecutionGroupState, R> _createState;
         private readonly IEcaConditionChecker _conditionChecker;
         private readonly IEcaActionRunner _actionRunner;
@@ -23,7 +21,7 @@ namespace EcaSystems.Core2
         public IReadOnlyList<EcaExecution> Executions { get; }
 
         public EcaExecutionGroup(
-            IEcaRule<E, R, C, A> rule, EcaExecutionMode executionMode,
+            IEcaRule<E, R> rule, EcaExecutionMode executionMode,
             Func<E, EcaExecutionGroupState, R> createState,
             IEcaConditionChecker conditionChecker, IEcaActionRunner actionRunner)
         {
@@ -35,13 +33,13 @@ namespace EcaSystems.Core2
             Executions = _executions.AsReadOnly();
         }
 
-        public bool Check(E eventState, C context)
+        public bool Check(E eventState, IEcaConditionContext context)
         {
             if (_rule.Condition == null) return true;
             return _conditionChecker.Check(_rule.Condition, _createState(eventState, State), context);
         }
 
-        public Task Run(E eventState, A context)
+        public Task Run(E eventState, IEcaActionContext context)
         {
             // После Check вложенный Fire мог занять Group или исчерпать её Limit.
             if (!CheckExecutionMode()) return Task.CompletedTask;
@@ -58,7 +56,7 @@ namespace EcaSystems.Core2
             return true;
         }
 
-        private async Task RunLifecycle(EcaExecution execution, E eventState, A context)
+        private async Task RunLifecycle(EcaExecution execution, E eventState, IEcaActionContext context)
         {
             execution.MarkRunning();
             State.IncrementStarted();

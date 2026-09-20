@@ -32,7 +32,7 @@ namespace EcaSystems.Tests.Core2
             public string Extra => "action context";
         }
 
-        internal sealed class Condition<R, C> : IEcaCondition<R, C>
+        internal sealed class Condition<R, C> : IEcaCondition<R>
             where R : IEcaRuleState
             where C : IEcaConditionContext
         {
@@ -40,10 +40,10 @@ namespace EcaSystems.Tests.Core2
             public string Name => Id;
             public string Description => Id;
             public Func<R, C, bool> Handler { get; set; }
-            public bool Check(R state, C context) => Handler(state, context);
+            public bool Check(R state, IEcaConditionContext context) => Handler(state, (C)context);
         }
 
-        internal sealed class Action<R, A> : IEcaAction<R, A>
+        internal sealed class Action<R, A> : IEcaAction<R>
             where R : IEcaRuleState
             where A : IEcaActionContext
         {
@@ -51,20 +51,18 @@ namespace EcaSystems.Tests.Core2
             public string Name => Id;
             public string Description => Id;
             public Func<R, A, Task> Handler { get; set; }
-            public Task Run(R state, A context) => Handler(state, context);
+            public Task Run(R state, IEcaActionContext context) => Handler(state, (A)context);
         }
 
-        internal sealed class Rule<E, R, C, A> : IEcaRule<E, R, C, A>
+        internal sealed class Rule<E, R> : IEcaRule<E, R>
             where R : IEcaRuleState<E>
-            where C : IEcaConditionContext
-            where A : IEcaActionContext
         {
             public string Id { get; set; } = "rule";
             public string Name => Id;
             public string Description => Id;
             public IEcaEvent<E> Event { get; set; }
-            public IEcaCondition<R, C> Condition { get; set; }
-            public IEcaAction<R, A> Action { get; set; }
+            public IEcaCondition<R> Condition { get; set; }
+            public IEcaAction<R> Action { get; set; }
             IEcaEvent IEcaRule.Event => Event;
             IEcaCondition IEcaRule.Condition => Condition;
             IEcaAction IEcaRule.Action => Action;
@@ -131,13 +129,11 @@ namespace EcaSystems.Tests.Core2
             return gate;
         }
 
-        internal ExecutionTestSupport.Rule<int, ExecutionTestSupport.State,
-            ExecutionTestSupport.ConditionContext, ExecutionTestSupport.ActionContext> NewRule(
+        internal ExecutionTestSupport.Rule<int, ExecutionTestSupport.State> NewRule(
             string id = "rule", Func<ExecutionTestSupport.State, ExecutionTestSupport.ConditionContext, bool> check = null,
             Func<ExecutionTestSupport.State, ExecutionTestSupport.ActionContext, Task> run = null)
         {
-            return new ExecutionTestSupport.Rule<int, ExecutionTestSupport.State,
-                ExecutionTestSupport.ConditionContext, ExecutionTestSupport.ActionContext>
+            return new ExecutionTestSupport.Rule<int, ExecutionTestSupport.State>
             {
                 Id = id, Event = Event,
                 Condition = check == null ? null : new ExecutionTestSupport.Condition<
@@ -149,7 +145,6 @@ namespace EcaSystems.Tests.Core2
             };
         }
 
-        internal void Fire(int value = 1) => Runtime.Fire<int, ExecutionTestSupport.State,
-            ExecutionTestSupport.ConditionContext, ExecutionTestSupport.ActionContext>(Event, value, Conditions, Actions);
+        internal void Fire(int value = 1) => Runtime.Fire<int>(Event, value, Conditions, Actions);
     }
 }

@@ -27,7 +27,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         private void Fire(CommandsContext context, int value = 7) =>
-            _runtime.Fire<int, BaseTestSupport.State, BaseTestSupport.ConditionContext, CommandsContext>(
+            _runtime.Fire<int, BaseTestSupport.State>(
                 _event, value, (rule, payload) => new BaseTestSupport.State { EventState = payload },
                 new BaseTestSupport.ConditionContext(), context);
 

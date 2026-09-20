@@ -20,16 +20,16 @@ namespace EcaSystems.Tests.Core2
         [TearDown]
         public void DisposeOwner() => _owner.Dispose();
 
-        private Rule<int, EcaScopeRuleState<int>, C, A> Rule(Func<EcaScopeRuleState<int>, Task> run)
+        private Rule<int, EcaScopeRuleState<int>> Rule(Func<EcaScopeRuleState<int>, Task> run)
         {
-            return new Rule<int, EcaScopeRuleState<int>, C, A>
+            return new Rule<int, EcaScopeRuleState<int>>
             {
                 Id = "shared", Event = Event,
                 Action = new ExecutionTestSupport.Action<EcaScopeRuleState<int>, A> { Handler = (state, context) => run(state) }
             };
         }
 
-        private void Fire(EcaScope scope, int value = 1) => scope.Fire<int, EcaScopeRuleState<int>, C, A>(Event, value, new C(), new A());
+        private void Fire(EcaScope scope, int value = 1) => scope.Fire<int>(Event, value, new C(), new A());
 
         private void AssertClosed(EcaScope scope)
         {
@@ -42,7 +42,7 @@ namespace EcaSystems.Tests.Core2
                 (Func<IEcaExecutionRuleState<int>, EcaScopeState, EcaScopeRuleState<int>>)null));
             Assert.Throws<ObjectDisposedException>(() => scope.Unregister(rule));
             Assert.Throws<ObjectDisposedException>(() => Fire(scope));
-            Assert.Throws<ObjectDisposedException>(() => scope.Fire<int, EcaScopeRuleState<int>, C, A>(
+            Assert.Throws<ObjectDisposedException>(() => scope.Fire<int, EcaScopeRuleState<int>>(
                 Event, 0, (r, e) => new EcaScopeRuleState<int>(e, new EcaExecutionGroupState(), scope.State), new C(), new A()));
             Assert.Throws<ObjectDisposedException>(() => scope.GetGroup("shared"));
             Assert.Throws<ObjectDisposedException>(() => scope.TryGetGroup("shared", out _));
@@ -268,7 +268,7 @@ namespace EcaSystems.Tests.Core2
             var rule = Rule(s => { calls.Add(s.ScopeState.ScopeId); return Task.CompletedTask; });
             parent.Register(rule, new EcaExecutionMode(EcaExecutionModeOverlap.Ignore, 0));
             child.Register(rule, new EcaExecutionMode(EcaExecutionModeOverlap.Allow));
-            parent.Fire<int, EcaScopeRuleState<int>, C, A>(Event, 1,
+            parent.Fire<int, EcaScopeRuleState<int>>(Event, 1,
                 (r, e) => new EcaScopeRuleState<int>(e, new EcaExecutionGroupState(), parent.State), new C(), new A());
             Assert.That(calls, Is.EqualTo(new[] { "parent" }));
             Assert.That(parent.GetGroup("shared").State.TotalStarted, Is.Zero);
@@ -288,9 +288,9 @@ namespace EcaSystems.Tests.Core2
             Events.Register(extra);
             a.Register(rule, new EcaExecutionMode(EcaExecutionModeOverlap.Allow));
             b.Register(rule, new EcaExecutionMode(EcaExecutionModeOverlap.Allow));
-            a.Fire<int, EcaScopeRuleState<int>, C, A>(extra, 1, new C(), new A());
+            a.Fire<int>(extra, 1, new C(), new A());
             Assert.That(calls, Is.EqualTo(1));
-            b.Fire<int, EcaScopeRuleState<int>, C, A>(extra, 1, new C(), new A());
+            b.Fire<int>(extra, 1, new C(), new A());
             Assert.That(calls, Is.EqualTo(2));
         }
     }

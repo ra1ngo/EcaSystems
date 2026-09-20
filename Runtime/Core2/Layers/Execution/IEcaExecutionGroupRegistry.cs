@@ -7,14 +7,13 @@ namespace EcaSystems.Core2
         IEcaExecutionGroup Get(string ruleId);
         bool TryGet(string ruleId, out IEcaExecutionGroup group);
 
-        IEcaExecutionGroup<E, R, C, A> Get<E, R, C, A>(string ruleId)
-            where R : IEcaExecutionRuleState<E>
-            where C : IEcaExecutionConditionContext
-            where A : IEcaExecutionActionContext;
+        IEcaExecutionGroup<E> Get<E>(string ruleId);
+        bool TryGet<E>(string ruleId, out IEcaExecutionGroup<E> group);
 
-        bool TryGet<E, R, C, A>(string ruleId, out IEcaExecutionGroup<E, R, C, A> group)
-            where R : IEcaExecutionRuleState<E>
-            where C : IEcaExecutionConditionContext
-            where A : IEcaExecutionActionContext;
+        IEcaExecutionGroup<E, R> Get<E, R>(string ruleId)
+            where R : IEcaExecutionRuleState<E>;
+
+        bool TryGet<E, R>(string ruleId, out IEcaExecutionGroup<E, R> group)
+            where R : IEcaExecutionRuleState<E>;
     }
 }

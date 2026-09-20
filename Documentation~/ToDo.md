@@ -2,12 +2,13 @@
 
 Здесь только работа до первого полноценного применения в играх. Execution v1, Scope v1, Base context refactor и Commands v1 завершены. Актуальные решения — в [Context.md](Context.md), необязательные будущие возможности — в [Roadmap.md](Roadmap.md). Документы ведутся на русском языке.
 
-## Актуальный порядок следующих итераций — 2026-09-18
+## Актуальный порядок следующих итераций — 2026-09-20
 
 - [x] Standalone TimeSystem.
 - [x] TimeSystem architecture refactor + Time/Eca adapter.
 - [x] PR #17 registry cleanup: canonical CheckRegistered, live items/public Resolve, local System registries, concrete Time Commands и cached Events.
-- [ ] Production Core2 composition: согласовать Attach/Connect и Disconnect/Detach ownership; обсудить RuleCreator/CreateRule<E>(eventId, ...) и typed consumption через registries. Сейчас RuleCreator не реализован.
+- [x] Core2 Fire/Context refactor: IEcaRule<E,R>, nullable раздельные contexts конкретного Fire, event-only Fire и Scope-owned EventEmitter.
+- [ ] EcaSystemsRuntime как отдельная production composition root: EcaScopeRuntime, global System/Event/Command/Namespace registries, EcaSystemConnector и EcaCommandRunner; без автоматического root Scope. Внешний adapter lifecycle не принадлежит Core/Runtime. CreateRule и simplified Action/Condition API — Roadmap с учётом visual programming.
 - [ ] Global State / Variables standalone System + ECA.
 - [ ] Небольшой end-to-end Sandbox / PlayMode scenario.
 - [ ] External event adapters.
@@ -28,7 +29,7 @@
 - [x] TimeSystem architecture refactor + первый Time/Eca adapter: aggregate lifecycle, typed event snapshots, семь Commands.
 - [ ] После production composition / Global State / Sandbox рассмотреть external event adapters к IEcaEventEmitter.Fire<E>: C# events, callbacks, observables, polling, UnityEvent/InputAction и другие источники; список в Roadmap. Сейчас реализованы прямой Emitter API и конкретный TimeEcaAdapter.
 - [ ] Рассмотреть StateBuilder/StateFactory позже, если последовательное расширение RuleState между слоями станет достаточно сложным, повторяемым или неудобным через Func. Execution использует Func<E, EcaExecutionGroupState, R>, Scope — Func<IEcaExecutionRuleState<E>, EcaScopeState, R>; отдельный builder не проектируется.
-- [ ] Следующие слои согласовывать отдельными итерациями. Core2 production Commands/EventEmitter composition с Execution/Scope, FireEventCommand, Unity bridge, cancellation и Reset/Queue сейчас не реализованы.
+- [ ] Следующие слои согласовывать отдельными итерациями. Core2 production Commands context composition, FireEventCommand, Unity bridge, cancellation и Reset/Queue сейчас не реализованы.
 
 Разделы ниже про завершённые Core/Core1 возможности не означают их наличие в Core2.
 

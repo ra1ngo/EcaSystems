@@ -18,14 +18,14 @@ Core v1 реализует только одноразовые ID timers и Awai
 
 ## Core2: adapters внешних событий — после composition / Global State / Sandbox
 
-Предоставить несколько способов адаптации источников к одному public порту `IEcaEventEmitter.Fire<E>(IEcaEvent<E> ecaEvent, E eventState)`:
+Предоставить несколько способов адаптации источников к одному public порту `IEcaEventEmitter.Fire<E>(IEcaEvent<E> ecaEvent, E eventState, IEcaConditionContext conditionContext = null, IEcaActionContext actionContext = null)`:
 
 - [ ] C# events и callback APIs.
 - [ ] IObservable / reactive streams.
 - [ ] Polling sources.
 - [ ] UnityEvent, InputAction / Unity callbacks и другие adapters по практическим сценариям.
 
-Первый конкретный TimeEcaAdapter уже использует typed Fire<E>. Перечисленные generic adapters остаются будущими возможностями после production composition / Global State / Sandbox; универсальный binding framework, Signals и State не реализованы. Общую adapter abstraction следует обсуждать после нескольких реальных adapters.
+Первый конкретный TimeEcaAdapter уже использует typed Fire<E>. Перечисленные generic adapters остаются будущими возможностями после production composition / Global State / Sandbox; универсальный binding framework, Signals и State не реализованы. Способы адаптации могут различаться; lifecycle внешних Systems/adapters не принадлежит Core. Framework helpers допустимы без обязательной общей Core abstraction.
 
 ## Core2: согласованность Runtime и registries
 
@@ -151,6 +151,12 @@ Scope v1: hierarchy определяет только время жизни; Fir
 - [ ] Рассмотреть factory-style Rule API.
 - [ ] Универсальный ContextFactory/hydration как возможное улучшение кода после выбора модели контекстов.
 
+## Core2 Context и authoring после Fire refactor
+
+- [ ] Выбрать composition/enrichment nullable ConditionContext и ActionContext, сохраняя их разделение и передачу exact references. Core сейчас только проводит inputs конкретного Fire.
+- [ ] Обсудить typed convenience Action/Condition helpers без возвращения Context generics в IEcaRule<E,R>; capability container и required-context metadata не выбраны.
+- [ ] Проектировать CreateRule и simplified Action/Condition API с учётом будущего visual programming, отдельно от EcaSystemsRuntime composition.
+
 ## Расширение Condition / Action
 
 - [ ] Condition Queries: стандартизованные read/query capabilities, в том числе предоставляемые ECA-адаптерами игровых систем.
@@ -161,7 +167,7 @@ Scope v1: hierarchy определяет только время жизни; Fir
 ## Управление Systems
 
 - [ ] После canonical registry cleanup проверить production composition и Rule creation по Event ID; не добавлять ID-based Emitter или generic Registry abstraction без нового реального сценария.
-- [ ] Определить политику изменения local exports уже attached System: сейчас registries/metadata должны оставаться стабильными; automatic sync и ownership tracking отсутствуют.
+- [ ] После Attach(EcaSystem) local Event/Command exports должны оставаться стабильными по convention. Mutation local registries может рассинхронизировать local/global registries. Отдельно выбрать freeze/snapshot/ownership/consistency semantics; сейчас automatic sync и freezing отсутствуют.
 
 - [ ] Развить роль Core2 Namespace и пересмотреть частичное дублирование EcaSystem.Id / EcaSystemNamespace.Id: устранить или явно развести identity; согласовать namespace/stable ID semantics. Сейчас Namespace содержит только Id, automatic prefixing отсутствует.
 - [ ] Решить, должен ли EcaSystem требовать хотя бы один export (Event или Command). В Systems v1 полностью пустой descriptor разрешён.
