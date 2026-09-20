@@ -274,6 +274,9 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public void EventOnlyFireAndEmitterValidateLiveCanonicalEventAndMetadata()
         {
+            var directNull = Assert.Throws<ArgumentNullException>(() => _scope.Fire<int>(null, 0));
+            var emitterNull = Assert.Throws<ArgumentNullException>(() => _scope.EventEmitter.Fire<int>(null, 0));
+            Assert.That(emitterNull.ParamName, Is.EqualTo(directNull.ParamName));
             var foreign = new BaseTestSupport.Event<int> { Id = _event.Id };
             Assert.Throws<InvalidOperationException>(() => _scope.Fire(foreign, 0));
             Assert.Throws<InvalidOperationException>(() => _scope.EventEmitter.Fire(foreign, 0));

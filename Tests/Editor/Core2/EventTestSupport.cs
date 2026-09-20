@@ -21,12 +21,16 @@ namespace EcaSystems.Tests.Core2
             public readonly List<Type> Types = new();
             public readonly List<IEcaEvent> Events = new();
             public readonly List<object> States = new();
+            public readonly List<IEcaConditionContext> ConditionContexts = new();
+            public readonly List<IEcaActionContext> ActionContexts = new();
             public System.Action Callback;
             public void Handle<E>(IEcaEvent<E> ecaEvent, E eventState, IEcaConditionContext conditionContext, IEcaActionContext actionContext)
             {
                 Types.Add(typeof(E));
                 Events.Add(ecaEvent);
                 States.Add(eventState);
+                ConditionContexts.Add(conditionContext);
+                ActionContexts.Add(actionContext);
                 Callback?.Invoke();
             }
         }

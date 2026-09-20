@@ -2,6 +2,29 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## PR #18 follow-up: emitter только transport/binding — 2026-09-20
+
+EcaEventEmitter больше не содержит Registry, Event validation или lifecycle callback; semantic validation выполняется Scope.Fire → ExecutionRuntime → RuleRegistry. Исторические описания standalone emitter validation ниже относятся к прежнему контракту.
+
+В EcaEventEmitterTests содержательно заменены четыре cases:
+- Fire_RejectsDifferentInstanceWithSameIdAndType → Fire_ForwardsExactEventStateAndBothContextReferences.
+- Fire_RejectsNullAndUnregisteredEventsBeforeCallbackAndSeesLaterRegistration → Fire_ForwardsNullEventWithoutSemanticValidation.
+- Fire_RejectsLyingMetadataEvenWhenRegistryCheckPasses → Fire_DoesNotInspectEventMetadata.
+- Fire_UsesSuppliedRegistryContractForEachCall → Fire_ForwardsOmittedAndExplicitNullContexts.
+
+ConstructionAndBind case переименован в Bind_RejectsNullAndAllowsFirstValidBinding: obsolete null Registry constructor assertion удалён, Bind(null)/первый Bind сохранены. Unit suite больше не использует Registry; остальные assertions binding, arbitrary E, declared type, payload identity и unchanged handler exception сохранены. RecordingHandler дополнен записью двух contexts. Base integration изменена только механически на parameterless emitter. Scope integration усилена сравнением ArgumentNullException/ParamName для direct/emitter null Event; canonical/unregistered/metadata и stale/disposed/replacement coverage сохранено. Production TimeEcaAdapter не менялся.
+
+Unity **6000.5.6f1**, фактически завершённые EditMode runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Focused Emitter + Base integration + FireContext | 34 | 34 | 0 | 0 | 0 |
+| Полный Core2 | 210 | 210 | 0 | 0 | 0 |
+| Time/Eca | 17 | 17 | 0 | 0 | 0 |
+| Полный EditMode | 394 | 394 | 0 | 0 | 0 |
+
+Focused: EcaEventEmitterTests 12, EcaEventEmitterBaseRuntimeTests 5, EcaFireContextTests 17. Все четыре запуска завершились с exit code 0. При первой перекомпиляции повторён прежний CS0108 в EcaScopeTests.Fire(int); новых compiler warnings/errors нет. XML/log: .validation~/pr18-transport-focused, pr18-transport-core2, pr18-transport-time-eca, pr18-transport-full. PlayMode/IL2CPP/remote CI не запускались.
+
 ## Core2 Fire/Context + Scope-owned EventEmitter — 2026-09-20
 
 Добавлены **18 cases**: 17 в EcaFireContextTests и 1 в TimeEcaAdapterTests. Проверяются разные concrete contexts для одного IEcaRule<E,R>, exact references, null/null и независимо optional contexts, разные RuleState для одного event-only Fire с condition barrier, отдельные local emitters parent/child/sibling, stale emitter после ScopeId reuse (включая disposed failure до null/unregistered event validation), эквивалентность direct/emitter, immediate reentrant Allow/Ignore/Limit и поздний admission после nested Fire из Condition, recursive Dispose без отмены Action и потери её context, live canonical registry/metadata, null contexts Base caller-state Fire. Time integration использует настоящий scope.EventEmitter и проверяет шесть lifecycle forwards с null contexts и изоляцией другого Scope.

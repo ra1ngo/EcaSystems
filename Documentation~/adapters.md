@@ -10,7 +10,7 @@ EcaTimeEventState представляет immutable snapshot перехода, 
 
 ## Порядок подключения
 
-Emitter валидирует регистрацию Event. Пока caller обязан выполнять:
+Emitter только передаёт Fire bound handler; в scope-owned path регистрацию Event валидирует runtime/RuleRegistry после lifecycle проверки EcaScope.Fire. Caller обязан выполнять:
 
 1. EcaSystemConnector.Attach(system).
 2. adapter.Connect().

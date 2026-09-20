@@ -45,7 +45,7 @@ namespace EcaSystems.Core2
             // Общий только EventRegistry; Rule/Group registries и весь Execution graph принадлежат одному Scope.
             var execution = new EcaExecutionRuntime(new EcaBaseRuleRegistry(_events), new EcaExecutionGroupRegistry(),
                 new EcaBaseConditionChecker(), new EcaBaseActionRunner());
-            var scope = new EcaScope(this, new EcaScopeState(scopeId), execution, parent?.ScopeId, _events);
+            var scope = new EcaScope(this, new EcaScopeState(scopeId), execution, parent?.ScopeId);
             _scopes.Add(scopeId, scope);
             _children.Add(scopeId, new HashSet<EcaScope>());
             if (parent != null) _children[parent.ScopeId].Add(scope);
