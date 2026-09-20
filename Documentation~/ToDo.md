@@ -8,7 +8,7 @@
 - [x] TimeSystem architecture refactor + Time/Eca adapter.
 - [x] PR #17 registry cleanup: canonical CheckRegistered, live items/public Resolve, local System registries, concrete Time Commands и cached Events.
 - [x] Core2 Fire/Context refactor: IEcaRule<E,R>, nullable раздельные contexts конкретного Fire, event-only Fire и Scope-owned EventEmitter.
-- [ ] EcaSystemsRuntime как отдельная production composition root: EcaScopeRuntime, global System/Event/Command/Namespace registries, EcaSystemConnector и EcaCommandRunner; без автоматического root Scope. Внешний adapter lifecycle не принадлежит Core/Runtime. CreateRule и simplified Action/Condition API — Roadmap с учётом visual programming.
+- [x] EcaSystemsRuntime v1 — production composition root: EcaScopeRuntime, global System/Event/Command/Namespace registries, EcaSystemConnector и EcaCommandRunner; без автоматического root Scope. Внешний adapter lifecycle не принадлежит Core/Runtime. CreateRule и simplified Action/Condition API — Roadmap с учётом visual programming.
 - [ ] Global State / Variables standalone System + ECA.
 - [ ] Небольшой end-to-end Sandbox / PlayMode scenario.
 - [ ] External event adapters.
@@ -24,7 +24,7 @@
 - [x] Commands abstraction: AEcaCommand/AEcaCommand<C,A> используют class virtual dispatch для Unity compatibility; Registry.Register(AEcaCommand) принимает heterogeneous Commands, Contains добавлен.
 - [x] EventEmitter concept: public IEcaEventEmitter.Fire<E>, internal Bind одного IEcaEventHandler, прямой generic callback; Base integration через test runtime. Core2 runtime API переименован в Fire с сохранением semantics overloads.
 - [x] NUnit/Unity EditMode tests для Execution и недостающие Unity metadata.
-- [x] Systems v1: passive EcaSystem/Namespace, отдельные registries, EcaSystemConnector.Attach/Detach с prevalidation и локальным rollback; EventRegistry расширен non-generic Register/Unregister/Contains.
+- [x] Systems v1: passive EcaSystem/Namespace, отдельные registries, EcaSystemConnector.Connect/Disconnect с prevalidation и локальным rollback; EventRegistry расширен non-generic Register/Unregister/Contains.
 - [x] Standalone TimeSystem Core v1: независимая Unity assembly, ID timers, lifecycle events, PlayerLoop и Awaitable Wait; изолированные tests.
 - [x] TimeSystem architecture refactor + первый Time/Eca adapter: aggregate lifecycle, typed event snapshots, семь Commands.
 - [ ] После production composition / Global State / Sandbox рассмотреть external event adapters к IEcaEventEmitter.Fire<E>: C# events, callbacks, observables, polling, UnityEvent/InputAction и другие источники; список в Roadmap. Сейчас реализованы прямой Emitter API и конкретный TimeEcaAdapter.

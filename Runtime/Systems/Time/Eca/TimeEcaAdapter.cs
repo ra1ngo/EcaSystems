@@ -3,7 +3,7 @@ using EcaSystems.Core2;
 
 namespace EcaSystems.Time.Eca
 {
-    /// <summary>Attach exports before Connect; Disconnect before detaching exports.</summary>
+    /// <summary>Connect exports before adapter.Connect; adapter.Disconnect before disconnecting exports.</summary>
     public sealed class TimeEcaAdapter
     {
         private readonly TimeSystem _time;

@@ -2,6 +2,26 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## EcaSystemsRuntime v1 — 2026-09-20
+
+Добавлены **10 cases** EcaSystemsRuntimeTests: отсутствие automatic root, Connect до/после CreateScope, end-to-end Register → scoped emitter → Action, live canonical registry и Disconnect/Reconnect с сохранением Rule/Group, делегирование validation, изоляция scopes и разных Runtime, recursive Dispose/stale emitter/disposed-first validation, естественное завершение running Action, snapshot cleanup всех Systems с AggregateException и idempotence после failure. Cleanup проверяется через custom local EventRegistry passive descriptor, без production injection API.
+
+Существующие EcaSystemConnectorTests (7 cases) и TimeEcaAdapterTests (17 cases) изменены только механически: Attach/Detach → Connect/Disconnect, имена tests/helpers и комментарии; assertions и прежние guarantees сохранены.
+
+Unity **6000.5.6f1**, фактически завершённые EditMode runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Первый focused Connector + Runtime | 17 | 16 | 1 | 0 | 0 |
+| Повторный focused Connector + Runtime | 17 | 17 | 0 | 0 | 0 |
+| Полный Core2 | 220 | 220 | 0 | 0 | 0 |
+| Time/Eca | 17 | 17 | 0 | 0 | 0 |
+| Полный EditMode | 404 | 404 | 0 | 0 | 0 |
+
+Первый failure был в ожидании нового test probe: успешный Disconnect читает local Events дважды (validation и removal), отказавший — один раз. Исправлено только ожидание счётчика; production-код не менялся. Первый run exit code 2; все последующие exit code 0. Focused: Connector 7/7 + Runtime 10/10. Полный suite: Core 37, Core1 77, Core2 220, Time 53, Time/Eca 17. При перекомпиляции повторён прежний CS0108 в EcaScopeTests.Fire(int); новых compiler warnings/errors нет.
+
+XML/log сохранены локально в .validation~/ с префиксами systems-v1-focused, systems-v1-focused-final, systems-v1-core2, systems-v1-time-eca, systems-v1-full. PlayMode/IL2CPP/remote CI не запускались.
+
 ## PR #18 follow-up: emitter только transport/binding — 2026-09-20
 
 EcaEventEmitter больше не содержит Registry, Event validation или lifecycle callback; semantic validation выполняется Scope.Fire → ExecutionRuntime → RuleRegistry. Исторические описания standalone emitter validation ниже относятся к прежнему контракту.
