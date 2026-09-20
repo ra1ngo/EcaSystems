@@ -6,7 +6,7 @@ Core1 Base создан параллельно старому Core: A/Abstractio
 
 ## Standalone TimeSystem: будущие возможности
 
-Core v1 реализует только одноразовые ID timers и Awaitable Wait через обычную Update phase. Time ECA adapter реализован; следующий этап — production Core2 composition (ToDo). Дополнительные candidates, не входящие в v1:
+Core v1 реализует только одноразовые ID timers и Awaitable Wait через обычную Update phase. Time ECA adapter реализован; EcaSystemsRuntime v1 реализован; следующий этап — Global State / Variables (ToDo). Дополнительные candidates, не входящие в v1:
 
 - [ ] Repeat/looping timers, restart/reset convenience.
 - [ ] Cancellation для Wait.
@@ -166,8 +166,10 @@ Scope v1: hierarchy определяет только время жизни; Fir
 
 ## Управление Systems
 
-- [ ] После canonical registry cleanup проверить production composition и Rule creation по Event ID; не добавлять ID-based Emitter или generic Registry abstraction без нового реального сценария.
-- [ ] После Attach(EcaSystem) local Event/Command exports должны оставаться стабильными по convention. Mutation local registries может рассинхронизировать local/global registries. Отдельно выбрать freeze/snapshot/ownership/consistency semantics; сейчас automatic sync и freezing отсутствуют.
+- [ ] Rule ownership/consistency при DisconnectSystem: local Rules сейчас сохраняются, Fire отключённого Event отклоняется canonical validation; reconnect exact exports восстанавливает Fire. Автоматический Rule cleanup не реализован.
+
+- [ ] После EcaSystemsRuntime v1 отдельно спроектировать Rule creation по Event ID; не добавлять ID-based Emitter или generic Registry abstraction без нового реального сценария.
+- [ ] После Connect(EcaSystem) local Event/Command exports должны оставаться стабильными по convention. Mutation local registries может рассинхронизировать local/global registries. Отдельно выбрать freeze/snapshot/ownership/consistency semantics; сейчас automatic sync и freezing отсутствуют.
 
 - [ ] Развить роль Core2 Namespace и пересмотреть частичное дублирование EcaSystem.Id / EcaSystemNamespace.Id: устранить или явно развести identity; согласовать namespace/stable ID semantics. Сейчас Namespace содержит только Id, automatic prefixing отсутствует.
 - [ ] Решить, должен ли EcaSystem требовать хотя бы один export (Event или Command). В Systems v1 полностью пустой descriptor разрешён.

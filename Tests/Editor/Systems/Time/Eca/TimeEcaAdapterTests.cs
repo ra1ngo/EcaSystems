@@ -43,7 +43,7 @@ namespace EcaSystems.Tests.TimeEca
         }
 
         private IEcaCommands Bind() => new EcaCommandRunner(_commands).Bind(new Context());
-        private void Attach() { _connector.Attach(_system); _adapter.Connect(); }
+        private void ConnectExportsAndAdapter() { _connector.Connect(_system); _adapter.Connect(); }
 
         [Test]
         public void EventKeys_MapEveryKeyToUniqueStableId()
@@ -92,7 +92,7 @@ namespace EcaSystems.Tests.TimeEca
             Assert.That(_system.Commands.Commands.Select(c => c.GetType()), Is.EquivalentTo(new[] {
                 typeof(EcaCreateTimerCommand), typeof(EcaStartTimerCommand), typeof(EcaStopTimerCommand),
                 typeof(EcaPauseTimerCommand), typeof(EcaResumeTimerCommand), typeof(EcaDestroyTimerCommand), typeof(EcaWaitCommand) }));
-            Attach();
+            ConnectExportsAndAdapter();
             foreach (var declaration in typed)
             {
                 Assert.That(declaration, Is.TypeOf<EcaTimeEvent>());
@@ -104,7 +104,7 @@ namespace EcaSystems.Tests.TimeEca
         [Test]
         public void Commands_AndLifecycleEvents_AdaptAllOperations()
         {
-            Attach();
+            ConnectExportsAndAdapter();
             var commands = Bind();
             Assert.That(commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_CREATE_ID), new TimerCreateOptions("timer", 10)).IsCompletedSuccessfully, Is.True);
             commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_START_ID), "timer").GetAwaiter().GetResult();
@@ -129,7 +129,7 @@ namespace EcaSystems.Tests.TimeEca
         [Test]
         public void CompletionSnapshot_RemainsCompletedAfterReentrantRestart()
         {
-            Attach();
+            ConnectExportsAndAdapter();
             var timer = _time.CreateTimer(new TimerCreateOptions("timer", 0));
             EcaTimeEventState snapshot = null;
             _emitter.OnFire = (id, state) =>
@@ -148,13 +148,13 @@ namespace EcaSystems.Tests.TimeEca
         }
 
         [Test]
-        public void Connection_IsExplicit_DisconnectBeforeDetachStopsAllForwarding()
+        public void Connection_IsExplicit_DisconnectAdapterBeforeExportsStopsAllForwarding()
         {
-            Attach();
+            ConnectExportsAndAdapter();
             Assert.Throws<InvalidOperationException>(() => _adapter.Connect());
             _adapter.Disconnect();
             _adapter.Disconnect();
-            _connector.Detach(_system);
+            _connector.Disconnect(_system);
             _time.CreateTimer(new TimerCreateOptions("timer", 0));
             _time.Start("timer");
             _time.Pause("timer");
@@ -163,14 +163,14 @@ namespace EcaSystems.Tests.TimeEca
             _time.Stop("timer");
             _time.DestroyTimer("timer");
             Assert.That(_emitter.Records, Is.Empty);
-            Attach();
+            ConnectExportsAndAdapter();
             _time.CreateTimer(new TimerCreateOptions("timer", 0));
             _time.Start("timer");
             Assert.That(_emitter.Records.Count, Is.EqualTo(1));
         }
 
         [Test]
-        public void ConnectBeforeAttach_ExposesRegistrationContract()
+        public void AdapterConnectBeforeExportsConnected_ExposesRegistrationContract()
         {
             _adapter.Connect();
             _time.CreateTimer(new TimerCreateOptions("timer", 1));
@@ -183,7 +183,7 @@ namespace EcaSystems.Tests.TimeEca
         [TestCase(TimerScaleMode.Unscaled)]
         public void WaitCommand_TaskRemainsPendingUntilUnderlyingTick(TimerScaleMode mode)
         {
-            Attach();
+            ConnectExportsAndAdapter();
             var task = Bind().Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_WAIT_ID), new TimeWaitArgs(0, mode));
             Assert.That(task.IsCompleted, Is.False);
             Assert.That(_time.TryGet("timer", out _), Is.False);
@@ -195,7 +195,7 @@ namespace EcaSystems.Tests.TimeEca
         [Test]
         public void Commands_PreserveValidationAndTypedArguments()
         {
-            Attach();
+            ConnectExportsAndAdapter();
             var commands = Bind();
             Assert.Throws<ArgumentOutOfRangeException>(() => commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_CREATE_ID), new TimerCreateOptions("timer", -1)));
             Assert.Throws<ArgumentException>(() => commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_START_ID), 12));
@@ -208,7 +208,7 @@ namespace EcaSystems.Tests.TimeEca
             var local = new CountingRegistry(_system.Events);
             _adapter = new TimeEcaAdapter(_time, local, _emitter);
             Assert.That(local.ResolveCount, Is.EqualTo(6));
-            Attach();
+            ConnectExportsAndAdapter();
             _time.CreateTimer(new TimerCreateOptions("timer", 0));
             _time.Start("timer");
             _time.Pause("timer");
@@ -280,7 +280,7 @@ namespace EcaSystems.Tests.TimeEca
                     Condition = new TimeCondition { Observe = context => conditions.Add(context) },
                     Action = new TimeAction { Observe = (state, context) => { states.Add(state.EventState); actions.Add(context); } }
                 };
-                // Registration requires attached canonical events.
+                // Registration requires connected canonical events.
                 if (!_events.CheckRegistered(declaration)) _events.Register(declaration);
                 scope.Register(rule, new EcaExecutionMode(EcaExecutionModeOverlap.Allow));
                 other.Register(new TimeRule

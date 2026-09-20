@@ -31,19 +31,19 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void AttachDetach_KeepExactLocalReferences_AndUnrelatedRegistrations()
+        public void ConnectDisconnect_KeepExactLocalReferences_AndUnrelatedRegistrations()
         {
             var localEvents = _system.Events;
             var localCommands = _system.Commands;
             var otherEvent = new BaseTestSupport.Event<int> { Id = "other" };
             _events.Register(otherEvent);
             Assert.That(_events.CheckRegistered(localEvents.Resolve("first")), Is.False);
-            _connector.Attach(_system);
+            _connector.Connect(_system);
             Assert.That(_system.Events, Is.SameAs(localEvents));
             Assert.That(_system.Commands, Is.SameAs(localCommands));
-            AssertAttached();
-            Assert.Throws<InvalidOperationException>(() => _connector.Attach(_system));
-            _connector.Detach(_system);
+            AssertConnected();
+            Assert.Throws<InvalidOperationException>(() => _connector.Connect(_system));
+            _connector.Disconnect(_system);
             Assert.That(_events.CheckRegistered(otherEvent), Is.True);
             Assert.That(_events.CheckRegistered(localEvents.Resolve("first")), Is.False);
             Assert.That(_commands.Commands, Is.Empty);
@@ -51,15 +51,15 @@ namespace EcaSystems.Tests.Core2
             Assert.That(_namespaces.Namespaces, Is.Empty);
             Assert.That(localEvents.Events.Count, Is.EqualTo(2));
             Assert.That(localCommands.Commands.Count, Is.EqualTo(1));
-            Assert.Throws<InvalidOperationException>(() => _connector.Detach(_system));
+            Assert.Throws<InvalidOperationException>(() => _connector.Disconnect(_system));
         }
 
         [TestCase("event")]
         [TestCase("command")]
         [TestCase("namespace")]
-        public void Detach_RejectsForeignCanonicalReplacementBeforeMutation(string kind)
+        public void Disconnect_RejectsForeignCanonicalReplacementBeforeMutation(string kind)
         {
-            _connector.Attach(_system);
+            _connector.Connect(_system);
             if (kind == "event")
             {
                 _events.Unregister("first");
@@ -78,7 +78,7 @@ namespace EcaSystems.Tests.Core2
             var e = _events.Resolve("first");
             var c = _commands.Resolve("command");
             var n = _namespaces.Resolve("ns");
-            Assert.Throws<InvalidOperationException>(() => _connector.Detach(_system));
+            Assert.Throws<InvalidOperationException>(() => _connector.Disconnect(_system));
             Assert.That(_systems.CheckRegistered(_system), Is.True);
             Assert.That(_events.Resolve("first"), Is.SameAs(e));
             Assert.That(_commands.Resolve("command"), Is.SameAs(c));
@@ -86,12 +86,12 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void AttachFailure_RollsBackOnlyCompletedChanges()
+        public void ConnectFailure_RollsBackOnlyCompletedChanges()
         {
             var other = new BaseTestSupport.Event<int> { Id = "other" };
             _events.Register(other);
             _events.FailRegisterId = "second";
-            Assert.Throws<InvalidOperationException>(() => _connector.Attach(_system));
+            Assert.Throws<InvalidOperationException>(() => _connector.Connect(_system));
             Assert.That(_events.Events, Is.EqualTo(new[] { other }));
             Assert.That(_commands.Commands, Is.Empty);
             Assert.That(_systems.Systems, Is.Empty);
@@ -100,14 +100,14 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void DetachFailure_RestoresExactInstances()
+        public void DisconnectFailure_RestoresExactInstances()
         {
-            _connector.Attach(_system);
+            _connector.Connect(_system);
             var other = new BaseTestSupport.Event<int> { Id = "other" };
             _events.Register(other);
             _events.FailUnregisterId = "second";
-            Assert.Throws<InvalidOperationException>(() => _connector.Detach(_system));
-            AssertAttached();
+            Assert.Throws<InvalidOperationException>(() => _connector.Disconnect(_system));
+            AssertConnected();
             Assert.That(_events.CheckRegistered(other), Is.True);
         }
 
@@ -119,7 +119,7 @@ namespace EcaSystems.Tests.Core2
             Assert.Throws<ArgumentNullException>(() => new EcaSystem("system", _system.Namespace, _system.Events, null));
         }
 
-        private void AssertAttached()
+        private void AssertConnected()
         {
             Assert.That(_systems.CheckRegistered(_system), Is.True);
             Assert.That(_namespaces.CheckRegistered(_system.Namespace), Is.True);

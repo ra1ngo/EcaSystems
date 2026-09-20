@@ -17,7 +17,7 @@ namespace EcaSystems.Core2
         {
             Id = id;
             Namespace = systemNamespace ?? throw new ArgumentNullException(nameof(systemNamespace));
-            // Local exports and metadata must remain stable while attached.
+            // Local exports and metadata must remain stable while connected.
             Events = events ?? throw new ArgumentNullException(nameof(events));
             Commands = commands ?? throw new ArgumentNullException(nameof(commands));
             Name = name;
