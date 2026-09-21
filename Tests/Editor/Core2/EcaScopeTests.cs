@@ -37,7 +37,7 @@ namespace EcaSystems.Tests.Core2
         [SetUp]
         public void SetUpScope()
         {
-            _owner = new EcaScopeRuntime(Events);
+            _owner = new EcaScopeRuntime(Events, new EcaBaseConditionChecker(), new EcaBaseActionRunner());
             _scope = _owner.CreateScope("A");
         }
 
@@ -89,7 +89,7 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public void Constructor_RejectsMissingDependencies()
         {
-            Assert.Throws<ArgumentNullException>(() => new EcaScopeRuntime(null));
+            Assert.Throws<ArgumentNullException>(() => new EcaScopeRuntime(null, new EcaBaseConditionChecker(), new EcaBaseActionRunner()));
         }
 
         [Test]

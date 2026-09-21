@@ -11,19 +11,17 @@ namespace EcaSystems.Tests.Core2
         internal class Args { public int Value { get; set; } }
         internal sealed class DerivedArgs : Args { }
 
-        internal sealed class Command<C, A> : AEcaCommand<C, A> where C : IEcaActionContext
+        internal sealed class Command<C, A> : AEcaCommand<IEcaRuleState, C, A> where C : IEcaActionContext
         {
             public string CommandId { get; set; } = "command";
             public override string Id => CommandId;
             public Func<C, A, Task> Handler { get; set; } = (context, args) => Task.CompletedTask;
-            public override Task Run(C context, A args) => Handler(context, args);
+            public override Task Run(IEcaRuleState state, C context, A args) => Handler(context, args);
         }
 
-        internal sealed class CommandsContext : IEcaCommandsActionContext
+        internal sealed class ActionInput : IEcaActionContext
         {
-            public IEcaCommands Commands { get; }
             public int Total { get; set; }
-            public CommandsContext(IEcaCommandRunner runner) => Commands = runner.Bind(this);
         }
 
         internal sealed class Rule : IEcaRule<int, BaseTestSupport.State>
@@ -44,8 +42,8 @@ namespace EcaSystems.Tests.Core2
             public string Id => "action";
             public string Name => Id;
             public string Description => Id;
-            public Func<BaseTestSupport.State, CommandsContext, Task> Handler { get; set; }
-            public Task Run(BaseTestSupport.State state, IEcaActionContext context) => Handler(state, (CommandsContext)context);
+            public Func<BaseTestSupport.State, ActionInput, Task> Handler { get; set; }
+            public Task Run(BaseTestSupport.State state, IEcaActionContext context) => Handler(state, (ActionInput)context);
         }
     }
 }

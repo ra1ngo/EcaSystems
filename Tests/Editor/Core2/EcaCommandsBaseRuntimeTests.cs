@@ -26,7 +26,7 @@ namespace EcaSystems.Tests.Core2
             _runner = new EcaCommandRunner(_commands);
         }
 
-        private void Fire(CommandsContext context, int value = 7) =>
+        private void Fire(ActionInput context, int value = 7) =>
             _runtime.Fire<int, BaseTestSupport.State>(
                 _event, value, (rule, payload) => new BaseTestSupport.State { EventState = payload },
                 new BaseTestSupport.ConditionContext(), context);
@@ -35,10 +35,10 @@ namespace EcaSystems.Tests.Core2
         [TestCase(false)]
         public void Fire_ConditionControlsActionAndCommand(bool passes)
         {
-            var context = new CommandsContext(_runner);
-            CommandsContext commandContext = null, actionContext = null;
+            var context = new ActionInput();
+            ActionInput commandContext = null, actionContext = null;
             var actions = 0;
-            _commands.Register(new Command<CommandsContext, int>
+            _commands.Register(new Command<ActionInput, int>
             {
                 Handler = (c, args) => { commandContext = c; c.Total += args; return Task.CompletedTask; }
             });
@@ -50,8 +50,7 @@ namespace EcaSystems.Tests.Core2
                 {
                     actions++;
                     actionContext = c;
-                    IEcaCommandsActionContext composition = c;
-                    return composition.Commands.Run("command", state.EventState);
+                    return _runner.Run("command", state, c, state.EventState);
                 } }
             });
             Fire(context, 17);
@@ -65,9 +64,9 @@ namespace EcaSystems.Tests.Core2
         public void Fire_MultipleRulesKeepBarrierBeforeCommandSideEffects()
         {
             var trace = new List<string>();
-            var context = new CommandsContext(_runner);
+            var context = new ActionInput();
             var totalsAtCheck = new List<int>();
-            _commands.Register(new Command<CommandsContext, string>
+            _commands.Register(new Command<ActionInput, string>
             {
                 Handler = (c, id) => { trace.Add("Command " + id); c.Total++; return Task.CompletedTask; }
             });
@@ -85,7 +84,7 @@ namespace EcaSystems.Tests.Core2
                     Action = new CommandAction { Handler = (state, c) =>
                     {
                         trace.Add("Action " + id);
-                        return c.Commands.Run("command", id);
+                        return _runner.Run("command", state, c, id);
                     } }
                 });
             }
@@ -99,12 +98,12 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_SeparateCallsKeepBoundContextsIndependent()
+        public void Fire_SeparateCallsKeepExplicitContextsIndependent()
         {
-            var a = new CommandsContext(_runner);
-            var b = new CommandsContext(_runner);
-            var seen = new List<CommandsContext>();
-            _commands.Register(new Command<CommandsContext, int>
+            var a = new ActionInput();
+            var b = new ActionInput();
+            var seen = new List<ActionInput>();
+            _commands.Register(new Command<ActionInput, int>
             {
                 Handler = (c, args) => { seen.Add(c); c.Total += args; return Task.CompletedTask; }
             });
@@ -114,7 +113,7 @@ namespace EcaSystems.Tests.Core2
                 {
                     Id = id, Event = _event,
                     Condition = new BaseTestSupport.Condition { CheckHandler = (state, c) => state.EventState == (id == "A" ? 1 : 2) },
-                    Action = new CommandAction { Handler = (state, c) => c.Commands.Run("command", state.EventState) }
+                    Action = new CommandAction { Handler = (state, c) => _runner.Run("command", state, c, state.EventState) }
                 });
             }
             Fire(a, 1);
@@ -128,9 +127,9 @@ namespace EcaSystems.Tests.Core2
         public async Task Fire_ReturnsWhileActionHasUnfinishedCommandTask()
         {
             var gate = new TaskCompletionSource<bool>();
-            var context = new CommandsContext(_runner);
+            var context = new ActionInput();
             Task commandTask = null, actionTask = null;
-            _commands.Register(new Command<CommandsContext, int>
+            _commands.Register(new Command<ActionInput, int>
             {
                 Handler = async (c, args) => { await gate.Task; c.Total += args; }
             });
@@ -139,7 +138,7 @@ namespace EcaSystems.Tests.Core2
                 Event = _event,
                 Action = new CommandAction { Handler = (state, c) =>
                 {
-                    commandTask = c.Commands.Run("command", state.EventState);
+                    commandTask = _runner.Run("command", state, c, state.EventState);
                     actionTask = commandTask;
                     return actionTask;
                 } }
@@ -162,11 +161,11 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public void Fire_PropagatesCommandLookupFailureThroughSynchronousAction()
         {
-            var context = new CommandsContext(_runner);
+            var context = new ActionInput();
             _runtime.Register(new Rule
             {
                 Event = _event,
-                Action = new CommandAction { Handler = (state, c) => c.Commands.Run("missing", state.EventState) }
+                Action = new CommandAction { Handler = (state, c) => _runner.Run("missing", state, c, state.EventState) }
             });
             Assert.Throws<InvalidOperationException>(() => Fire(context));
             Assert.That(context.Total, Is.Zero);

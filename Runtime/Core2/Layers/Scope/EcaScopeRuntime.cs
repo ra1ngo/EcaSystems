@@ -7,14 +7,18 @@ namespace EcaSystems.Core2
     public sealed class EcaScopeRuntime : IDisposable
     {
         private readonly IEcaEventRegistry _events;
+        private readonly IEcaConditionChecker _conditionChecker;
+        private readonly IEcaActionRunner _actionRunner;
         private readonly Dictionary<string, EcaScope> _scopes = new(StringComparer.Ordinal);
         private readonly Dictionary<string, HashSet<EcaScope>> _children = new(StringComparer.Ordinal);
         private long _nextScopeId = 1;
         private bool _isDisposed;
 
-        public EcaScopeRuntime(IEcaEventRegistry events)
+        public EcaScopeRuntime(IEcaEventRegistry events, IEcaConditionChecker conditionChecker, IEcaActionRunner actionRunner)
         {
             _events = events ?? throw new ArgumentNullException(nameof(events));
+            _conditionChecker = conditionChecker ?? throw new ArgumentNullException(nameof(conditionChecker));
+            _actionRunner = actionRunner ?? throw new ArgumentNullException(nameof(actionRunner));
         }
 
         public int ScopeCount => _scopes.Count;
@@ -42,9 +46,9 @@ namespace EcaSystems.Core2
                 throw new ArgumentException("Scope id cannot be empty.", nameof(scopeId));
             if (_scopes.ContainsKey(scopeId)) throw new InvalidOperationException($"Scope '{scopeId}' is already active.");
 
-            // Общий только EventRegistry; Rule/Group registries и весь Execution graph принадлежат одному Scope.
+            // Shared services; Rule/Group registries and execution state remain scope-local.
             var execution = new EcaExecutionRuntime(new EcaBaseRuleRegistry(_events), new EcaExecutionGroupRegistry(),
-                new EcaBaseConditionChecker(), new EcaBaseActionRunner());
+                _conditionChecker, _actionRunner);
             var scope = new EcaScope(this, new EcaScopeState(scopeId), execution, parent?.ScopeId);
             _scopes.Add(scopeId, scope);
             _children.Add(scopeId, new HashSet<EcaScope>());

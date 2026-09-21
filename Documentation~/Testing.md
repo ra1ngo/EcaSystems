@@ -2,6 +2,24 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## Core2 RuleCreator и state-aware Commands — 2026-09-21
+
+Test scope расширен на 17 cases: EcaRuleCreatorTests (14) и EcaCommandStateTests (3). Покрыты facade/class/delegate authoring, canonical Event resolve и metadata errors, optional Condition, custom R через Scope factory, однократная Initialize, stable Commands, отдельная registration/Scope isolation, shared checker/runner, async execution lifecycle, state/context/args identity, несовместимые типы, null context и overlapping Tasks после unregister.
+
+Прежние 220 Core2 cases сохранены. EcaCommandRegistryTests, EcaCommandRunnerTests, EcaCommandsBaseRuntimeTests и CommandTestSupport мигрированы с Bind/captured context на explicit state/context. Obsolete Bind(null) assertion заменён проверкой обязательного RuleState; null ActionContext отдельно покрыт новым bridge test. Остальные lookup/args/exception/Task/barrier assertions сохранены. EcaFireContextTests, EcaScopeRuntimeTests, EcaScopeTests получили shared services в constructor. TimeEcaAdapterTests мигрирован на state-aware Run и новый constructor ScopeRuntime; lifecycle/Wait assertions сохранены, Commands проверены с null context.
+
+Unity **6000.5.6f1**, фактически завершённые EditMode runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Первичный Core2 после миграции, до новых tests | 220 | 220 | 0 | 0 | 0 |
+| Focused RuleCreator + Commands до добавления последнего class Action case | 47 | 47 | 0 | 0 | 0 |
+| Полный Core2, окончательные tests | 237 | 237 | 0 | 0 | 0 |
+| Time/Eca | 17 | 17 | 0 | 0 | 0 |
+| Полный EditMode | 421 | 421 | 0 | 0 | 0 |
+
+Все runs exit code 0. Финальные focused fixtures внутри Core2: Creator 14, Command state 3, Command registry 10, Command runner 15, Commands/Base 6. Полный suite: Core 37, Core1 77, Core2 237, Time 53, Time/Eca 17. При перекомпиляции повторён прежний CS0108 в EcaScopeTests.Fire(int); новых compiler warnings/errors нет. XML/log локально: .validation~/rule-creator-initial, rule-creator-focused, rule-creator-core2, rule-creator-time-eca, rule-creator-full. PlayMode/IL2CPP/remote CI не запускались. Исторические descriptions binding ниже описывают прежний API, а не текущий Core2.
+
 ## EcaSystemsRuntime v1 — 2026-09-20
 
 Добавлены **10 cases** EcaSystemsRuntimeTests: отсутствие automatic root, Connect до/после CreateScope, end-to-end Register → scoped emitter → Action, live canonical registry и Disconnect/Reconnect с сохранением Rule/Group, делегирование validation, изоляция scopes и разных Runtime, recursive Dispose/stale emitter/disposed-first validation, естественное завершение running Action, snapshot cleanup всех Systems с AggregateException и idempotence после failure. Cleanup проверяется через custom local EventRegistry passive descriptor, без production injection API.

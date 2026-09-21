@@ -37,7 +37,7 @@ namespace EcaSystems.Tests.Core2
             _events = new EcaBaseEventRegistry();
             _event = new BaseTestSupport.Event<int>();
             _events.Register(_event);
-            _owner = new EcaScopeRuntime(_events);
+            _owner = new EcaScopeRuntime(_events, new EcaBaseConditionChecker(), new EcaBaseActionRunner());
             _scope = _owner.CreateScope("root");
         }
 

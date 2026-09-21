@@ -139,7 +139,7 @@ Scope v1: hierarchy определяет только время жизни; Fir
 - [ ] Более строгий CommandId/key вместо string.
 - [ ] Метаданные команд для визуального программирования.
 - [ ] Сериализация аргументов команд.
-- [ ] Пересмотреть Commands runtime и bound Commands с учётом Core1 RunnerContext = infrastructure, сохраняя RuleState только данными.
+Core2 Commands уже используют stable IEcaCommands и явные RuleState/ActionContext, без Bind; историческая Core1 модель не переносится.
 
 Эти направления не расширяют текущую v1: результаты команд, cancellation, DI и генерация API сейчас не добавляются.
 
@@ -148,14 +148,14 @@ Scope v1: hierarchy определяет только время жизни; Fir
 - [ ] Code coverage отдельной итерацией: input coverageEnabled сейчас не задан, GameCI может включать coverage во временном проекте; отключение не гарантируется.
 - [ ] Optional required CI checks / branch protection после стабилизации CI, по решению владельца.
 - [ ] Дальнейшее удобство Rule API сверх реализованных Core1 Base/empty shortcuts.
-- [ ] Рассмотреть factory-style Rule API.
+- [ ] Развивать ergonomics сверх реализованного class/delegate CreateRule только по новым сценариям.
 - [ ] Универсальный ContextFactory/hydration как возможное улучшение кода после выбора модели контекстов.
 
 ## Core2 Context и authoring после Fire refactor
 
 - [ ] Выбрать composition/enrichment nullable ConditionContext и ActionContext, сохраняя их разделение и передачу exact references. Core сейчас только проводит inputs конкретного Fire.
 - [ ] Обсудить typed convenience Action/Condition helpers без возвращения Context generics в IEcaRule<E,R>; capability container и required-context metadata не выбраны.
-- [ ] Проектировать CreateRule и simplified Action/Condition API с учётом будущего visual programming, отдельно от EcaSystemsRuntime composition.
+- [ ] Unity authoring/composition layer: автоматизировать materialization и initialization Rule/Condition/Action из serialized/ScriptableObject/visual definitions. Core предоставляет primitives/lifecycle, Unity скрывает ручной порядок initialization. Сейчас реализован только C# class/delegate CreateRule.
 
 ## Расширение Condition / Action
 
@@ -168,7 +168,7 @@ Scope v1: hierarchy определяет только время жизни; Fir
 
 - [ ] Rule ownership/consistency при DisconnectSystem: local Rules сейчас сохраняются, Fire отключённого Event отклоняется canonical validation; reconnect exact exports восстанавливает Fire. Автоматический Rule cleanup не реализован.
 
-- [ ] После EcaSystemsRuntime v1 отдельно спроектировать Rule creation по Event ID; не добавлять ID-based Emitter или generic Registry abstraction без нового реального сценария.
+Rule creation по Event ID реализован через internal EcaRuleCreator и runtime.CreateRule. ID-based Emitter и generic Registry abstraction не добавлены.
 - [ ] После Connect(EcaSystem) local Event/Command exports должны оставаться стабильными по convention. Mutation local registries может рассинхронизировать local/global registries. Отдельно выбрать freeze/snapshot/ownership/consistency semantics; сейчас automatic sync и freezing отсутствуют.
 
 - [ ] Развить роль Core2 Namespace и пересмотреть частичное дублирование EcaSystem.Id / EcaSystemNamespace.Id: устранить или явно развести identity; согласовать namespace/stable ID semantics. Сейчас Namespace содержит только Id, automatic prefixing отсутствует.
@@ -189,4 +189,4 @@ Scope v1: hierarchy определяет только время жизни; Fir
 - [ ] При необходимости развить Core1 Event ID ↔ точный EventStateType contract и immutability custom declarations; базовая EventRegistry validation уже реализована.
 - [ ] ActionRegistry/ConditionRegistry только при реальном сценарии lookup/ownership; сейчас Rule хранит прямые ссылки.
 
-Ergonomics generic Rule/Context API учтена в разделах развития контекстов и удобства Rule API; пересмотр Commands как service — в разделе контекстов/Commands. Эти вопросы не означают реализацию нового runtime в checkpoint.
+Ergonomics generic Rule/Context API учтена в разделах развития контекстов и удобства Rule API; будущая ergonomics Commands — в разделе контекстов/Commands. Эти вопросы не означают реализацию нового runtime в checkpoint.

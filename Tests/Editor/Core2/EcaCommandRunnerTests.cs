@@ -10,16 +10,19 @@ namespace EcaSystems.Tests.Core2
     [TestFixture]
     public sealed class EcaCommandRunnerTests
     {
+        private static IEcaRuleState State => new BaseTestSupport.State();
         [Test]
-        public void ConstructorAndBind_RejectNull()
+        public void ConstructorAndRun_RejectNullRegistryAndState()
         {
             Assert.Throws<ArgumentNullException>(() => new EcaCommandRunner(null));
-            IEcaCommandRunner runner = new EcaCommandRunner(new EcaCommandRegistry());
-            Assert.Throws<ArgumentNullException>(() => runner.Bind(null));
+            var registry = new EcaCommandRegistry();
+            registry.Register(new Command<Context, int>());
+            var runner = new EcaCommandRunner(registry);
+            Assert.Throws<ArgumentNullException>(() => runner.Run<IEcaRuleState, int>("command", null, null, 0));
         }
 
         [Test]
-        public async Task Bind_IndependentContextsAndExactReferenceArgsWithOneCommandInstance()
+        public async Task Run_IndependentContextsAndExactReferenceArgsWithOneCommandInstance()
         {
             var registry = new EcaCommandRegistry();
             var seen = new List<Context>();
@@ -31,12 +34,10 @@ namespace EcaSystems.Tests.Core2
             var runner = new EcaCommandRunner(registry);
             var a = new Context();
             var b = new Context();
-            var boundA = runner.Bind(a);
-            var boundB = runner.Bind(b);
             var args = new Args { Value = 3 };
-            await boundA.Run("command", args);
-            await boundB.Run("command", args);
-            await boundA.Run("command", args);
+            await runner.Run("command", State, a, args);
+            await runner.Run("command", State, b, args);
+            await runner.Run("command", State, a, args);
             Assert.That(seen, Is.EqualTo(new[] { a, b, a }));
             Assert.That(argsSeen, Is.EqualTo(new[] { args, args, args }));
             Assert.That(a.Value, Is.EqualTo(6));
@@ -55,7 +56,7 @@ namespace EcaSystems.Tests.Core2
             });
             var context = new DerivedContext();
             var args = new DerivedArgs();
-            await new EcaCommandRunner(registry).Bind(context).Run("command", args);
+            await new EcaCommandRunner(registry).Run("command", State, context, args);
             Assert.That(seenContext, Is.SameAs(context));
             Assert.That(seenArgs, Is.SameAs(args));
         }
@@ -66,8 +67,9 @@ namespace EcaSystems.Tests.Core2
             var calls = 0;
             var registry = new EcaCommandRegistry();
             registry.Register(new Command<DerivedContext, int> { Handler = (c, a) => { calls++; return Task.CompletedTask; } });
-            var commands = new EcaCommandRunner(registry).Bind(new Context());
-            Assert.Throws<InvalidOperationException>(() => commands.Run("command", 1));
+            var context = new Context();
+            var commands = new EcaCommandRunner(registry);
+            Assert.Throws<InvalidOperationException>(() => commands.Run("command", State, context, 1));
             Assert.That(calls, Is.Zero);
         }
 
@@ -77,11 +79,12 @@ namespace EcaSystems.Tests.Core2
             var calls = 0;
             var registry = new EcaCommandRegistry();
             registry.Register(new Command<Context, Args> { Handler = (c, a) => { calls++; return Task.CompletedTask; } });
-            var commands = new EcaCommandRunner(registry).Bind(new Context());
-            Assert.Throws<ArgumentException>(() => commands.Run("command", "wrong"));
-            Assert.Throws<ArgumentException>(() => commands.Run<string>("command", null));
-            Assert.Throws<ArgumentException>(() => commands.Run<object>("command", new Args()));
-            Assert.Throws<ArgumentException>(() => commands.Run<object>("command", null));
+            var context = new Context();
+            var commands = new EcaCommandRunner(registry);
+            Assert.Throws<ArgumentException>(() => commands.Run("command", State, context, "wrong"));
+            Assert.Throws<ArgumentException>(() => commands.Run<IEcaRuleState, string>("command", State, context, null));
+            Assert.Throws<ArgumentException>(() => commands.Run<IEcaRuleState, object>("command", State, context, new Args()));
+            Assert.Throws<ArgumentException>(() => commands.Run<IEcaRuleState, object>("command", State, context, null));
             Assert.That(calls, Is.Zero);
         }
 
@@ -92,7 +95,7 @@ namespace EcaSystems.Tests.Core2
             var called = false;
             Args seen = new Args();
             registry.Register(new Command<Context, Args> { Handler = (c, a) => { called = true; seen = a; return Task.CompletedTask; } });
-            await new EcaCommandRunner(registry).Bind(new Context()).Run<Args>("command", null);
+            await new EcaCommandRunner(registry).Run<IEcaRuleState, Args>("command", State, new Context(), null);
             Assert.That(called, Is.True);
             Assert.That(seen, Is.Null);
         }
@@ -103,12 +106,13 @@ namespace EcaSystems.Tests.Core2
             var registry = new EcaCommandRegistry();
             var seen = -1;
             registry.Register(new Command<Context, int> { Handler = (c, a) => { seen = a; return Task.CompletedTask; } });
-            var commands = new EcaCommandRunner(registry).Bind(new Context());
-            await commands.Run("command", 42);
+            var context = new Context();
+            var commands = new EcaCommandRunner(registry);
+            await commands.Run("command", State, context, 42);
             Assert.That(seen, Is.EqualTo(42));
-            Assert.Throws<ArgumentException>(() => commands.Run<object>("command", 42));
-            Assert.Throws<ArgumentException>(() => commands.Run<int?>("command", null));
-            Assert.Throws<ArgumentException>(() => commands.Run("command", 42L));
+            Assert.Throws<ArgumentException>(() => commands.Run<IEcaRuleState, object>("command", State, context, 42));
+            Assert.Throws<ArgumentException>(() => commands.Run<IEcaRuleState, int?>("command", State, context, null));
+            Assert.Throws<ArgumentException>(() => commands.Run("command", State, context, 42L));
         }
 
         [TestCase(null)]
@@ -118,7 +122,7 @@ namespace EcaSystems.Tests.Core2
             var registry = new EcaCommandRegistry();
             int? seen = -1;
             registry.Register(new Command<Context, int?> { Handler = (c, a) => { seen = a; return Task.CompletedTask; } });
-            await new EcaCommandRunner(registry).Bind(new Context()).Run("command", value);
+            await new EcaCommandRunner(registry).Run("command", State, new Context(), value);
             Assert.That(seen, Is.EqualTo(value));
         }
 
@@ -128,11 +132,11 @@ namespace EcaSystems.Tests.Core2
             var task = Task.FromResult(12);
             var registry = new EcaCommandRegistry();
             registry.Register(new Command<Context, int> { Handler = (c, a) => task });
-            Assert.That(new EcaCommandRunner(registry).Bind(new Context()).Run("command", 1), Is.SameAs(task));
+            Assert.That(new EcaCommandRunner(registry).Run("command", State, new Context(), 1), Is.SameAs(task));
         }
 
         [Test]
-        public async Task Async_BindContextsRemainIndependentAcrossOverlappingCalls()
+        public async Task Async_ExplicitContextsRemainIndependentAcrossOverlappingCalls()
         {
             var gate = new TaskCompletionSource<bool>();
             var registry = new EcaCommandRegistry();
@@ -143,8 +147,8 @@ namespace EcaSystems.Tests.Core2
             var runner = new EcaCommandRunner(registry);
             var a = new Context();
             var b = new Context();
-            var first = runner.Bind(a).Run("command", 3);
-            var second = runner.Bind(b).Run("command", 5);
+            var first = runner.Run("command", State, a, 3);
+            var second = runner.Run("command", State, b, 5);
             try
             {
                 Assert.That(first.IsCompleted || second.IsCompleted, Is.False);
@@ -165,14 +169,15 @@ namespace EcaSystems.Tests.Core2
             var source = new TaskCompletionSource<bool>();
             var registry = new EcaCommandRegistry();
             registry.Register(new Command<Context, int> { Handler = (c, a) => source.Task });
-            var commands = new EcaCommandRunner(registry).Bind(new Context());
-            var task = commands.Run("command", 1);
+            var context = new Context();
+            var commands = new EcaCommandRunner(registry);
+            var task = commands.Run("command", State, context, 1);
             try
             {
                 Assert.That(task, Is.SameAs(source.Task));
                 Assert.That(task.IsCompleted, Is.False);
                 Assert.That(registry.Unregister("command"), Is.True);
-                Assert.Throws<InvalidOperationException>(() => commands.Run("command", 1));
+                Assert.Throws<InvalidOperationException>(() => commands.Run("command", State, context, 1));
                 source.SetResult(true);
                 await task;
             }
@@ -185,8 +190,9 @@ namespace EcaSystems.Tests.Core2
             var error = new InvalidOperationException("sync");
             var registry = new EcaCommandRegistry();
             registry.Register(new Command<Context, int> { Handler = (c, a) => throw error });
-            var commands = new EcaCommandRunner(registry).Bind(new Context());
-            Assert.That(Assert.Throws<InvalidOperationException>(() => commands.Run("command", 1)), Is.SameAs(error));
+            var context = new Context();
+            var commands = new EcaCommandRunner(registry);
+            Assert.That(Assert.Throws<InvalidOperationException>(() => commands.Run("command", State, context, 1)), Is.SameAs(error));
         }
 
         [Test]
@@ -196,7 +202,7 @@ namespace EcaSystems.Tests.Core2
             var source = new TaskCompletionSource<bool>();
             var registry = new EcaCommandRegistry();
             registry.Register(new Command<Context, int> { Handler = (c, a) => source.Task });
-            var task = new EcaCommandRunner(registry).Bind(new Context()).Run("command", 1);
+            var task = new EcaCommandRunner(registry).Run("command", State, new Context(), 1);
             source.SetException(error);
             Assert.That(task, Is.SameAs(source.Task));
             try { await task; Assert.Fail("Expected command failure."); }
@@ -209,8 +215,9 @@ namespace EcaSystems.Tests.Core2
         {
             var registry = new EcaCommandRegistry();
             registry.Register(new Command<Context, int> { Handler = (c, a) => null });
-            var commands = new EcaCommandRunner(registry).Bind(new Context());
-            Assert.Throws<InvalidOperationException>(() => commands.Run("command", 1));
+            var context = new Context();
+            var commands = new EcaCommandRunner(registry);
+            Assert.Throws<InvalidOperationException>(() => commands.Run("command", State, context, 1));
         }
     }
 }
