@@ -8,7 +8,8 @@
 - [x] TimeSystem architecture refactor + Time/Eca adapter.
 - [x] PR #17 registry cleanup: canonical CheckRegistered, live items/public Resolve, local System registries, concrete Time Commands и cached Events.
 - [x] Core2 Fire/Context refactor: IEcaRule<E,R>, nullable раздельные contexts конкретного Fire, event-only Fire и Scope-owned EventEmitter.
-- [x] EcaSystemsRuntime v1 — production composition root: EcaScopeRuntime, global System/Event/Command/Namespace registries, EcaSystemConnector и EcaCommandRunner; без автоматического root Scope. Внешний adapter lifecycle не принадлежит Core/Runtime. CreateRule и simplified Action/Condition API — Roadmap с учётом visual programming.
+- [x] EcaSystemsRuntime v1 — production composition root: EcaScopeRuntime, global System/Event/Command/Namespace registries, EcaSystemConnector и EcaCommandRunner; без автоматического root Scope. Внешний adapter lifecycle не принадлежит Core/Runtime. Class/delegate Rule creation реализован; Unity/visual authoring остаётся Roadmap.
+- [x] RuleCreator/CreateRule, AEcaCondition/AEcaAction, shared checker/runner и state-aware Commands без Bind; Time Commands мигрированы.
 - [ ] Global State / Variables standalone System + ECA.
 - [ ] Небольшой end-to-end Sandbox / PlayMode scenario.
 - [ ] External event adapters.
@@ -20,8 +21,8 @@
 - [x] Core2/Base завершён; API и архитектура не меняются в Execution-итерации.
 - [x] Core2/Layers/Execution: generic Group Check/Run, composition Runtime, ALL CONDITIONS → ALL EXECUTIONS, поздний admission, immediate/reentrant Fire, lifetime Limit/Overlap, lifecycle и rollback/unregister.
 - [x] Scope: EcaScopeRuntime manager + isolated EcaScope, независимые Execution graphs, hierarchy/ParentScopeId, local Fire, recursive Dispose и ScopeId reuse без отмены Actions; enrichment через Func<IEcaExecutionRuleState<E>, EcaScopeState, R> сохранён.
-- [x] Commands validated как самостоятельный Concept: standalone tests и BaseRuntime integration через test composition context; production API без изменений.
-- [x] Commands abstraction: AEcaCommand/AEcaCommand<C,A> используют class virtual dispatch для Unity compatibility; Registry.Register(AEcaCommand) принимает heterogeneous Commands, Contains добавлен.
+- [x] Commands validated как самостоятельный Concept: standalone tests и BaseRuntime integration через явные state/context; Base не зависит от Commands.
+- [x] Commands abstraction: AEcaCommand/AEcaCommand<R,C,A> используют class virtual dispatch для Unity compatibility; Registry.Register(AEcaCommand) принимает heterogeneous Commands, Contains добавлен.
 - [x] EventEmitter concept: public IEcaEventEmitter.Fire<E>, internal Bind одного IEcaEventHandler, прямой generic callback; Base integration через test runtime. Core2 runtime API переименован в Fire с сохранением semantics overloads.
 - [x] NUnit/Unity EditMode tests для Execution и недостающие Unity metadata.
 - [x] Systems v1: passive EcaSystem/Namespace, отдельные registries, EcaSystemConnector.Connect/Disconnect с prevalidation и локальным rollback; EventRegistry расширен non-generic Register/Unregister/Contains.
@@ -29,7 +30,7 @@
 - [x] TimeSystem architecture refactor + первый Time/Eca adapter: aggregate lifecycle, typed event snapshots, семь Commands.
 - [ ] После production composition / Global State / Sandbox рассмотреть external event adapters к IEcaEventEmitter.Fire<E>: C# events, callbacks, observables, polling, UnityEvent/InputAction и другие источники; список в Roadmap. Сейчас реализованы прямой Emitter API и конкретный TimeEcaAdapter.
 - [ ] Рассмотреть StateBuilder/StateFactory позже, если последовательное расширение RuleState между слоями станет достаточно сложным, повторяемым или неудобным через Func. Execution использует Func<E, EcaExecutionGroupState, R>, Scope — Func<IEcaExecutionRuleState<E>, EcaScopeState, R>; отдельный builder не проектируется.
-- [ ] Следующие слои согласовывать отдельными итерациями. Core2 production Commands context composition, FireEventCommand, Unity bridge, cancellation и Reset/Queue сейчас не реализованы.
+- [ ] Следующие слои согласовывать отдельными итерациями. FireEventCommand, Unity bridge, cancellation и Reset/Queue сейчас не реализованы.
 
 Разделы ниже про завершённые Core/Core1 возможности не означают их наличие в Core2.
 

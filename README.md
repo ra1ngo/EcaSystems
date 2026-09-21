@@ -2,24 +2,46 @@
 
 EcaSystems — Unity-first framework / UPM-пакет для связи независимых игровых систем через Event–Condition–Action. Core не зависит от Unity. Проект находится **до MVP**: архитектура и public API ещё меняются.
 
-## Назначение
+## Назначение и текущий Core2
 
-Фреймворк не заменяет Dialogue, Time, Inventory, Quest и другие игровые системы. Внешняя система может быть полностью самодостаточной, в том числе сторонним кодом из Asset Store или GitHub. Поверх неё предполагается ECA-адаптер, связывающий её с остальной игрой. Направление интеграционной поверхности — Events, Commands, State и, возможно, Condition Queries; окончательный контракт Systems ещё не выбран.
+Фреймворк связывает независимые Dialogue, Time, Inventory, Quest и другие Systems. System экспортирует Events и Commands через passive EcaSystem; внешний adapter получает scope.EventEmitter. Lifecycle внешних Systems/adapters остаётся ответственностью game composition. Core2 не зависит от Unity; Time/Core — отдельная standalone Unity assembly.
 
-Events EcaSystems — внутренние типизированные декларации событий; конкретное возникновение передаётся через Fire с payload. Они не обязаны быть C# events или UnityEvents. Rule описывает `Event + optional Condition + Action`. Commands позволяют Action запрашивать операции без прямой зависимости от конкретной внешней системы. Global Variables — важный будущий сценарий отдельной system/capability, пока не реализованный.
+**Action ≠ Command.** Action — программируемый блок Rule: он может вызвать несколько Commands, напрямую обратиться к API игровой System или выполнить произвольный C# код. Предметные операции Systems — Commands, например ShowDialogueCommand и WaitCommand; отдельные ShowDialogueAction/WaitAction для таких операций не являются моделью EcaSystems. Rule содержит один Event, optional Condition и одну Action. Action всегда async на уровне контракта: Task Run(...), без sync overload.
 
-Сейчас существуют минимальный самостоятельный EcaBaseEngine, Commands v1, Execution v1 с Overlap/Limit и Scope v1 с локальным Fire и независимым временем жизни. Все Conditions одного Fire внутри engine проверяются до любых Actions. Scope hierarchy управляет lifetime; Dispose не отменяет уже запущенные Actions.
+EcaSystemsRuntime — composition root с global registries, одним stable IEcaCommands, shared EcaBaseConditionChecker/EcaBaseActionRunner и ScopeRuntime. Root автоматически не создаётся. Scope владеет локальными Rule/Execution registries и emitter. Все Conditions текущего Fire проверяются до Actions; Fire local/immediate/reentrant. Dispose не отменяет running Actions.
 
-## Архитектурный checkpoint
+## Создание Rule
 
-Проект рассматривается по двум осям:
+System должна быть подключена до CreateRule. Internal EcaRuleCreator resolve'ит canonical Event по eventId, создаёт Condition и Action, инициализирует Action и возвращает framework EcaRule<E,R>. Event при этом не создаётся. Создание Rule и регистрация в Scope — разные операции:
 
-- Layers/features: Base → Commands → Execution → Scope → Systems и возможные будущие слои.
-- Самостоятельные concepts: Events, Conditions, Actions, Commands, State, Rules, Context, Execution.
+```csharp
+runtime.ConnectSystem(system);
+var scope = runtime.CreateScope("root");
+var rule = runtime.CreateRule<MyEventState, MyCondition, MyAction>(
+    id: "intro", eventId: "game.started");
+scope.Register(rule, new EcaExecutionMode(EcaExecutionModeOverlap.Allow));
+```
 
-Это удобные блоки возможностей, а не строгая линейная Clean Architecture. Композиционные сущности Rule и System не должны автоматически становиться обязательной центральной runtime-моделью для всех capabilities. Ближайший этап — пересмотр Rule-centric runtime и отношений между событиями, привязками и выполнением перед реализацией Systems.
+MyCondition наследует AEcaCondition<EcaScopeRuleState<MyEventState>>, MyAction — AEcaAction<EcaScopeRuleState<MyEventState>>; оба имеют parameterless constructor. Без Condition используется CreateRule<E,A>. Advanced CreateRule<E,R,C,A> поддерживает custom RuleState; его создание при Fire остаётся за registration state factory. Один Rule instance можно зарегистрировать в нескольких scopes с независимыми Groups.
 
-Checkpoint добавляет общий Execution context contract и минимальные ScopeState/Scope context contract. ScopeState пока не передаётся в runtime-контексты Scope.Fire: способ расширения контекстов оставлен открытым. Универсальная context factory не вводилась. EventRegistry, Fire Event Command, EventDispatcher/EventBus и новая Rule/Event runtime-модель не реализованы.
+Delegate authoring использует тот же Creator:
+
+```csharp
+var rule = runtime.CreateRule<MyEventState>(
+    id: "intro", eventId: "game.started",
+    condition: (state, context) => state.EventState.Enabled,
+    action: async (state, context, commands) =>
+    {
+        await commands.Run("dialogue.show", state, context, "intro");
+        await commands.Run("dialogue.show", state, context, "next");
+    });
+```
+
+Condition можно опустить или передать null. Action delegate всегда возвращает Task. AEcaAction предоставляет protected Commands после однократного internal Initialize; обычный CreateRule path гарантирует initialization до публикации Rule. Class-based Action вызывает тот же `Commands.Run(commandId,state,context,args)`.
+
+Commands больше не bind'ятся к ActionContext. EcaCommandRunner : IEcaCommands ничего per-Fire не захватывает; RuleState и nullable ActionContext передаются явно при каждом Run. AEcaCommand<R,C,A> предоставляет typed bridge и metadata через обычный class virtual dispatch. Context — внешний input, а Scope/Execution данные остаются в RuleState. Commands не помещаются в ActionContext.
+
+Global State/Variables, Unity authoring automation, JSON/visual definitions и routing пока отложены. Исторические Runtime/Core и Runtime/Core1 сохранены отдельно; их API не определяет текущий Core2.
 
 ## ECA: академический термин и игровая практика
 

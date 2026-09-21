@@ -15,7 +15,7 @@ namespace EcaSystems.Tests.Core2
         private EcaScopeRuntime _owner;
 
         [SetUp]
-        public void SetUpOwner() => _owner = new EcaScopeRuntime(Events);
+        public void SetUpOwner() => _owner = new EcaScopeRuntime(Events, new EcaBaseConditionChecker(), new EcaBaseActionRunner());
 
         [TearDown]
         public void DisposeOwner() => _owner.Dispose();

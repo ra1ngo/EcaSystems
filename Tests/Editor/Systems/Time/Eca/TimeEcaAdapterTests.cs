@@ -42,7 +42,8 @@ namespace EcaSystems.Tests.TimeEca
             PlayerLoop.SetPlayerLoop(_original);
         }
 
-        private IEcaCommands Bind() => new EcaCommandRunner(_commands).Bind(new Context());
+        private IEcaCommands Commands() => new EcaCommandRunner(_commands);
+        private sealed class CommandState : IEcaRuleState { }
         private void ConnectExportsAndAdapter() { _connector.Connect(_system); _adapter.Connect(); }
 
         [Test]
@@ -105,13 +106,13 @@ namespace EcaSystems.Tests.TimeEca
         public void Commands_AndLifecycleEvents_AdaptAllOperations()
         {
             ConnectExportsAndAdapter();
-            var commands = Bind();
-            Assert.That(commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_CREATE_ID), new TimerCreateOptions("timer", 10)).IsCompletedSuccessfully, Is.True);
-            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_START_ID), "timer").GetAwaiter().GetResult();
-            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_PAUSE_ID), "timer").GetAwaiter().GetResult();
-            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_RESUME_ID), "timer").GetAwaiter().GetResult();
-            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_STOP_ID), "timer").GetAwaiter().GetResult();
-            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_DESTROY_ID), "timer").GetAwaiter().GetResult();
+            var commands = Commands();
+            Assert.That(commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_CREATE_ID), new CommandState(), null, new TimerCreateOptions("timer", 10)).IsCompletedSuccessfully, Is.True);
+            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_START_ID), new CommandState(), null, "timer").GetAwaiter().GetResult();
+            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_PAUSE_ID), new CommandState(), null, "timer").GetAwaiter().GetResult();
+            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_RESUME_ID), new CommandState(), null, "timer").GetAwaiter().GetResult();
+            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_STOP_ID), new CommandState(), null, "timer").GetAwaiter().GetResult();
+            commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_DESTROY_ID), new CommandState(), null, "timer").GetAwaiter().GetResult();
             Assert.That(_time.TryGet("timer", out _), Is.False);
             Assert.That(_emitter.Records.Select(r => r.state.State), Is.EqualTo(new[] {
                 TimerState.Running, TimerState.Paused, TimerState.Running, TimerState.Stopped, TimerState.Destroyed }));
@@ -184,7 +185,7 @@ namespace EcaSystems.Tests.TimeEca
         public void WaitCommand_TaskRemainsPendingUntilUnderlyingTick(TimerScaleMode mode)
         {
             ConnectExportsAndAdapter();
-            var task = Bind().Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_WAIT_ID), new TimeWaitArgs(0, mode));
+            var task = Commands().Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_WAIT_ID), new CommandState(), null, new TimeWaitArgs(0, mode));
             Assert.That(task.IsCompleted, Is.False);
             Assert.That(_time.TryGet("timer", out _), Is.False);
             Tick();
@@ -196,10 +197,10 @@ namespace EcaSystems.Tests.TimeEca
         public void Commands_PreserveValidationAndTypedArguments()
         {
             ConnectExportsAndAdapter();
-            var commands = Bind();
-            Assert.Throws<ArgumentOutOfRangeException>(() => commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_CREATE_ID), new TimerCreateOptions("timer", -1)));
-            Assert.Throws<ArgumentException>(() => commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_START_ID), 12));
-            Assert.Throws<InvalidOperationException>(() => commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_START_ID), "missing"));
+            var commands = Commands();
+            Assert.Throws<ArgumentOutOfRangeException>(() => commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_CREATE_ID), new CommandState(), null, new TimerCreateOptions("timer", -1)));
+            Assert.Throws<ArgumentException>(() => commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_START_ID), new CommandState(), null, 12));
+            Assert.Throws<InvalidOperationException>(() => commands.Run(EcaTimeCommandIds.Get(EcaTimeCommandKey.ECA_COMMAND_TIMER_START_ID), new CommandState(), null, "missing"));
         }
 
         [Test]
@@ -264,7 +265,7 @@ namespace EcaSystems.Tests.TimeEca
         [Test]
         public void Adapter_UsesRealScopeEmitterWithNullContextsAndLocalRouting()
         {
-            using var owner = new EcaScopeRuntime(_events);
+            using var owner = new EcaScopeRuntime(_events, new EcaBaseConditionChecker(), new EcaBaseActionRunner());
             var scope = owner.CreateScope("time");
             var other = owner.CreateScope("other");
             var conditions = new List<IEcaConditionContext>();
