@@ -46,10 +46,7 @@ namespace EcaSystems.Core2
                 throw new ArgumentException("Scope id cannot be empty.", nameof(scopeId));
             if (_scopes.ContainsKey(scopeId)) throw new InvalidOperationException($"Scope '{scopeId}' is already active.");
 
-            // Shared services; Rule/Group registries and execution state remain scope-local.
-            var execution = new EcaExecutionRuntime(new EcaBaseRuleRegistry(_events), new EcaExecutionGroupRegistry(),
-                _conditionChecker, _actionRunner);
-            var scope = new EcaScope(this, new EcaScopeState(scopeId), execution, parent?.ScopeId);
+            var scope = new EcaScope(this, new EcaScopeState(scopeId), _events, _conditionChecker, _actionRunner, parent?.ScopeId);
             _scopes.Add(scopeId, scope);
             _children.Add(scopeId, new HashSet<EcaScope>());
             if (parent != null) _children[parent.ScopeId].Add(scope);

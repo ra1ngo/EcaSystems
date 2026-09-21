@@ -21,7 +21,7 @@ namespace EcaSystems.Tests.Core2
             _event = new BaseTestSupport.Event<int>();
             var events = new EcaBaseEventRegistry();
             events.Register(_event);
-            _system = new EcaSystem("system", new EcaSystemNamespace("ns"), events, new EcaCommandRegistry());
+            _system = new EcaSystem("system", new EcaSystemNamespace("ns"), events, new EcaCommandRegistry(), new EcaStateRegistry());
         }
 
         [TearDown]
@@ -97,7 +97,7 @@ namespace EcaSystems.Tests.Core2
             Assert.Throws<InvalidOperationException>(() => _runtime.DisconnectSystem(_system));
             _runtime.ConnectSystem(_system);
             Assert.Throws<InvalidOperationException>(() => _runtime.ConnectSystem(_system));
-            var foreign = new EcaSystem(_system.Id, _system.Namespace, _system.Events, _system.Commands);
+            var foreign = new EcaSystem(_system.Id, _system.Namespace, _system.Events, _system.Commands, new EcaStateRegistry());
             Assert.Throws<InvalidOperationException>(() => _runtime.DisconnectSystem(foreign));
             var scope = _runtime.CreateScope();
             Assert.DoesNotThrow(() => scope.EventEmitter.Fire(_event, 1));
@@ -191,7 +191,7 @@ namespace EcaSystems.Tests.Core2
             {
                 var probe = new ProbeEvents();
                 probes.Add(probe);
-                _runtime.ConnectSystem(new EcaSystem("s" + i, new EcaSystemNamespace("ns" + i), probe, new EcaCommandRegistry()));
+                _runtime.ConnectSystem(new EcaSystem("s" + i, new EcaSystemNamespace("ns" + i), probe, new EcaCommandRegistry(), new EcaStateRegistry()));
             }
             for (var i = 0; i < probes.Count; i++)
             {

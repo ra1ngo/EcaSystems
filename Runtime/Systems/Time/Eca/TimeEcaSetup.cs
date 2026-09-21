@@ -25,7 +25,7 @@ namespace EcaSystems.Time.Eca
             commands.Register(new EcaResumeTimerCommand(time));
             commands.Register(new EcaDestroyTimerCommand(time));
             commands.Register(new EcaWaitCommand(time));
-            return new EcaSystem("time", new EcaSystemNamespace("time"), events, commands,
+            return new EcaSystem("time", new EcaSystemNamespace("time"), events, commands, new EcaStateRegistry(),
                 name: "Time", description: "Standalone TimeSystem lifecycle and waits");
         }
     }

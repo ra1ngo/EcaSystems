@@ -1,6 +1,9 @@
 namespace EcaSystems.Core2
 {
-    public interface IEcaRuleState { }
+    public interface IEcaRuleState
+    {
+        string RuleId { get; }
+    }
 
     public interface IEcaRuleState<out E> : IEcaRuleState
     {

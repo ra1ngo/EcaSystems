@@ -16,9 +16,10 @@ namespace EcaSystems.Tests.Core2
             Func<State, ConditionContext, bool> check = null, Func<State, ActionContext, Task> run = null,
             Func<int, EcaExecutionGroupState, State> createState = null)
         {
+            var rule = NewRule(check: check, run: run);
             return new EcaExecutionGroup<int, State>(
-                NewRule(check: check, run: run), new EcaExecutionMode(overlap, limit),
-                createState ?? ((value, state) => new State(value, state)),
+                rule, new EcaExecutionMode(overlap, limit),
+                createState ?? ((value, state) => new State(value, state) { RuleId = rule.Id }),
                 new EcaBaseConditionChecker(), new EcaBaseActionRunner());
         }
 
@@ -52,10 +53,10 @@ namespace EcaSystems.Tests.Core2
         public void RuleState_PreservesPayloadAndLiveState()
         {
             var group = CreateGroup();
-            var state = new EcaExecutionRuleState<int>(42, group.State);
+            var state = new EcaExecutionRuleState<int>("rule", 42, group.State);
             Assert.That(state.EventState, Is.EqualTo(42));
             Assert.That(state.ExecutionGroupState, Is.SameAs(group.State));
-            Assert.Throws<ArgumentNullException>(() => new EcaExecutionRuleState<int>(42, null));
+            Assert.Throws<ArgumentNullException>(() => new EcaExecutionRuleState<int>("rule", 42, null));
         }
 
         [Test]

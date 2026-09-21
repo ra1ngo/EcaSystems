@@ -104,7 +104,7 @@ namespace EcaSystems.Tests.Core2
             Assert.That(registry.CheckRegistered(Command(id)), Is.False);
         }
 
-        private static EcaSystem System(string id) => new EcaSystem(id, new EcaSystemNamespace("ns"), new EcaBaseEventRegistry(), new EcaCommandRegistry());
+        private static EcaSystem System(string id) => new EcaSystem(id, new EcaSystemNamespace("ns"), new EcaBaseEventRegistry(), new EcaCommandRegistry(), new EcaStateRegistry());
 
         [Test]
         public void SystemRegistry_LiveReadOnlyViewAndCanonicalIdentity()

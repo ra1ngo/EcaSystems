@@ -16,11 +16,13 @@ namespace EcaSystems.Tests.Core2
 
         internal sealed class State : IEcaRuleState<int>
         {
+            public string RuleId { get; set; } = "rule";
             public int EventState { get; set; }
         }
 
         internal sealed class OtherState : IEcaRuleState<int>
         {
+            public string RuleId { get; set; } = "rule";
             public int EventState => 0;
         }
 

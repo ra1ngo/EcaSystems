@@ -4,7 +4,7 @@
 
 Это полезный результат mental test. Adapter не потребовал протащить ECA внутрь Time/Core. Вместо этого эксперимент показал улучшения, полезные любому standalone caller: aggregate lifecycle observation на TimeSystem, Timer как данные, отдельные lifecycle controller и tick processor, один TimerRegistry как источник истины. TimeSystemPlayerLoop владеет Unity hook и чтением scaled/unscaled clock pair; TimeTicker обновляет clock fields до callbacks, публикует tick и изолирует ошибки подписчиков; подписка существует только при tickable work. Двухфазная обработка сначала обновляет registry data, затем исполняет due transitions без callback mutation во время enumeration. Wait использует отдельный небольшой subsystem.
 
-Направления адаптации ясны: внешняя System → ECA через Events и IEcaEventEmitter; ECA → внешняя System через Commands. TimeSystem остаётся Unity-native и возвращает Awaitable; только Wait command переводит ожидание в Task. TimeEcaAdapter является живым bridge, EcaSystem — passive descriptor его exports. Шесть aggregate subscriptions заменяют слежение за каждым Timer.
+Направления адаптации ясны: внешняя System → ECA через Events и IEcaEventEmitter; ECA → внешняя System через Commands. TimeSystem остаётся Unity-native и возвращает Awaitable; только Wait command переводит ожидание в Task. TimeEcaAdapter является живым bridge, EcaSystem — passive descriptor его exports (Events, Commands, State resolution functions). Шесть aggregate subscriptions заменяют слежение за каждым Timer.
 
 EcaTimeEventState представляет immutable snapshot перехода, а не живой Timer. Immediate/reentrant handling может перезапустить таймер, но уже отправленный snapshot остаётся описанием исходного события.
 
@@ -34,7 +34,7 @@ Emitter остаётся typed instance-based Fire<E>(IEcaEvent<E>, E, IEcaCondi
 
 Один adapter ещё не обосновывает универсальный external-adapter framework. Production Core2 composition реализована; далее standalone Global State/Variables + ECA и небольшой end-to-end Sandbox/PlayMode scenario. После нескольких реальных adapters можно сравнить общие потребности.
 
-State/Queries, Signals, FireEvent и routing — самостоятельные будущие concepts. Generic C# event/Observable/polling/UnityEvent/InputAction adapters, cancellation, Repeat, timer groups и другие Time features не входят в эту итерацию.
+Queries, Signals, FireEvent и routing — самостоятельные будущие concepts. Generic C# event/Observable/polling/UnityEvent/InputAction adapters, cancellation, Repeat, timer groups и другие Time features не входят в эту итерацию.
 
 TimeSystemPlayerLoop не хранит systems/runners: цепочка — PlayerLoop → TimeTicker → подписанные TimeSystem. Каждый TimeSystem имеет один TimerTickProcessor для многих timers в одном TimerRegistry. Two-phase processing, version protection и reentrant due buffers сохранены. ScaleMode/SOLID refactor отложен до отдельного обсуждения; clock resolver/provider, ITimeSource и TimeSnapshot не добавлены.
 
@@ -50,3 +50,5 @@ Core2 ничего не знает о lifecycle внешних систем и �
 EcaSystemsRuntime v1 — production composition root поверх ScopeRuntime и global registries/Connector/одного CommandRunner, shared checker/action runner и internal RuleCreator. Public API: ConnectSystem, DisconnectSystem, CreateScope, CreateRule, Dispose; автоматического root Scope и public getters registries/runner нет. Runtime не создаёт contexts и не участвует в Fire. Dispose сначала закрывает scopes, затем disconnect-ит snapshot System exports, продолжая cleanup после ошибок и возвращая AggregateException; adapters не disconnect-ит. Running Actions завершаются естественно. DisconnectSystem не удаляет Rules, reconnect exact exports восстанавливает их Fire. Class/delegate CreateRule реализован; Unity/visual authoring остаётся Roadmap. После Connect local Event/Command exports стабильны по convention; изменение local registries может рассинхронизировать local/global. Freeze/snapshot/ownership/consistency не реализованы.
 
 Time Commands используют AEcaCommand<IEcaRuleState,IEcaActionContext,A>: текущие state/context передаются явно, но сами Time operations их не используют. ActionContext nullable, Commands в нём не хранятся; Action получает stable IEcaCommands через RuleCreator. Task contract и standalone Time business semantics сохранены.
+
+Concepts/State реализован независимо от Time: StateResolver.Resolve<T>(ruleState) передаёт RuleId/Scope state внешней функции без Bind. Actual state и его lifetime остаются во внешней System. TimeEcaSetup пока экспортирует пустой States registry; новую Time state surface эта итерация не добавляет.

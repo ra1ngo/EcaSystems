@@ -9,14 +9,16 @@ namespace EcaSystems.Core2
         private readonly EcaSystemNamespaceRegistry _namespaces;
         private readonly IEcaEventRegistry _events;
         private readonly EcaCommandRegistry _commands;
+        private readonly EcaStateRegistry _states;
 
         public EcaSystemConnector(EcaSystemRegistry systems, EcaSystemNamespaceRegistry namespaces,
-            IEcaEventRegistry events, EcaCommandRegistry commands)
+            IEcaEventRegistry events, EcaCommandRegistry commands, EcaStateRegistry states)
         {
             _systems = systems ?? throw new ArgumentNullException(nameof(systems));
             _namespaces = namespaces ?? throw new ArgumentNullException(nameof(namespaces));
             _events = events ?? throw new ArgumentNullException(nameof(events));
             _commands = commands ?? throw new ArgumentNullException(nameof(commands));
+            _states = states ?? throw new ArgumentNullException(nameof(states));
         }
 
         public void Connect(EcaSystem system)
@@ -40,6 +42,11 @@ namespace EcaSystems.Core2
                     _commands.Register(command);
                     undo.Push(() => RequireRemoved(_commands.Unregister(command.Id)));
                 }
+                foreach (var registration in system.States.Registrations)
+                {
+                    _states.Register(registration.Key, registration.Value);
+                    undo.Push(() => RequireRemoved(_states.Unregister(registration.Key)));
+                }
                 _systems.Register(system);
             }
             catch (Exception failure)
@@ -61,6 +68,11 @@ namespace EcaSystems.Core2
             {
                 RequireRemoved(_systems.Unregister(system.Id));
                 undo.Push(() => _systems.Register(system));
+                foreach (var registration in system.States.Registrations)
+                {
+                    RequireRemoved(_states.Unregister(registration.Key));
+                    undo.Push(() => _states.Register(registration.Key, registration.Value));
+                }
                 foreach (var command in system.Commands.Commands)
                 {
                     RequireRemoved(_commands.Unregister(command.Id));
@@ -103,6 +115,9 @@ namespace EcaSystems.Core2
                     throw new ArgumentException($"Duplicate command '{command.Id}' in System.", nameof(system));
                 RequirePresence(connected ? _commands.CheckRegistered(command) : _commands.Contains(command.Id), connected, "Command", command.Id);
             }
+            foreach (var registration in system.States.Registrations)
+                RequirePresence(connected ? _states.CheckRegistered(registration.Key, registration.Value) : _states.Contains(registration.Key),
+                    connected, "State", registration.Key.ToString());
         }
 
         private static void ValidateId(string id)

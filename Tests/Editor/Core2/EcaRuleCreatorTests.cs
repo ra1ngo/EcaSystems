@@ -22,7 +22,7 @@ namespace EcaSystems.Tests.Core2
             var events = new EcaBaseEventRegistry();
             events.Register(_event);
             _commands = new EcaCommandRegistry();
-            _system = new EcaSystem("system", new EcaSystemNamespace("ns"), events, _commands);
+            _system = new EcaSystem("system", new EcaSystemNamespace("ns"), events, _commands, new EcaStateRegistry());
         }
 
         [TearDown] public void TearDown() => _runtime.Dispose();
@@ -82,7 +82,7 @@ namespace EcaSystems.Tests.Core2
         {
             var events = new EcaBaseEventRegistry();
             events.Register(new LyingEvent());
-            _runtime.ConnectSystem(new EcaSystem("liar", new EcaSystemNamespace("liar"), events, new EcaCommandRegistry()));
+            _runtime.ConnectSystem(new EcaSystem("liar", new EcaSystemNamespace("liar"), events, new EcaCommandRegistry(), new EcaStateRegistry()));
             Assert.Throws<ArgumentException>(() => _runtime.CreateRule<int, RecordAction>("r", "liar"));
         }
 
@@ -128,7 +128,7 @@ namespace EcaSystems.Tests.Core2
             var created = new List<CustomState>();
             scope.Register(rule, Allow, (execution, local) =>
             {
-                var state = new CustomState { EventState = execution.EventState, ExecutionGroupState = execution.ExecutionGroupState, ScopeState = local };
+                var state = new CustomState { RuleId = execution.RuleId, EventState = execution.EventState, ExecutionGroupState = execution.ExecutionGroupState, ScopeState = local };
                 created.Add(state);
                 return state;
             });
@@ -143,13 +143,14 @@ namespace EcaSystems.Tests.Core2
         public void ActionInitializationAllowsExactlyOneSuccessfulCall()
         {
             var action = new RecordAction();
+            var resolver = new EcaStateResolver(new EcaStateRegistry());
             Assert.Throws<InvalidOperationException>(() => _ = action.Capability);
-            Assert.Throws<ArgumentNullException>(() => action.Initialize(null));
+            Assert.Throws<ArgumentNullException>(() => action.Initialize(null, resolver));
             var commands = new EcaCommandRunner(new EcaCommandRegistry());
-            action.Initialize(commands);
+            action.Initialize(commands, resolver);
             Assert.That(action.Capability, Is.SameAs(commands));
-            Assert.Throws<InvalidOperationException>(() => action.Initialize(commands));
-            Assert.Throws<InvalidOperationException>(() => action.Initialize(new EcaCommandRunner(new EcaCommandRegistry())));
+            Assert.Throws<InvalidOperationException>(() => action.Initialize(commands, resolver));
+            Assert.Throws<InvalidOperationException>(() => action.Initialize(new EcaCommandRunner(new EcaCommandRegistry()), resolver));
             Assert.That(action.Capability, Is.SameAs(commands));
         }
 
@@ -258,6 +259,7 @@ namespace EcaSystems.Tests.Core2
         }
         public sealed class CustomState : IEcaScopeRuleState<int>
         {
+            public string RuleId { get; set; } = "rule";
             public int EventState { get; set; }
             public EcaExecutionGroupState ExecutionGroupState { get; set; }
             public EcaScopeState ScopeState { get; set; }

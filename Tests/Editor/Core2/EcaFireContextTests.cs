@@ -20,11 +20,13 @@ namespace EcaSystems.Tests.Core2
         private sealed class OtherActions : IEcaActionContext { }
         private sealed class RichState : IEcaScopeRuleState<int>
         {
+            public string RuleId { get; set; } = "rule";
             public int EventState { get; }
             public EcaExecutionGroupState ExecutionGroupState { get; }
             public EcaScopeState ScopeState { get; }
             internal RichState(IEcaExecutionRuleState<int> state, EcaScopeState scope)
             {
+                RuleId = state.RuleId;
                 EventState = state.EventState;
                 ExecutionGroupState = state.ExecutionGroupState;
                 ScopeState = scope;
@@ -301,7 +303,7 @@ namespace EcaSystems.Tests.Core2
             runtime.Register(Rule<BaseTestSupport.State>("base",
                 (s, c) => { Assert.That(s, Is.SameAs(state)); Assert.That(c, Is.Null); return true; },
                 (s, a) => { Assert.That(s, Is.SameAs(state)); Assert.That(a, Is.Null); calls++; return Task.CompletedTask; }));
-            runtime.Fire<int, BaseTestSupport.State>(_event, 12, (r, e) => state);
+            runtime.ForceFire<int, BaseTestSupport.State>(_event, 12, (r, e) => state);
             Assert.That(calls, Is.EqualTo(1));
         }
     }

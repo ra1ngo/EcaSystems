@@ -21,7 +21,7 @@ namespace EcaSystems.Tests.Core2
             var contexts = new List<object>();
             foreach (var id in new[] { "A", "B", "C" })
             {
-                Runtime.Register(NewRule(id, (state, context) =>
+                RegisterRule(NewRule(id, (state, context) =>
                 {
                     states.Add(state);
                     contexts.Add(context);
@@ -40,7 +40,7 @@ namespace EcaSystems.Tests.Core2
             var other = NewRule("other", (state, context) => { trace.Add("wrong condition"); return true; },
                 (state, context) => { trace.Add("wrong action"); return Task.CompletedTask; });
             other.Event = otherEvent;
-            Runtime.Register(other, Allow, CreateState);
+            RegisterRule(other, Allow, CreateState);
 
             Fire(42);
             Assert.That(trace, Is.EqualTo(new[] { "Condition A", "Condition B", "Condition C", "Action A", "Action C" }));
@@ -63,12 +63,12 @@ namespace EcaSystems.Tests.Core2
         public void Fire_NullConditionStillWaitsForOtherChecks()
         {
             var trace = new List<string>();
-            Runtime.Register(NewRule("optional", run: (state, context) =>
+            RegisterRule(NewRule("optional", run: (state, context) =>
             {
                 trace.Add("Action optional");
                 return Task.CompletedTask;
             }), Allow, CreateState);
-            Runtime.Register(NewRule("failed", (state, context) =>
+            RegisterRule(NewRule("failed", (state, context) =>
             {
                 trace.Add("Condition failed");
                 return false;
@@ -84,8 +84,8 @@ namespace EcaSystems.Tests.Core2
         {
             var error = new InvalidOperationException("condition phase");
             var calls = 0;
-            Runtime.Register(NewRule("first", run: (state, context) => { calls++; return Task.CompletedTask; }), Allow, CreateState);
-            Runtime.Register(NewRule("failed", (state, context) => source == "condition" ? throw error : true), Allow,
+            RegisterRule(NewRule("first", run: (state, context) => { calls++; return Task.CompletedTask; }), Allow, CreateState);
+            RegisterRule(NewRule("failed", (state, context) => source == "condition" ? throw error : true), Allow,
                 (value, state) => source == "state" ? throw error : new State(value, state));
             Assert.That(Assert.Throws<InvalidOperationException>(() => Fire()), Is.SameAs(error));
             Assert.That(calls, Is.Zero);
@@ -102,7 +102,7 @@ namespace EcaSystems.Tests.Core2
             var error = new InvalidOperationException("execution phase");
             EcaExecution failed = null;
             var calls = 0;
-            Runtime.Register(NewRule("failed", run: (state, context) =>
+            RegisterRule(NewRule("failed", run: (state, context) =>
             {
                 if (source == "throw") throw error;
                 return source == "null" ? null : Task.FromException(error);
@@ -112,7 +112,7 @@ namespace EcaSystems.Tests.Core2
                 if (source == "state") throw error;
                 return new State(value, state);
             });
-            Runtime.Register(NewRule("next", run: (state, context) => { calls++; return Task.CompletedTask; }), Allow, CreateState);
+            RegisterRule(NewRule("next", run: (state, context) => { calls++; return Task.CompletedTask; }), Allow, CreateState);
             Fire();
             Assert.That(calls, Is.EqualTo(1));
             Assert.That(failed.Status, Is.EqualTo(EcaExecutionStatus.Failed));
@@ -129,7 +129,7 @@ namespace EcaSystems.Tests.Core2
         {
             var trace = new List<string>();
             var gate = NewGate();
-            Runtime.Register(NewRule("A", (state, context) =>
+            RegisterRule(NewRule("A", (state, context) =>
             {
                 trace.Add($"Condition A {state.EventState}");
                 return state.EventState == 1;
@@ -140,7 +140,7 @@ namespace EcaSystems.Tests.Core2
                 trace.Add("Return A outer");
                 return Task.CompletedTask;
             }), Allow, CreateState);
-            Runtime.Register(NewRule("B", (state, context) =>
+            RegisterRule(NewRule("B", (state, context) =>
             {
                 trace.Add($"Condition B {state.EventState}");
                 return true;
@@ -173,7 +173,7 @@ namespace EcaSystems.Tests.Core2
         {
             var observedActive = new List<int>();
             var observedStarted = new List<long>();
-            Runtime.Register(NewRule(run: (state, context) =>
+            RegisterRule(NewRule(run: (state, context) =>
             {
                 observedActive.Add(Runtime.GetGroup("rule").Executions.Count);
                 observedStarted.Add(state.ExecutionGroupState.TotalStarted);
@@ -201,13 +201,13 @@ namespace EcaSystems.Tests.Core2
             var next = NewRule("B", (state, context) => { trace.Add("Check B"); return true; },
                 (state, context) => { trace.Add("Old B"); return Task.CompletedTask; });
             var removed = false;
-            Runtime.Register(NewRule("A", run: (state, context) =>
+            RegisterRule(NewRule("A", run: (state, context) =>
             {
                 trace.Add("A");
                 if (!removed)
                 {
                     removed = Runtime.Unregister(next);
-                    if (replace) Runtime.Register(NewRule("B", run: (s, c) =>
+                    if (replace) RegisterRule(NewRule("B", run: (s, c) =>
                     {
                         trace.Add("New B");
                         return Task.CompletedTask;
@@ -215,7 +215,7 @@ namespace EcaSystems.Tests.Core2
                 }
                 return Task.CompletedTask;
             }), Allow, CreateState);
-            Runtime.Register(next, Allow, CreateState);
+            RegisterRule(next, Allow, CreateState);
             var oldGroup = Runtime.GetGroup("B");
             Fire();
             Assert.That(removed, Is.True);
@@ -236,7 +236,7 @@ namespace EcaSystems.Tests.Core2
             var created = 0;
             foreach (var id in new[] { "A", "B", "C" })
             {
-                Runtime.Register(NewRule(id, (state, context) =>
+                RegisterRule(NewRule(id, (state, context) =>
                 {
                     trace.Add("Condition " + id);
                     return id != "B";
@@ -247,10 +247,10 @@ namespace EcaSystems.Tests.Core2
                 }), new EcaExecutionMode(EcaExecutionModeOverlap.Ignore, 0),
                     (value, state) => throw new Exception("Execution state creator must not be used"));
             }
-            Runtime.Fire<int, State>(Event, 42, (rule, value) =>
+            Runtime.ForceFire<int, State>(Event, 42, (rule, value) =>
             {
                 created++;
-                return new State(value, forceState);
+                return new State(value, forceState) { RuleId = rule.Id };
             }, Conditions, Actions);
             Assert.That(created, Is.EqualTo(3));
             Assert.That(trace, Is.EqualTo(new[] { "Condition A", "Condition B", "Condition C", "Action A", "Action C" }));
@@ -273,8 +273,8 @@ namespace EcaSystems.Tests.Core2
                 Action = new BaseTestSupport.Action { RunHandler = (state, context) => { called = true; return Task.CompletedTask; } }
             };
             Rules.Register(rule);
-            Runtime.Fire<int, BaseTestSupport.State>(
-                Event, 1, (matching, value) => new BaseTestSupport.State { EventState = value },
+            Runtime.ForceFire<int, BaseTestSupport.State>(
+                Event, 1, (matching, value) => new BaseTestSupport.State { RuleId = matching.Id, EventState = value },
                 new BaseTestSupport.ConditionContext(), new BaseTestSupport.ActionContext());
             Assert.That(called, Is.True);
             Assert.That(Runtime.TryGetGroup(rule.Id, out _), Is.False);
@@ -295,14 +295,14 @@ namespace EcaSystems.Tests.Core2
                     Handler = (state, context) => { seen = state; return Task.CompletedTask; }
                 }
             };
-            Runtime.Register(rule, Allow, (value, state) => new EcaExecutionRuleState<object>(value, state));
+            Runtime.Register(rule, Allow, (value, state) => new EcaExecutionRuleState<object>(rule.Id, value, state));
             Runtime.Fire<object>(evt, payload, Conditions, Actions);
             Assert.That(seen.EventState, Is.SameAs(payload));
             Assert.That(seen.ExecutionGroupState, Is.SameAs(Runtime.GetGroup(rule.Id).State));
             Assert.That(seen.ExecutionGroupState.TotalFinished, Is.EqualTo(1));
             // R is still checked by caller-state Base Fire, but is no longer a normal Fire parameter.
-            Assert.Throws<InvalidOperationException>(() => Runtime.Fire<object, IEcaExecutionRuleState<object>>(
-                evt, payload, (r, value) => new EcaExecutionRuleState<object>(value, new EcaExecutionGroupState()), Conditions, Actions));
+            Assert.Throws<InvalidOperationException>(() => Runtime.ForceFire<object, IEcaExecutionRuleState<object>>(
+                evt, payload, (r, value) => new EcaExecutionRuleState<object>(r.Id, value, new EcaExecutionGroupState()), Conditions, Actions));
         }
 
         [Test]

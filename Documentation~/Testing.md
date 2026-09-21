@@ -2,6 +2,23 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## Core2 State / ForceFire / RuleId / Scope composition — 2026-09-21
+
+Добавлены 11 cases: EcaStateTests (8) и расширение Connector suite с 7 до 10. Проверены typed State identity, duplicate/missing/null validation, exact RuleState forwarding, global/per-Rule/per-Scope+Rule access, отсутствие result caching/ownership/Dispose внешних объектов, stable capabilities обоих authoring helpers, atomic one-time initialization, Connect/Disconnect/Reconnect, canonical delegate identity, rollback с State exports, ForceFire barrier/bypass и обычный emitter admission. Existing Disconnect rollback теперь также проверяет восстановление exact State registration. Fault injection для Connect создаёт last-step System conflict после prevalidation; компенсируются только операции Connector, injected unrelated registration не удаляется.
+
+Прежние Core2 tests адаптированы к Base RuleId, technical ForceFire и обязательному States registry descriptor/Connector. Стандартные Scope factories передают фактический rule.Id; custom Scope states сохраняют его из execution state, Execution test factories — из своего Rule. Scope/Execution assertions изоляции, Limit/Overlap, lifecycle, reentrancy и shared services сохранены. Existing Action initialization tests получили StateResolver dependency. Time/Eca setup/tests передают пустой States registry; Time business logic не менялась.
+
+Unity **6000.5.6f1**, фактически завершённые EditMode runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Первичный Core2 после API migration, до новых cases | 237 | 237 | 0 | 0 | 0 |
+| Focused State + Connector + RuleCreator + Scope + Execution | 72 | 72 | 0 | 0 | 0 |
+| Полный Core2 | 248 | 248 | 0 | 0 | 0 |
+| Полный EditMode | 432 | 432 | 0 | 0 | 0 |
+
+Все exit code 0. Полный suite: Core 37, Core1 77, Core2 248, Time 53, Time/Eca 17. Повторён прежний compiler warning CS0108 в EcaScopeTests.Fire(int), теперь строка 60; новых compiler warnings/errors нет. XML/log локально в .validation~/state-initial, state-focused, state-core2, state-full. PlayMode/IL2CPP/remote CI не запускались. Исторические записи ForceFire → Fire ниже относятся к прежнему API; актуальное разделение — ordinary Fire и technical ForceFire.
+
 ## Core2 RuleCreator и state-aware Commands — 2026-09-21
 
 Test scope расширен на 17 cases: EcaRuleCreatorTests (14) и EcaCommandStateTests (3). Покрыты facade/class/delegate authoring, canonical Event resolve и metadata errors, optional Condition, custom R через Scope factory, однократная Initialize, stable Commands, отдельная registration/Scope isolation, shared checker/runner, async execution lifecycle, state/context/args identity, несовместимые типы, null context и overlapping Tasks после unregister.

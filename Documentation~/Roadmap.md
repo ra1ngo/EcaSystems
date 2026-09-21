@@ -25,7 +25,7 @@ Core v1 реализует только одноразовые ID timers и Awai
 - [ ] Polling sources.
 - [ ] UnityEvent, InputAction / Unity callbacks и другие adapters по практическим сценариям.
 
-Первый конкретный TimeEcaAdapter уже использует typed Fire<E>. Перечисленные generic adapters остаются будущими возможностями после production composition / Global State / Sandbox; универсальный binding framework, Signals и State не реализованы. Способы адаптации могут различаться; lifecycle внешних Systems/adapters не принадлежит Core. Framework helpers допустимы без обязательной общей Core abstraction.
+Первый конкретный TimeEcaAdapter уже использует typed Fire<E>. Перечисленные generic adapters остаются будущими возможностями после production composition / Global State / Sandbox; универсальный binding framework, Signals не реализованы; State registry/resolver добавлен отдельно, без владения внешними данными. Способы адаптации могут различаться; lifecycle внешних Systems/adapters не принадлежит Core. Framework helpers допустимы без обязательной общей Core abstraction.
 
 ## Core2: согласованность Runtime и registries
 
@@ -179,7 +179,12 @@ Rule creation по Event ID реализован через internal EcaRuleCrea
 
 ## State
 
-- [ ] Scoped/hierarchical SystemState после Global State/Variables: inheritance, lookup, override по global → child → grandchild/local scopes. Этап отражён в ToDo; глобальный SystemState допустим как первый простой шаг, но не финальная модель.
+Core2 StateRegistry хранит typed resolution functions, stable StateResolver принимает RuleState явно без Bind. Actual data остаётся во внешней System; RuleId находится в Base state, координата Group — ScopeId + RuleId без ExecutionGroupId. Эти primitives не реализуют VariableSystem, Save/Load или automatic inheritance.
+
+- [ ] VariableSystem как отдельная standalone System и её ECA exports.
+- [ ] Save/Load внешних state отдельно от registry/resolver infrastructure.
+
+- [ ] Scoped/hierarchical SystemState после Global State/Variables: inheritance, lookup, override по global → child → grandchild/local scopes. Этап отражён в ToDo; внешние функции уже могут использовать ScopeId/RuleId, но automatic inheritance/override не предоставляются.
 
 ## Технический долг и архитектурное review
 

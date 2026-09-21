@@ -27,7 +27,7 @@ namespace EcaSystems.Tests.TimeEca
             _time = new TimeSystem();
             _events = new EcaBaseEventRegistry();
             _commands = new EcaCommandRegistry();
-            _connector = new EcaSystemConnector(new EcaSystemRegistry(), new EcaSystemNamespaceRegistry(), _events, _commands);
+            _connector = new EcaSystemConnector(new EcaSystemRegistry(), new EcaSystemNamespaceRegistry(), _events, _commands, new EcaStateRegistry());
             _emitter = new RecordingEmitter(_events);
             _system = TimeEcaSetup.CreateSystem(_time);
             _adapter = new TimeEcaAdapter(_time, _system.Events, _emitter);
@@ -43,7 +43,8 @@ namespace EcaSystems.Tests.TimeEca
         }
 
         private IEcaCommands Commands() => new EcaCommandRunner(_commands);
-        private sealed class CommandState : IEcaRuleState { }
+        private sealed class CommandState : IEcaRuleState {
+            public string RuleId { get; set; } = "rule"; }
         private void ConnectExportsAndAdapter() { _connector.Connect(_system); _adapter.Connect(); }
 
         [Test]

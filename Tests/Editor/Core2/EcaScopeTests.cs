@@ -14,6 +14,7 @@ namespace EcaSystems.Tests.Core2
         private sealed class ScopeA : IEcaScopeActionContext { public int Value => 22; }
         private sealed class RichState : IEcaScopeRuleState<int>
         {
+            public string RuleId { get; set; } = "rule";
             public int EventState { get; }
             public EcaExecutionGroupState ExecutionGroupState { get; }
             public EcaScopeState ScopeState { get; }
@@ -21,6 +22,7 @@ namespace EcaSystems.Tests.Core2
 
             public RichState(IEcaExecutionRuleState<int> state, EcaScopeState scope, string extra)
             {
+                RuleId = state.RuleId;
                 EventState = state.EventState;
                 ExecutionGroupState = state.ExecutionGroupState;
                 ScopeState = scope;
@@ -74,16 +76,16 @@ namespace EcaSystems.Tests.Core2
         {
             var payload = new object();
             var group = new EcaExecutionGroupState();
-            var state = new EcaScopeRuleState<object>(payload, group, _scope.State);
+            var state = new EcaScopeRuleState<object>("rule", payload, group, _scope.State);
             IEcaExecutionRuleState<object> execution = state;
             IEcaRuleState<object> basic = state;
             Assert.That(basic.EventState, Is.SameAs(payload));
             Assert.That(execution.ExecutionGroupState, Is.SameAs(group));
             Assert.That(state.ScopeState, Is.SameAs(_scope.State));
-            IEcaScopeRuleState<object> covariant = new EcaScopeRuleState<string>("text", group, _scope.State);
+            IEcaScopeRuleState<object> covariant = new EcaScopeRuleState<string>("rule", "text", group, _scope.State);
             Assert.That(covariant.EventState, Is.EqualTo("text"));
-            Assert.Throws<ArgumentNullException>(() => new EcaScopeRuleState<int>(0, null, _scope.State));
-            Assert.Throws<ArgumentNullException>(() => new EcaScopeRuleState<int>(0, group, null));
+            Assert.Throws<ArgumentNullException>(() => new EcaScopeRuleState<int>("rule", 0, null, _scope.State));
+            Assert.Throws<ArgumentNullException>(() => new EcaScopeRuleState<int>("rule", 0, group, null));
         }
 
         [Test]
@@ -332,8 +334,8 @@ namespace EcaSystems.Tests.Core2
                     new EcaExecutionMode(EcaExecutionModeOverlap.Ignore, 0),
                     (previous, scope) => throw new Exception("Must use caller createState"));
             }
-            _scope.Fire<int, EcaScopeRuleState<int>>(Event, 17,
-                (rule, value) => new EcaScopeRuleState<int>(value, callerGroup, callerScope), _condition, _action);
+            _scope.ForceFire<int, EcaScopeRuleState<int>>(Event, 17,
+                (rule, value) => new EcaScopeRuleState<int>(rule.Id, value, callerGroup, callerScope), _condition, _action);
             Assert.That(trace, Is.EqualTo(new[] { "Condition A", "Condition B", "Action A" }));
             Assert.That(seen[0], Is.SameAs(seen[2]));
             foreach (var state in seen)
