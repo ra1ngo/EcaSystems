@@ -2,6 +2,23 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## Variables Core V3 — 2026-09-23
+
+Добавлены **23 focused cases** в EcaVariablesV3Tests: Data/facade и direct mutations для int/float/bool/string, identity GetVariable/TryGetVariable, invalid/unsupported/exact type errors, navigation exact references и root siblings, read-only membership snapshots, point-in-time Store/Subtree snapshots без ancestors/foreign variables, одинаковый ordered bubbling direct/proxy writes, source StoreId и same event reference по маршруту, future Store aggregate subscription, root isolation, nested synchronous mutation и exception stopping на child/parent/root/System без rollback.
+
+Все прежние **30 cases** сохранены. EcaVariableStoreTests не менялся. В SameVariableIdIsIndependentAcrossParentsChildrenSiblingsAndRoots заменены только две parent-event expectations (0 → 2 и 1 → 3): это согласованное изменение subtree event responsibility. Assertions значений, old/default, siblings/other-root event isolation не ослаблялись. Это содержательная адаптация event semantics, не механическая миграция API. Core/Core1/Core2, Time и EcaVariableDefinition не изменены.
+
+Unity **6000.5.6f1**, последовательно завершённые runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Focused new V3 | 23 | 23 | 0 | 0 | 0 |
+| Полный Variables assembly | 53 | 53 | 0 | 0 | 0 |
+| Полный Core2 | 280 | 280 | 0 | 0 | 0 |
+| Полный EditMode | 517 | 517 | 0 | 0 | 0 |
+
+Все exit code 0. Full suite: Core 37, Core1 77, Core2 280, Time 53, Time/Eca 17, Variables 53. Compiler warnings/errors в этих runs отсутствуют; Unity повторяет существующее предупреждение о пустой EcaSystems.Unity assembly. XML/log локально: `.validation~/v3-focused`, `v3-variables`, `v3-core2`, `v3-full` с суффиксами `-results.xml` и `.log`. PlayMode/IL2CPP/remote CI не запускались. Variables assembly остаётся без references на Core2/Unity; ECA adapter, SaveLoad, Remove/Reparent/Copy/Templates/inheritance не реализованы.
+
 ## Variables Stores V2 — 2026-09-23
 
 Добавлены **14 Store manager cases**: forest с несколькими roots/deeper tree, globally unique ordinal IDs между branches, IDs как opaque строки (не paths), независимость Systems, exact lookup references, invalid IDs, missing parent, deterministic self-parent rejection без mutation/reservation, missing lookup, изоляция Variables/events между parent/child/sibling/root и отсутствие parent lookup даже у grandchild. Проверены все три setters для parent-only variable: они отклоняют missing local ID, parent остаётся неизменным.

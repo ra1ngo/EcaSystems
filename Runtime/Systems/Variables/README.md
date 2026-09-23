@@ -1,124 +1,111 @@
-# VariablesSystem
-
-`VariablesSystem` — небольшая standalone runtime-система типизированных игровых переменных по stable string ID.
-
-Она разрабатывается внутри EcaSystems и оптимизирована под дальнейшую интеграцию с ECA, но **Core VariablesSystem не зависит от EcaSystems runtime**. Систему предполагается позднее можно будет вынести в отдельный репозиторий без переноса Core2.
-
-## Статус
-
-Stores V2 реализован: assembly `EcaSystems.Variables`, namespace `EcaSystems.Variables`. Assembly не ссылается на Core2 или Unity (`noEngineReferences: true`). Variables/Eca пока только зарезервирован.
-
-Variable semantics, сохранённые из V1 в каждом Store:
-- explicit variable declarations;
-- stable string IDs;
-- exact value type contract;
-- `int`, `float`, `bool`, `string`;
-- current/old values;
-- `SetValue` для обычного change-only tracked set;
-- `ForceSetValue` для принудительного tracked set даже при same-value;
-- `SetCurrentValue` для direct current assignment без изменения OldValue и event;
-- единое событие изменения variable.
-
-Stores образуют forest через immutable ParentId. Reparent/copy/templates, inheritance, Save/Load, enum, history и reactive features остаются будущими возможностями.
-
-## Структура
-
-```text
-Variables/
-├── Core/            # standalone VariablesSystem
-├── Eca/             # зарезервировано, adapter не реализован
-├── Documentation~/  # локальный context / todo системы
-└── README.md
-```
-
-## Naming
-
-Название системы — `VariablesSystem`.
-
-Concrete classes/files используют префикс `Eca`:
-
-```text
-EcaVariablesSystem
-EcaVariableStore
-EcaVariable
-EcaVariableDefinition
-EcaVariableChanged
-```
-
-Префикс используется для изоляции имён от built-in и third-party типов и не означает, что standalone Core зависит от EcaSystems.
-
-## Архитектурный принцип
-
-EcaVariablesSystem управляет Stores; каждый EcaVariableStore владеет своими actual variable data.
-
-EcaSystems позже может читать Variables через State и изменять их через Commands, но EcaStateRegistry не владеет и не сериализует данные VariablesSystem.
-
-Stores VariablesSystem не обязаны совпадать с ECA Scope или Execution/Rule identity. Любое сопоставление между этими координатами должно оставаться политикой ECA adapter.
-
-## Stores и local lookup
-
-Store IDs глобально уникальны внутри одного EcaVariablesSystem и сравниваются ordinal; ID не является path. ParentId optional (`null` для root) и immutable. Несколько roots образуют forest. Parent должен уже существовать и означает только ownership, без поиска variables, inheritance/fallback/override или propagation events.
-
-Manager не создаёт implicit global/default/root Store. Старые system-level VariableChanged/Declare/Contains/GetValue/TryGetValue/SetValue/ForceSetValue/SetCurrentValue удалены без proxy methods. Store создаётся только через manager; его constructor internal.
-
-```csharp
-var variables = new EcaVariablesSystem();
-var global = variables.CreateStore("global");
-var entities = variables.CreateStore("entities");
-var player = variables.CreateStore("player", "entities");
-
-global.Declare("difficulty", 2);
-entities.Declare("parentOnly", 7);
-player.Declare("health", 100);
-var health = player.GetValue<int>("health");
-// Оба вызова дают InvalidOperationException: lookup строго local.
-player.GetValue<int>("difficulty"); // не ищет в global/других Stores
-player.GetValue<int>("parentOnly"); // не ищет даже в своём parent
-```
-
-CreateStore проверяет storeId, затем non-null parentId на null/empty/whitespace (ArgumentException), duplicate StoreId (InvalidOperationException), затем existence parent (InvalidOperationException). Self-parent нового ID отклоняется как missing parent, существующего — как duplicate; Store не создаётся и не изменяется. GetStore missing даёт InvalidOperationException, ContainsStore — false, TryGetStore — false + null; существующий lookup возвращает exact instance. Invalid ID во всех lookup methods даёт ArgumentException.
-
-Одинаковый variable ID допустим в разных Stores, в том числе parent/child, с независимыми значениями и declared types. VariableChanged испускается только конкретным Store. StoreId в snapshot, aggregate event, bubbling и Store events отсутствуют.
-
-## Public API Stores V2
+# VariablesSystem — Core V3
 
 VariablesSystem является standalone system. Она разрабатывается для EcaSystems и использует Eca-prefixed naming, но Core VariablesSystem не зависит от EcaSystems runtime.
 
-`EcaVariablesSystem`:
+Assembly/namespace — `EcaSystems.Variables`. References пусты, `noEngineReferences: true`. В `Core/` находится standalone implementation, `Eca/` зарезервирован для будущего adapter. Архитектурный контекст — [Context](Documentation~/Context.md), следующие шаги — [ToDo](Documentation~/ToDo.md), будущие возможности — [Roadmap](Documentation~/Roadmap.md).
+
+## Ownership и использование
+
+System управляет forest Stores со stable globally unique per-system ordinal IDs. Store содержит local Variables. ParentId optional и immutable, null означает root. Автоматического global/default Store нет, ID не является path. Parent означает structural ownership, **Variable lookup строго local**: navigation и bubbling не добавляют inheritance/fallback/override. Store/Variable IDs не обязаны совпадать с EcaScope/RuleId.
 
 ```csharp
-public EcaVariableStore CreateStore(string storeId, string parentId = null);
-public bool ContainsStore(string storeId);
-public EcaVariableStore GetStore(string storeId);
-public bool TryGetStore(string storeId, out EcaVariableStore store);
+var variables = new EcaVariablesSystem();
+variables.VariableChanged += change => Console.WriteLine(change.StoreId);
+var global = variables.CreateStore("global");
+var entities = variables.CreateStore("entities");
+var player = variables.CreateStore("player", "entities");
+global.Declare("difficulty", 2);
+entities.Declare("parentOnly", 7);
+var health = player.Declare("health", 100);
+health.SetValue(90);                 // тот же pipeline, что player.SetValue("health", 90)
+var value = player.GetValue<int>("health");
+var snapshot = entities.GetSubtreeState();
+// player.GetValue<int>("difficulty") и player.GetValue<int>("parentOnly") бросают:
+// variables не ищутся ни в другом root, ни в parent.
 ```
+
+## Variable: Data, facade, controller
+
+`EcaVariableDefinition` — immutable Id/ValueType/DefaultValue, **без StoreId**. `EcaVariableData` содержит owning StoreId, Definition и единственные live CurrentValue/OldValue (public read, internal write). `EcaVariable` предоставляет facade над Data и делегирует behavior internal sealed `EcaVariableController`. Data/facade constructors internal.
+
+`EcaVariable` public API:
+
+```csharp
+public EcaVariableData Data { get; }
+public string StoreId { get; }
+public EcaVariableDefinition Definition { get; }
+public object CurrentValue { get; }
+public object OldValue { get; }
+public T GetValue<T>();
+public void SetValue<T>(T value);
+public void ForceSetValue<T>(T value);
+public void SetCurrentValue<T>(T value);
+```
+
+Definition.DefaultValue никогда не меняется; при declaration Current=Old=Default, event отсутствует. Поддержаны только int/float/bool/string; string null допустим. Type contract exact, без conversions; equality — `EqualityComparer<T>`.Default, включая float NaN.
+
+| Операция | Old | Current | Event |
+| --- | --- | --- | --- |
+| SetValue, equal | без изменений | без изменений | нет |
+| SetValue, changed | предыдущий Current | new | один snapshot |
+| ForceSetValue | предыдущий Current | new | один snapshot даже при equal |
+| SetCurrentValue | без изменений | new | нет |
+
+Store proxies resolve-ят тот же facade и вызывают его методы. GetVariable/TryGetVariable возвращают exact instance из Declare. Invalid ID → ArgumentException; unsupported T → NotSupportedException; duplicate/missing/wrong exact type → InvalidOperationException. TryGetValue подавляет только missing (false + default), TryGetVariable — missing (false + null). Старый порядок validation proxies сохранён: ID → supported T → existence → exact type.
+
+## Public API Store/System
 
 `EcaVariableStore`:
 
 ```csharp
 public string Id { get; }
 public string ParentId { get; }
+public bool IsRoot { get; }
 public event Action<EcaVariableChanged> VariableChanged;
 public EcaVariable Declare<T>(string variableId, T defaultValue);
 public bool Contains(string variableId);
+public EcaVariable GetVariable(string variableId);
+public bool TryGetVariable(string variableId, out EcaVariable variable);
 public T GetValue<T>(string variableId);
 public bool TryGetValue<T>(string variableId, out T value);
 public void SetValue<T>(string variableId, T value);
 public void ForceSetValue<T>(string variableId, T value);
 public void SetCurrentValue<T>(string variableId, T value);
+public EcaVariableStore GetParent();
+public bool TryGetParent(out EcaVariableStore parent);
+public IReadOnlyList<EcaVariableStore> GetChildren();
+public IReadOnlyList<EcaVariableStore> GetSiblings();
+public IReadOnlyList<EcaVariableStore> GetSubtree();
+public EcaVariableStoreState GetStoreState();
+public EcaVariableSubtreeState GetSubtreeState();
 ```
 
-`Declare` возвращает runtime-owned `EcaVariable` с публичными getters `Definition`, `CurrentValue`, `OldValue`. Definition (`Id`, `ValueType`, `DefaultValue`) immutable: исходный DefaultValue никогда не меняется. На declaration Old и Current равны Default, event отсутствует. Создание Definition/Variable/Changed принадлежит Store; их constructors internal.
+`EcaVariablesSystem`:
 
-| Setter | OldValue | CurrentValue | VariableChanged |
-| --- | --- | --- | --- |
-| SetValue, equal | без изменений | без изменений | нет |
-| SetValue, changed | прежний Current | новое значение | один snapshot |
-| ForceSetValue | прежний Current | новое значение | один snapshot, даже при equal |
-| SetCurrentValue | без изменений | новое значение | нет |
+```csharp
+public event Action<EcaVariableChanged> VariableChanged;
+public EcaVariableStore CreateStore(string storeId, string parentId = null);
+public bool ContainsStore(string storeId);
+public EcaVariableStore GetStore(string storeId);
+public bool TryGetStore(string storeId, out EcaVariableStore store);
+```
 
-Equality — `EqualityComparer<T>.Default`, включая float NaN. `string null` допустим. `EcaVariableChanged` — отдельный immutable snapshot с getters Definition/CurrentValue/OldValue, явно mapped из Variable перед callbacks; Definition сохраняет ту же ссылку. Последующие и reentrant mutations не меняют snapshot. Event обычный синхронный C# event; исключение подписчика распространяется после записи, автоматического rollback/изоляции подписчиков нет. Concurrent access не синхронизирован.
+GetStore/TryGetStore возвращают exact instance; missing GetStore бросает InvalidOperationException, Try возвращает false + null. CreateStore требует существующего parent; non-null пустой parentId и invalid storeId дают ArgumentException. Duplicate ID и missing parent дают InvalidOperationException без изменения manager. Self-parent нового ID отклоняется как missing parent, существующего — как duplicate. Flat Variable API System отсутствует.
 
-Все ID используют ordinal comparison, null/empty/whitespace дают ArgumentException. Только int/float/bool/string; другой T даёт NotSupportedException. Duplicate ID, missing обязательного lookup/set и wrong exact T дают InvalidOperationException, conversions отсутствуют. TryGetValue подавляет только missing ID (false + default), string null остаётся успешным результатом. Все setters проверяют ID → supported T → existence → exact declared type до записи. Get/Try/Declare также сначала проверяют ID и supported T.
+## Navigation и snapshots
 
-Tests находятся в `Tests/Editor/Systems/Variables`, отдельная assembly `EcaSystems.Variables.Editor.Tests`. Следующие обязательные задачи — [локальный ToDo](Documentation~/ToDo.md), будущие возможности — [Variables Roadmap](Documentation~/Roadmap.md). Store ownership реализован; ECA adapter и Save/Load пока не реализованы.
+Root.GetParent() возвращает null, TryGetParent — false + null. Children — только direct children; siblings — все остальные Stores с тем же ParentId, **roots являются siblings друг другу**. Subtree включает сам Store и всех descendants ровно один раз, без ancestors/siblings вне subtree. Порядок не является контрактом. Navigation collections — read-only снимки состава с live Store references; последующее CreateStore не меняет старую collection.
+
+`EcaVariableSnapshot` содержит StoreId/Definition/CurrentValue/OldValue. `EcaVariableStoreState` содержит StoreId/ParentId/IsRoot и `IReadOnlyList<EcaVariableSnapshot>` Variables, только local. `EcaVariableSubtreeState` содержит RootStoreId и `IReadOnlyList<EcaVariableStoreState>` Stores — плоскую topology через ParentId. Это immutable point-in-time snapshots: mutation, Declare и создание descendant не меняют уже полученные данные или collections. Immutable Definition может сохранять ту же ссылку.
+
+## Bottom-up VariableChanged
+
+Порядок: **source Store → parent → grandparent → root → EcaVariablesSystem**. Store.VariableChanged получает изменения самого Store и всего subtree; System event — terminal aggregate. Для local-only обработки: `if (change.StoreId == store.Id) ...`.
+
+Controller после записи создаёт snapshot через отдельный internal sealed EcaVariableChangedMapper (только Map(EcaVariable) → EcaVariableChanged), затем owning Store явно проводит его вверх по authoritative `_stores` System. Topology не строится подписками child.VariableChanged += parent. На всех уровнях передаётся тот же snapshot с неизменным source StoreId. Подписка System работает и для будущих Stores.
+
+Для EcaVariableSnapshot используется другой internal sealed EcaVariableSnapshotMapper, также только Map(EcaVariable). Event и Core snapshot не переиспользуются друг вместо друга.
+
+Events синхронны/reentrant: nested mutation полностью проходит маршрут до продолжения outer callbacks, outer snapshot не меняется. Исключение subscriber распространяется без замены, останавливает следующих subscribers и оставшийся маршрут; mutation уже выполнена, rollback/isolation/queue отсутствуют. Concurrent access не синхронизирован.
+
+Remove/Reparent/Copy/Templates, inheritance, ECA adapter, SaveLoad, Store lifecycle events, History, enum и reactive features не реализованы. Tests: `Tests/Editor/Systems/Variables`, assembly `EcaSystems.Variables.Editor.Tests`.

@@ -6,7 +6,7 @@
 
 ### Reparent / изменение ParentId
 
-В ближайшей Store-модели ParentId immutable после создания.
+В Core V3 ParentId immutable после создания.
 
 Позже рассмотреть явную операцию изменения parent, например MoveStore / ReparentStore.
 
@@ -18,19 +18,11 @@
 - Save/Load и persistence identity;
 - влияние на templates/copies.
 
-### Tree navigation: parent / siblings
+### Navigation после Core V3
 
-После базовых child/subtree navigation отдельно рассмотреть классические навигационные операции:
-- получить parent Store;
-- получить siblings Store;
-- получить ancestors;
-- получить roots / соседние root Stores.
+Реализованы IsRoot, GetParent/TryGetParent, GetChildren/GetSiblings/GetSubtree и point-in-time GetStoreState/GetSubtreeState. Roots считаются siblings друг другу; navigation использует authoritative EcaVariablesSystem без дублирования tree graph.
 
-Предпочтительно не дублировать tree ownership внутри Store: navigation должна использовать authoritative структуру EcaVariablesSystem.
-
-Перед реализацией siblings отдельно зафиксировать semantics для root Stores: считать ли остальные roots siblings при общем null ParentId.
-
-Если в ближайшей Core-итерации Store получит internal owner/reference на EcaVariablesSystem для GetChildren/GetSubtree, parent/siblings технически станут простыми, но не добавлять public API автоматически без согласованной semantics.
+Будущие отдельные удобства при практической необходимости: ancestors API и явный общий roots API. Они не добавлены автоматически.
 
 ### Copy Store
 
@@ -60,7 +52,7 @@ Template не должен быть live inheritance от исходного Sto
 
 ## Parent lookup / inheritance / override
 
-Store tree в ближайшей реализации означает только ownership.
+Store tree в Core V3 означает ownership. Navigation и bubbling не меняют local Variable lookup.
 
 В будущем отдельно рассмотреть resolved lookup:
 
@@ -77,10 +69,9 @@ local -> parent -> parent.parent -> ...
 
 ## Store events
 
-Позже спроектировать:
-- создание/удаление/перемещение Store;
-- aggregate VariableChanged с source StoreId;
-- bubbling/propagation только при реальном use case.
+Core V3 реализовал aggregate System.VariableChanged и bottom-up bubbling со source StoreId, без event subscription wiring.
+
+Будущая отдельная задача — Store lifecycle events создания/удаления/перемещения. Remove/Reparent и их event semantics пока не реализованы.
 
 ## History
 

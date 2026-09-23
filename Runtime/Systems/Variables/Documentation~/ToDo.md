@@ -46,15 +46,31 @@
 - [x] Immutable optional ParentId, несколько roots и forest/tree.
 - [x] Parent должен существовать; self-parent отклоняется без mutation.
 - [x] Parent означает только ownership; lookup variables строго local, без inheritance/fallback/override.
-- [x] Local events без bubbling/aggregate System event; snapshot не изменён.
+- [x] В V2 были local events без bubbling; Core V3 ниже заменяет это subtree/aggregate semantics.
 - [x] Независимость Store/Variable IDs от EcaScope/RuleId; mapping остаётся будущей adapter policy.
 - [x] Мигрировать 16 прежних Variable test cases без ослабления assertions; добавить 14 Store cases.
 - [x] Unity 6000.5.6f1: focused 14/14, Variables assembly 30/30, Core2 280/280, EditMode 494/494.
-- [ ] Дополнительный Store lifecycle и events спроектировать отдельно.
+- [ ] Store lifecycle events создания/удаления/перемещения спроектировать отдельно. VariableChanged bubbling реализован в Core V3.
 
 Reparent, Copy, Templates, hierarchical lookup/inheritance/override остаются будущими возможностями [Roadmap](Roadmap.md), не реализованы в V2.
 
-## Итерация 3 — Variables / ECA adapter
+## Итерация 3 — Core V3 (выполнена)
+
+- [x] EcaVariableData как единственный live state, StoreId/Definition/Current/Old.
+- [x] EcaVariable facade с direct Get/Set/ForceSet/SetCurrent и internal EcaVariableController.
+- [x] Store proxies используют тот же facade/behavior; GetVariable/TryGetVariable возвращают exact instance.
+- [x] Definition immutable и без StoreId; StoreId в Data/facade/Changed/Snapshot.
+- [x] Отдельные internal EcaVariableChangedMapper и EcaVariableSnapshotMapper.
+- [x] Immutable EcaVariableSnapshot, EcaVariableStoreState, EcaVariableSubtreeState и read-only point-in-time collections.
+- [x] IsRoot, Parent/TryParent, Children/Siblings/Subtree; roots являются siblings.
+- [x] Navigation через authoritative System dictionary, без дополнительных indexes/graphs.
+- [x] Synchronous bottom-up bubbling source → ancestors → System без public event wiring.
+- [x] Store.VariableChanged subtree-scoped, source StoreId сохраняется; System aggregate работает для будущих Stores.
+- [x] Reentrancy, exact exception propagation, no rollback/isolation и local Variable lookup сохранены.
+- [x] 23 новых focused cases; прежние 30 cases сохранены, две parent-event expectations адаптированы к V3.
+- [x] Unity 6000.5.6f1: focused 23/23, Variables 53/53, Core2 280/280, EditMode 517/517.
+
+## Следующая итерация — Variables / ECA adapter
 
 - [ ] Добавить `Runtime/Systems/Variables/Eca`.
 - [ ] Согласовать read-only State contract.
