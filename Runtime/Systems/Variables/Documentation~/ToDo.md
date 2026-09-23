@@ -21,10 +21,14 @@
 - [ ] Реализовать non-generic `EcaVariable` с Definition / CurrentValue / OldValue.
 - [ ] Реализовать `int / float / bool / string`.
 - [ ] Реализовать explicit declaration.
-- [ ] Реализовать Declare/Get/TryGet/Set/Contains в согласованной generic access форме.
+- [ ] Реализовать `Declare<T>/GetValue<T>/TryGetValue<T>/Contains`.
+- [ ] Реализовать `SetValue<T>`: same-value → no-op; changed value → Old=previous Current, Current=new, VariableChanged.
+- [ ] Реализовать `ForceSetValue<T>`: всегда Old=previous Current, Current=new, VariableChanged, включая same-value; validation не обходится.
+- [ ] Реализовать `SetCurrentValue<T>`: меняет только CurrentValue, OldValue не меняется, VariableChanged не испускается.
 - [ ] Duplicate declaration → exception.
 - [ ] Missing variable для обязательных операций → exception.
-- [ ] Wrong requested/set type → exception.
+- [ ] `TryGetValue<T>`: missing → false.
+- [ ] Wrong requested/set type → exception, включая TryGetValue.
 - [ ] Реализовать standalone VariableChanged event.
 - [ ] Event payload — отдельный `EcaVariableChanged`, явно mapped из `EcaVariable`.
 - [ ] `EcaVariableChanged` содержит Definition / CurrentValue / OldValue.
@@ -52,7 +56,7 @@
 - [ ] Согласовать read-only State contract.
 - [ ] Использовать opaque State payload для explicit container/entity selection при необходимости.
 - [ ] Согласовать общий ECA `VariableChanged` event payload.
-- [ ] Добавить минимальный Set Command.
+- [ ] Добавить минимальный SetValue Command.
 - [ ] Не требовать соответствующих EcaScope/Variables containers с обеих сторон.
 
 ## Следом
