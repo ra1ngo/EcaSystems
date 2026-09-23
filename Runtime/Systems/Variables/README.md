@@ -14,6 +14,9 @@
 - exact value type contract;
 - `int`, `float`, `bool`, `string`;
 - current/old values;
+- `SetValue` для обычного change-only tracked set;
+- `ForceSetValue` для принудительного tracked set даже при same-value;
+- `SetCurrentValue` для direct current assignment без изменения OldValue и event;
 - единое событие изменения variable.
 
 Stores/groups/scopes/entity groups, Save/Load, enum, history и reactive features будут рассматриваться отдельными итерациями.
