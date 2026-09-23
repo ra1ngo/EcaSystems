@@ -36,21 +36,23 @@
 - [x] Не добавлять Stores/Groups/Scopes/EntityGroups в этой итерации.
 - [x] Не добавлять Save/Load, enum, history или reactivity.
 
-## Итерация 2 — древовидные containers
+## Итерация 2 — Stores V2 (выполнена)
 
-- [ ] Спроектировать один общий container concept вместо отдельных Store/Group/Scope/EntityGroup сущностей.
-- [ ] Рабочий naming: Store; подтвердить или заменить при проектировании.
-- [ ] Stable container ID, глобально уникальный внутри одного EcaVariablesSystem.
-- [ ] Optional ParentId.
-- [ ] Дерево/forest вложенных containers.
-- [ ] ParentId означает только ownership/structure; parent variable lookup отсутствует.
-- [ ] Store lookup variables только локальный.
-- [ ] Container lifecycle/API обсуждается отдельно.
-- [ ] Не связывать container existence с EcaScope.
-- [ ] Не связывать container ID с RuleId/entityId автоматически.
-- [ ] Mapping ECA coordinates → Variables container остаётся adapter policy.
-- [ ] Hierarchical lookup/inheritance/override не реализовывать в этой итерации; это Roadmap.
-- [ ] Событие изменения container/store спроектировать позже.
+- [x] EcaVariableStore как единый owner Variables, без специальных Scope/Group/EntityGroup классов.
+- [x] Перенести Variable API и VariableChanged в Store, сохранив все semantics V1.
+- [x] EcaVariablesSystem как manager: CreateStore/ContainsStore/GetStore/TryGetStore.
+- [x] Удалить flat System API без proxies и implicit/default/global Store.
+- [x] Stable StoreId, globally unique per System, StringComparer.Ordinal, не path.
+- [x] Immutable optional ParentId, несколько roots и forest/tree.
+- [x] Parent должен существовать; self-parent отклоняется без mutation.
+- [x] Parent означает только ownership; lookup variables строго local, без inheritance/fallback/override.
+- [x] Local events без bubbling/aggregate System event; snapshot не изменён.
+- [x] Независимость Store/Variable IDs от EcaScope/RuleId; mapping остаётся будущей adapter policy.
+- [x] Мигрировать 16 прежних Variable test cases без ослабления assertions; добавить 14 Store cases.
+- [x] Unity 6000.5.6f1: focused 14/14, Variables assembly 30/30, Core2 280/280, EditMode 494/494.
+- [ ] Дополнительный Store lifecycle и events спроектировать отдельно.
+
+Reparent, Copy, Templates, hierarchical lookup/inheritance/override остаются будущими возможностями [Roadmap](Roadmap.md), не реализованы в V2.
 
 ## Итерация 3 — Variables / ECA adapter
 

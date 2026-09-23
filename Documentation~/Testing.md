@@ -2,6 +2,23 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## Variables Stores V2 — 2026-09-23
+
+Добавлены **14 Store manager cases**: forest с несколькими roots/deeper tree, globally unique ordinal IDs между branches, IDs как opaque строки (не paths), независимость Systems, exact lookup references, invalid IDs, missing parent, deterministic self-parent rejection без mutation/reservation, missing lookup, изоляция Variables/events между parent/child/sibling/root и отсутствие parent lookup даже у grandchild. Проверены все три setters для parent-only variable: они отклоняют missing local ID, parent остаётся неизменным.
+
+Прежние **16 cases** перенесены из EcaVariablesSystemTests в EcaVariableStoreTests; исходный .meta GUID сохранён при переносе. Менялись только создание явного Store, receiver методов и тип helper. Сравнение нормализованного source подтвердило, что все semantic assertions сохранены. Реализация Variable API также перенесена в EcaVariableStore без изменения тела методов; EcaVariable/Definition/Changed и assemblies не менялись. Новый EcaVariablesSystemTests посвящён manager. Production изменения ограничены System/Store; Core/Core1/Core2 и Time не изменены.
+
+Unity **6000.5.6f1**, последовательно завершённые runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Focused Store manager | 14 | 14 | 0 | 0 | 0 |
+| Полный Variables assembly | 30 | 30 | 0 | 0 | 0 |
+| Полный Core2 | 280 | 280 | 0 | 0 | 0 |
+| Полный EditMode | 494 | 494 | 0 | 0 | 0 |
+
+Все exit code 0. Full suite: Core 37, Core1 77, Core2 280, Time 53, Time/Eca 17, Variables 30. В этих runs compiler warnings/errors не обнаружены; Unity повторяет существующее предупреждение о пустой EcaSystems.Unity assembly. XML/log локально: `.validation~/stores-focused`, `stores-variables`, `stores-core2`, `stores-full` с суффиксами `-results.xml` и `.log`. PlayMode/IL2CPP/remote CI не запускались. ParentId означает только ownership; Remove/Reparent/Copy/Templates/ECA adapter/SaveLoad не добавлены.
+
 ## State opaque payload + standalone Variables Core V1 — 2026-09-23
 
 Добавлены **32 test cases**: EcaStatePayloadTests (11), Connector payload cases (5), standalone EcaVariablesSystemTests (16). State tests проверяют exact RuleState/payload forwarding, null payload/result, отсутствие caching, strict shape, duplicate ID независимо от T/shape, точный declared type, validation order и external exceptions. Connector tests проверяют original delegate identity, Connect/Disconnect/Reconnect без вызова resolver, shape/delegate mismatch и rollback обоих направлений. Connector production algorithm не менялся: расширена canonical registration validation в StateRegistry.

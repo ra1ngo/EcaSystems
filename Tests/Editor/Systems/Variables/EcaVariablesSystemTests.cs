@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using EcaSystems.Variables;
 using NUnit.Framework;
 
@@ -7,204 +6,189 @@ namespace EcaSystems.Tests.Variables
 {
     public sealed class EcaVariablesSystemTests
     {
-        [Test] public void IntDeclarationAndMutations() => VerifyValues(0, 10, 50, 60);
-        [Test] public void FloatDeclarationAndMutations() => VerifyValues(0f, 1.25f, 2.5f, 3.75f);
-        [Test] public void BoolDeclarationAndMutations() => VerifyValues(false, true, false, true);
-        [Test] public void StringDeclarationAndMutations() => VerifyValues("default", "first", "direct", "last");
-        [Test] public void NullStringDeclarationAndMutations() => VerifyValues<string>(null, "first", "direct", null);
-
-        private static void VerifyValues<T>(T initial, T changed, T direct, T last)
+        [Test]
+        public void CreateStoreBuildsForestWithImmutableCoordinatesAndNoImplicitRoot()
         {
             var system = new EcaVariablesSystem();
-            var events = new List<EcaVariableChanged>();
-            system.VariableChanged += events.Add;
-            var variable = system.Declare("id", initial);
-            var definition = variable.Definition;
-            Assert.That(definition.Id, Is.EqualTo("id"));
-            Assert.That(definition.ValueType, Is.EqualTo(typeof(T)));
-            Assert.That(definition.DefaultValue, Is.EqualTo(initial));
-            Assert.That(variable.CurrentValue, Is.EqualTo(initial));
-            Assert.That(variable.OldValue, Is.EqualTo(initial));
-            Assert.That(system.GetValue<T>("id"), Is.EqualTo(initial));
-            Assert.That(system.TryGetValue<T>("id", out var found), Is.True);
-            Assert.That(found, Is.EqualTo(initial));
-            Assert.That(events, Is.Empty);
-            system.SetValue("id", initial);
-            Assert.That(events, Is.Empty);
-            system.SetValue("id", changed);
-            Assert.That(variable.OldValue, Is.EqualTo(initial));
-            Assert.That(variable.CurrentValue, Is.EqualTo(changed));
-            Assert.That(events, Has.Count.EqualTo(1));
-            var snapshot = events[0];
-            Assert.That((object)snapshot, Is.Not.SameAs(variable));
-            Assert.That(snapshot.Definition, Is.SameAs(definition));
-            Assert.That(snapshot.OldValue, Is.EqualTo(initial));
-            Assert.That(snapshot.CurrentValue, Is.EqualTo(changed));
-            system.SetValue("id", changed);
-            Assert.That(variable.OldValue, Is.EqualTo(initial));
-            Assert.That(events, Has.Count.EqualTo(1));
-            system.ForceSetValue("id", changed);
-            Assert.That(variable.OldValue, Is.EqualTo(changed));
-            Assert.That(variable.CurrentValue, Is.EqualTo(changed));
-            Assert.That(events, Has.Count.EqualTo(2));
-            Assert.That(events[1], Is.Not.SameAs(snapshot));
-            Assert.That(events[1].OldValue, Is.EqualTo(changed));
-            system.ForceSetValue("id", initial);
-            Assert.That(variable.OldValue, Is.EqualTo(changed));
-            Assert.That(variable.CurrentValue, Is.EqualTo(initial));
-            Assert.That(events, Has.Count.EqualTo(3));
-            Assert.That(events[2].OldValue, Is.EqualTo(changed));
-            Assert.That(events[2].CurrentValue, Is.EqualTo(initial));
-            system.SetCurrentValue("id", direct);
-            Assert.That(variable.CurrentValue, Is.EqualTo(direct));
-            Assert.That(variable.OldValue, Is.EqualTo(changed));
-            Assert.That(events, Has.Count.EqualTo(3));
-            system.SetValue("id", last);
-            Assert.That(variable.CurrentValue, Is.EqualTo(last));
-            Assert.That(variable.OldValue, Is.EqualTo(direct));
-            Assert.That(system.GetValue<T>("id"), Is.EqualTo(last));
-            Assert.That(events, Has.Count.EqualTo(4));
-            Assert.That(events[3].OldValue, Is.EqualTo(direct));
-            Assert.That(events[3].CurrentValue, Is.EqualTo(last));
-            Assert.That(snapshot.OldValue, Is.EqualTo(initial));
-            Assert.That(snapshot.CurrentValue, Is.EqualTo(changed));
-            Assert.That(definition.DefaultValue, Is.EqualTo(initial));
-            Assert.That(variable.Definition, Is.SameAs(definition));
+            Assert.That(system.ContainsStore("global"), Is.False);
+            Assert.That(system.ContainsStore("default"), Is.False);
+            Assert.That(system.ContainsStore("root"), Is.False);
+            var root = system.CreateStore("root");
+            var other = system.CreateStore("other");
+            var child = system.CreateStore("child", "root");
+            var grandchild = system.CreateStore("grandchild", "child");
+            Assert.That(root.Id, Is.EqualTo("root"));
+            Assert.That(root.ParentId, Is.Null);
+            Assert.That(other.ParentId, Is.Null);
+            Assert.That(child.Id, Is.EqualTo("child"));
+            Assert.That(child.ParentId, Is.EqualTo("root"));
+            Assert.That(grandchild.Id, Is.EqualTo("grandchild"));
+            Assert.That(grandchild.ParentId, Is.EqualTo("child"));
+            foreach (var store in new[] { root, other, child, grandchild })
+            {
+                Assert.That(system.ContainsStore(store.Id), Is.True);
+                Assert.That(system.GetStore(store.Id), Is.SameAs(store));
+                Assert.That(system.TryGetStore(store.Id, out var found), Is.True);
+                Assert.That(found, Is.SameAs(store));
+            }
         }
 
         [Test]
-        public void IdsAreOrdinalAndDuplicateDeclarationsNeverChangeExistingVariable()
+        public void StoreIdsAreGloballyUniqueAcrossBranchesButIndependentBetweenSystems()
         {
             var system = new EcaVariablesSystem();
-            var variable = system.Declare("Money", 10);
-            Assert.That(system.Contains("Money"), Is.True);
-            Assert.That(system.Contains("money"), Is.False);
-            system.Declare("money", "separate");
-            Assert.Throws<InvalidOperationException>(() => system.Declare("Money", 10));
-            Assert.Throws<InvalidOperationException>(() => system.Declare("Money", "wrong"));
-            Assert.That(variable.CurrentValue, Is.EqualTo(10));
-            Assert.That(system.GetValue<string>("money"), Is.EqualTo("separate"));
+            system.CreateStore("a");
+            system.CreateStore("b");
+            var child = system.CreateStore("child", "a");
+            Assert.Throws<InvalidOperationException>(() => system.CreateStore("child", "b"));
+            Assert.Throws<InvalidOperationException>(() => system.CreateStore("child"));
+            Assert.Throws<InvalidOperationException>(() => system.CreateStore("a", "b"));
+            Assert.That(system.GetStore("child"), Is.SameAs(child));
+            Assert.That(child.ParentId, Is.EqualTo("a"));
+            var independent = new EcaVariablesSystem().CreateStore("child");
+            Assert.That(independent, Is.Not.SameAs(child));
+            Assert.That(independent.ParentId, Is.Null);
+        }
+
+        [Test]
+        public void IdsAreOrdinalOpaqueStringsNotPaths()
+        {
+            var system = new EcaVariablesSystem();
+            var upper = system.CreateStore("Root");
+            var lower = system.CreateStore("root");
+            var path = system.CreateStore("Root/child");
+            Assert.That(system.GetStore("Root"), Is.SameAs(upper));
+            Assert.That(system.GetStore("root"), Is.SameAs(lower));
+            Assert.That(path.ParentId, Is.Null);
+            Assert.That(system.ContainsStore("ROOT"), Is.False);
+            Assert.Throws<InvalidOperationException>(() => system.CreateStore("child", "ROOT"));
+            Assert.That(system.ContainsStore("child"), Is.False);
         }
 
         [TestCase(null)]
         [TestCase("")]
         [TestCase(" ")]
-        public void InvalidIdsAreRejectedBeforeOtherValidation(string id)
+        public void InvalidStoreIdsAreRejectedByEveryManagerOperation(string id)
         {
             var system = new EcaVariablesSystem();
-            Assert.Throws<ArgumentException>(() => system.Declare(id, new object()));
-            Assert.Throws<ArgumentException>(() => system.Contains(id));
-            Assert.Throws<ArgumentException>(() => system.GetValue<object>(id));
-            Assert.Throws<ArgumentException>(() => system.TryGetValue<object>(id, out _));
-            Assert.Throws<ArgumentException>(() => system.SetValue(id, new object()));
-            Assert.Throws<ArgumentException>(() => system.ForceSetValue(id, new object()));
-            Assert.Throws<ArgumentException>(() => system.SetCurrentValue(id, new object()));
+            Assert.Throws<ArgumentException>(() => system.CreateStore(id));
+            Assert.Throws<ArgumentException>(() => system.ContainsStore(id));
+            Assert.Throws<ArgumentException>(() => system.GetStore(id));
+            Assert.Throws<ArgumentException>(() => system.TryGetStore(id, out _));
+        }
+
+        [TestCase("")]
+        [TestCase(" ")]
+        public void InvalidParentIdsDoNotReserveChildId(string parentId)
+        {
+            var system = new EcaVariablesSystem();
+            Assert.Throws<ArgumentException>(() => system.CreateStore("child", parentId));
+            Assert.That(system.ContainsStore("child"), Is.False);
+            Assert.That(system.CreateStore("child").ParentId, Is.Null);
         }
 
         [Test]
-        public void TryOnlySuppressesMissingIdAndReturnsDefault()
+        public void MissingParentDoesNotReserveChildIdAndCanBeCreatedLater()
         {
             var system = new EcaVariablesSystem();
-            Assert.That(system.Contains("missing"), Is.False);
-            Assert.Throws<InvalidOperationException>(() => system.GetValue<int>("missing"));
-            Assert.That(system.TryGetValue<int>("missing", out var number), Is.False);
-            Assert.That(number, Is.Zero);
-            Assert.That(system.TryGetValue<string>("missing", out var text), Is.False);
-            Assert.That(text, Is.Null);
-            system.Declare("int", 1);
-            Assert.Throws<InvalidOperationException>(() => system.GetValue<float>("int"));
-            Assert.Throws<InvalidOperationException>(() => system.TryGetValue<float>("int", out _));
+            Assert.Throws<InvalidOperationException>(() => system.CreateStore("child", "parent"));
+            Assert.That(system.ContainsStore("child"), Is.False);
+            Assert.That(system.ContainsStore("parent"), Is.False);
+            system.CreateStore("parent");
+            Assert.That(system.CreateStore("child", "parent").ParentId, Is.EqualTo("parent"));
         }
 
-        [TestCase("normal")]
-        [TestCase("force")]
-        [TestCase("current")]
-        public void AllSettersValidateBeforeMutationOrEvent(string setter)
+        [TestCase(false)]
+        [TestCase(true)]
+        public void SelfParentFailsWithoutCreatingOrChangingStore(bool alreadyExists)
         {
             var system = new EcaVariablesSystem();
-            var variable = system.Declare("id", 1);
-            system.SetValue("id", 2);
-            var events = 0;
-            system.VariableChanged += _ => events++;
-            foreach (var id in new[] { null, "", " " })
-                Assert.Throws<ArgumentException>(() => Set(system, setter, id, 3));
-            Assert.Throws<InvalidOperationException>(() => Set(system, setter, "missing", 3));
-            Assert.Throws<InvalidOperationException>(() => Set(system, setter, "id", 3f));
-            Assert.Throws<NotSupportedException>(() => Set(system, setter, "id", 3d));
-            Assert.That(variable.CurrentValue, Is.EqualTo(2));
-            Assert.That(variable.OldValue, Is.EqualTo(1));
-            Assert.That(variable.Definition.DefaultValue, Is.EqualTo(1));
-            Assert.That(events, Is.Zero);
-            Assert.That(system.Contains("missing"), Is.False);
-        }
-
-        private static void Set<T>(EcaVariablesSystem system, string setter, string id, T value)
-        {
-            switch (setter)
+            var original = alreadyExists ? system.CreateStore("a") : null;
+            var error = Assert.Throws<InvalidOperationException>(() => system.CreateStore("a", "a"));
+            Assert.That(error.Message, Does.Contain(alreadyExists ? "already exists" : "does not exist"));
+            Assert.That(system.ContainsStore("a"), Is.EqualTo(alreadyExists));
+            if (alreadyExists)
             {
-                case "normal": system.SetValue(id, value); break;
-                case "force": system.ForceSetValue(id, value); break;
-                case "current": system.SetCurrentValue(id, value); break;
-                default: throw new ArgumentException(nameof(setter));
+                Assert.That(system.GetStore("a"), Is.SameAs(original));
+                Assert.That(original.ParentId, Is.Null);
             }
         }
 
         [Test]
-        public void UnsupportedTypesAreRejectedByEveryGenericOperationEvenForMissingIds()
-        {
-            VerifyUnsupported<double>(); VerifyUnsupported<long>(); VerifyUnsupported<decimal>();
-            VerifyUnsupported<DayOfWeek>(); VerifyUnsupported<object>(); VerifyUnsupported<DateTime>();
-            VerifyUnsupported<EcaVariablesSystem>(); VerifyUnsupported<int[]>(); VerifyUnsupported<int?>();
-            VerifyUnsupported<List<int>>();
-        }
-
-        private static void VerifyUnsupported<T>()
+        public void MissingStoreLookupReturnsFalseAndNullOrThrows()
         {
             var system = new EcaVariablesSystem();
-            Assert.Throws<NotSupportedException>(() => system.Declare<T>("id", default));
-            Assert.That(system.Contains("id"), Is.False);
-            Assert.Throws<NotSupportedException>(() => system.GetValue<T>("missing"));
-            Assert.Throws<NotSupportedException>(() => system.TryGetValue<T>("missing", out _));
-            Assert.Throws<NotSupportedException>(() => system.SetValue<T>("missing", default));
-            Assert.Throws<NotSupportedException>(() => system.ForceSetValue<T>("missing", default));
-            Assert.Throws<NotSupportedException>(() => system.SetCurrentValue<T>("missing", default));
+            Assert.That(system.ContainsStore("missing"), Is.False);
+            Assert.Throws<InvalidOperationException>(() => system.GetStore("missing"));
+            Assert.That(system.TryGetStore("missing", out var store), Is.False);
+            Assert.That(store, Is.Null);
         }
 
         [Test]
-        public void FloatEqualityUsesDefaultComparerIncludingNaN()
+        public void ChildAndGrandchildNeverReadOrMutateParentVariables()
         {
             var system = new EcaVariablesSystem();
-            var variable = system.Declare("float", float.NaN);
-            var events = 0;
-            system.VariableChanged += _ => events++;
-            system.SetValue("float", float.NaN);
-            Assert.That(events, Is.Zero);
-            system.ForceSetValue("float", float.NaN);
-            Assert.That(events, Is.EqualTo(1));
-            system.SetValue("float", 0f);
-            system.SetValue("float", -0f);
-            Assert.That(events, Is.EqualTo(2));
-            Assert.That(variable.OldValue, Is.NaN);
-        }
-
-        [Test]
-        public void ReentrantMutationCannotChangeOuterSnapshotForLaterSubscriber()
-        {
-            var system = new EcaVariablesSystem();
-            var variable = system.Declare("id", 0);
-            var seen = new List<EcaVariableChanged>();
-            system.VariableChanged += change =>
+            var parent = system.CreateStore("parent");
+            var child = system.CreateStore("child", "parent");
+            var grandchild = system.CreateStore("grandchild", "child");
+            var original = parent.Declare("difficulty", 2);
+            var notifications = 0;
+            parent.VariableChanged += _ => notifications++;
+            child.VariableChanged += _ => notifications++;
+            grandchild.VariableChanged += _ => notifications++;
+            foreach (var local in new[] { child, grandchild })
             {
-                if ((int)change.CurrentValue == 1) system.SetValue("id", 2);
-            };
-            system.VariableChanged += seen.Add;
-            system.SetValue("id", 1);
-            Assert.That(variable.CurrentValue, Is.EqualTo(2));
-            Assert.That(seen, Has.Count.EqualTo(2));
-            Assert.That(seen[0].OldValue, Is.EqualTo(1));
-            Assert.That(seen[0].CurrentValue, Is.EqualTo(2));
-            Assert.That(seen[1].OldValue, Is.EqualTo(0));
-            Assert.That(seen[1].CurrentValue, Is.EqualTo(1));
+                Assert.That(local.Contains("difficulty"), Is.False);
+                Assert.That(local.TryGetValue<int>("difficulty", out var value), Is.False);
+                Assert.That(value, Is.Zero);
+                Assert.Throws<InvalidOperationException>(() => local.GetValue<int>("difficulty"));
+                Assert.Throws<InvalidOperationException>(() => local.SetValue("difficulty", 3));
+                Assert.Throws<InvalidOperationException>(() => local.ForceSetValue("difficulty", 3));
+                Assert.Throws<InvalidOperationException>(() => local.SetCurrentValue("difficulty", 3));
+            }
+            Assert.That(original.CurrentValue, Is.EqualTo(2));
+            Assert.That(original.OldValue, Is.EqualTo(2));
+            Assert.That(original.Definition.DefaultValue, Is.EqualTo(2));
+            Assert.That(notifications, Is.Zero);
+        }
+
+        [Test]
+        public void SameVariableIdIsIndependentAcrossParentsChildrenSiblingsAndRoots()
+        {
+            var system = new EcaVariablesSystem();
+            var parent = system.CreateStore("parent");
+            var child = system.CreateStore("child", "parent");
+            var sibling = system.CreateStore("sibling", "parent");
+            var root = system.CreateStore("root");
+            var parentValue = parent.Declare("id", 1);
+            var childValue = child.Declare("id", 2);
+            var siblingValue = sibling.Declare("id", "different contract");
+            var rootValue = root.Declare("id", 4);
+            var parentEvents = 0;
+            var childEvents = 0;
+            var siblingEvents = 0;
+            var rootEvents = 0;
+            parent.VariableChanged += _ => parentEvents++;
+            child.VariableChanged += _ => childEvents++;
+            sibling.VariableChanged += _ => siblingEvents++;
+            root.VariableChanged += _ => rootEvents++;
+            child.SetValue("id", 20);
+            child.ForceSetValue("id", 20);
+            child.SetCurrentValue("id", 30);
+            Assert.That(childValue.CurrentValue, Is.EqualTo(30));
+            Assert.That(childValue.OldValue, Is.EqualTo(20));
+            Assert.That(childValue.Definition, Is.Not.SameAs(parentValue.Definition));
+            Assert.That(parentValue.CurrentValue, Is.EqualTo(1));
+            Assert.That(siblingValue.CurrentValue, Is.EqualTo("different contract"));
+            Assert.That(rootValue.CurrentValue, Is.EqualTo(4));
+            Assert.That(childEvents, Is.EqualTo(2));
+            Assert.That(parentEvents, Is.Zero);
+            Assert.That(siblingEvents, Is.Zero);
+            Assert.That(rootEvents, Is.Zero);
+            parent.SetValue("id", 10);
+            Assert.That(parentEvents, Is.EqualTo(1));
+            Assert.That(childEvents, Is.EqualTo(2));
+            Assert.That(child.GetValue<int>("id"), Is.EqualTo(30));
         }
     }
 }
