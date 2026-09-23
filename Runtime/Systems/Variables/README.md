@@ -84,4 +84,4 @@ Equality — `EqualityComparer<T>.Default`, включая float NaN. `string nu
 
 Все ID используют ordinal comparison, null/empty/whitespace дают ArgumentException. Только int/float/bool/string; другой T даёт NotSupportedException. Duplicate ID, missing обязательного lookup/set и wrong exact T дают InvalidOperationException, conversions отсутствуют. TryGetValue подавляет только missing ID (false + default), string null остаётся успешным результатом. Все setters проверяют ID → supported T → existence → exact declared type до записи. Get/Try/Declare также сначала проверяют ID и supported T.
 
-Tests находятся в `Tests/Editor/Systems/Variables`, отдельная assembly `EcaSystems.Variables.Editor.Tests`. Следующие задачи — [локальный ToDo](Documentation~/ToDo.md); Stores, ECA adapter и Save/Load не реализованы.
+Tests находятся в `Tests/Editor/Systems/Variables`, отдельная assembly `EcaSystems.Variables.Editor.Tests`. Следующие обязательные задачи — [локальный ToDo](Documentation~/ToDo.md), будущие возможности — [Variables Roadmap](Documentation~/Roadmap.md). Stores, ECA adapter и Save/Load пока не реализованы.
