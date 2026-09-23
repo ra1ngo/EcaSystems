@@ -5,84 +5,45 @@ namespace EcaSystems.Variables
 {
     public sealed class EcaVariablesSystem
     {
-        private readonly Dictionary<string, EcaVariable> _variables = new(StringComparer.Ordinal);
-        public event Action<EcaVariableChanged> VariableChanged;
+        private readonly Dictionary<string, EcaVariableStore> _stores = new(StringComparer.Ordinal);
 
-        public EcaVariable Declare<T>(string variableId, T defaultValue)
+        public EcaVariableStore CreateStore(string storeId, string parentId = null)
         {
-            ValidateInput<T>(variableId);
-            if (_variables.ContainsKey(variableId))
-                throw new InvalidOperationException($"Variable '{variableId}' is already declared.");
-            var variable = new EcaVariable(new EcaVariableDefinition(variableId, typeof(T), defaultValue));
-            _variables.Add(variableId, variable);
-            return variable;
+            ValidateId(storeId, nameof(storeId));
+            if (parentId != null) ValidateId(parentId, nameof(parentId));
+            if (_stores.ContainsKey(storeId))
+                throw new InvalidOperationException($"Store '{storeId}' already exists.");
+            if (parentId != null && !_stores.ContainsKey(parentId))
+                throw new InvalidOperationException($"Parent store '{parentId}' does not exist.");
+            var store = new EcaVariableStore(storeId, parentId);
+            _stores.Add(storeId, store);
+            return store;
         }
 
-        public bool Contains(string variableId)
+        public bool ContainsStore(string storeId)
         {
-            ValidateId(variableId);
-            return _variables.ContainsKey(variableId);
+            ValidateId(storeId, nameof(storeId));
+            return _stores.ContainsKey(storeId);
         }
 
-        public T GetValue<T>(string variableId) => (T)Resolve<T>(variableId).CurrentValue;
-
-        public bool TryGetValue<T>(string variableId, out T value)
+        public EcaVariableStore GetStore(string storeId)
         {
-            ValidateInput<T>(variableId);
-            value = default;
-            if (!_variables.TryGetValue(variableId, out var variable)) return false;
-            ValidateType<T>(variable);
-            value = (T)variable.CurrentValue;
-            return true;
+            ValidateId(storeId, nameof(storeId));
+            if (!_stores.TryGetValue(storeId, out var store))
+                throw new InvalidOperationException($"Store '{storeId}' does not exist.");
+            return store;
         }
 
-        public void SetValue<T>(string variableId, T value)
+        public bool TryGetStore(string storeId, out EcaVariableStore store)
         {
-            var variable = Resolve<T>(variableId);
-            if (EqualityComparer<T>.Default.Equals((T)variable.CurrentValue, value)) return;
-            SetTracked(variable, value);
+            ValidateId(storeId, nameof(storeId));
+            return _stores.TryGetValue(storeId, out store);
         }
 
-        public void ForceSetValue<T>(string variableId, T value) => SetTracked(Resolve<T>(variableId), value);
-
-        public void SetCurrentValue<T>(string variableId, T value) => Resolve<T>(variableId).CurrentValue = value;
-
-        private void SetTracked(EcaVariable variable, object value)
+        private static void ValidateId(string id, string parameterName)
         {
-            variable.OldValue = variable.CurrentValue;
-            variable.CurrentValue = value;
-            // Capture before invoking callbacks: reentrant writes cannot change this notification.
-            var changed = new EcaVariableChanged(variable.Definition, variable.CurrentValue, variable.OldValue);
-            VariableChanged?.Invoke(changed);
-        }
-
-        private EcaVariable Resolve<T>(string variableId)
-        {
-            ValidateInput<T>(variableId);
-            if (!_variables.TryGetValue(variableId, out var variable))
-                throw new InvalidOperationException($"Variable '{variableId}' is not declared.");
-            ValidateType<T>(variable);
-            return variable;
-        }
-
-        private static void ValidateInput<T>(string variableId)
-        {
-            ValidateId(variableId);
-            var type = typeof(T);
-            if (type != typeof(int) && type != typeof(float) && type != typeof(bool) && type != typeof(string))
-                throw new NotSupportedException($"Variable type '{type}' is not supported.");
-        }
-
-        private static void ValidateId(string variableId)
-        {
-            if (string.IsNullOrWhiteSpace(variableId))
-                throw new ArgumentException("Variable id cannot be empty.", nameof(variableId));
-        }
-
-        private static void ValidateType<T>(EcaVariable variable)
-        {
-            if (variable.Definition.ValueType != typeof(T))
-                throw new InvalidOperationException($"Variable '{variable.Definition.Id}' declares '{variable.Definition.ValueType}', not '{typeof(T)}'.");
+            if (string.IsNullOrWhiteSpace(id))
+                throw new ArgumentException("Store id cannot be empty.", parameterName);
         }
     }
 }
