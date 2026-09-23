@@ -229,7 +229,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_UsesBaseBarrierAndIgnoresExecutionModeAndLifecycle()
+        public void ForceFire_UsesBaseBarrierAndIgnoresExecutionModeAndLifecycle()
         {
             var trace = new List<string>();
             var forceState = new EcaExecutionGroupState();
@@ -264,7 +264,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_AcceptsBaseOnlyTypesAndSharedRegistry()
+        public void ForceFire_AcceptsBaseOnlyTypesAndSharedRegistry()
         {
             var called = false;
             var rule = new BaseTestSupport.Rule

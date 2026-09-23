@@ -320,7 +320,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_UsesCallerStateAndBaseBarrierWithoutScopeExtensionOrExecution()
+        public void ForceFire_UsesCallerStateAndBaseBarrierWithoutScopeExtensionOrExecution()
         {
             var trace = new List<string>();
             var seen = new List<EcaScopeRuleState<int>>();

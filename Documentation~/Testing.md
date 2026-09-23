@@ -2,6 +2,22 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## PR #21: non-generic RuleState layers — 2026-09-23
+
+Добавлены два focused tests в EcaStateTests: `ResolverReadsExecutionLayerWithoutKnowingEventType` и `ResolverUsesScopeAndRuleCoordinatesAcrossUnrelatedEventTypes`. Один non-generic resolver читает ExecutionGroupState, per-Scope и per-Scope+Rule coordinates для unrelated int/string EventState. Проверены exact references стандартных states, сохранение typed EventState и optional layering Base/Execution/Scope. Existing runtime Connect/Disconnect/Reconnect test использует IEcaScopeRuleState без E; assertions сохранены.
+
+13 test methods переименованы без изменения тел/assertions: EcaBaseRuntimeTests (3 Fire_*), EcaCommandsBaseRuntimeTests (5 Fire_*), EcaExecutionRuntimeTests (UsesBaseBarrierAndIgnoresExecutionModeAndLifecycle, AcceptsBaseOnlyTypesAndSharedRegistry), EcaScopeRuntimeTests (UsesOnlyLocalRegistryAndCallerState), EcaScopeTests (UsesCallerStateAndBaseBarrierWithoutScopeExtensionOrExecution) получили ForceFire_*; BaseCallerStateFireForwardsNullWithoutCreatingContexts в EcaFireContextTests стал ForceFire_BaseCallerStateForwardsNullWithoutCreatingContexts. Normal Fire tests, включая PreservesGenericExtensibilityForOtherPayloadAndContexts с дополнительной negative ForceFire assertion, не переименованы.
+
+Unity **6000.5.6f1**, фактически завершённые runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Focused EcaStateTests | 14 | 14 | 0 | 0 | 0 |
+| Полный Core2 | 264 | 264 | 0 | 0 | 0 |
+| Полный EditMode | 448 | 448 | 0 | 0 | 0 |
+
+Все exit code 0. Полный suite: Core 37, Core1 77, Core2 264, Time 53, Time/Eca 17. При перекомпиляции остаётся прежний CS0108 в EcaScopeTests.Fire(int), строка 60; Unity предупреждает о пустой EcaSystems.Unity assembly. Новых compiler warnings/errors нет. XML/log локально: `.validation~/pr21-nongeneric-focused`, `pr21-nongeneric-core2`, `pr21-nongeneric-full` (суффиксы `-results.xml` и `.log`). PlayMode/IL2CPP/remote CI не запускались. Production изменения ограничены двумя interface files; StateResolver API, constructors/data, runtime semantics и существующие .meta GUID не менялись.
+
 ## PR #21 follow-up: State ID / RuleId invariant / Scope composition — 2026-09-23
 
 Добавлены 14 cases: State IDs/declared contract (4), Connector ID conflict/canonical registration (4), normal Execution null/wrong RuleId в Condition и Action state creation (4), ForceFire null/wrong RuleId до callbacks (2). Проверены несколько ID одного T, разные declared types, exact type без assignable fallback, отсутствие вызова resolver при несовместимости, canonical ID + Type + exact delegate (включая covariant delegate с другим declared type). Прежние forwarding/no-cache/external exception, State rollback, ForceFire и Scope isolation assertions сохранены.

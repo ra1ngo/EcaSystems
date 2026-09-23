@@ -33,7 +33,7 @@ namespace EcaSystems.Tests.Core2
 
         [TestCase(true)]
         [TestCase(false)]
-        public void Fire_ConditionControlsActionAndCommand(bool passes)
+        public void ForceFire_ConditionControlsActionAndCommand(bool passes)
         {
             var context = new ActionInput();
             ActionInput commandContext = null, actionContext = null;
@@ -61,7 +61,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_MultipleRulesKeepBarrierBeforeCommandSideEffects()
+        public void ForceFire_MultipleRulesKeepBarrierBeforeCommandSideEffects()
         {
             var trace = new List<string>();
             var context = new ActionInput();
@@ -98,7 +98,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_SeparateCallsKeepExplicitContextsIndependent()
+        public void ForceFire_SeparateCallsKeepExplicitContextsIndependent()
         {
             var a = new ActionInput();
             var b = new ActionInput();
@@ -124,7 +124,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public async Task Fire_ReturnsWhileActionHasUnfinishedCommandTask()
+        public async Task ForceFire_ReturnsWhileActionHasUnfinishedCommandTask()
         {
             var gate = new TaskCompletionSource<bool>();
             var context = new ActionInput();
@@ -159,7 +159,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_PropagatesCommandLookupFailureThroughSynchronousAction()
+        public void ForceFire_PropagatesCommandLookupFailureThroughSynchronousAction()
         {
             var context = new ActionInput();
             _runtime.Register(new Rule

@@ -260,7 +260,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_UsesOnlyLocalRegistryAndCallerState()
+        public void ForceFire_UsesOnlyLocalRegistryAndCallerState()
         {
             var parent = _owner.CreateScope("parent");
             var child = parent.CreateScope("child");

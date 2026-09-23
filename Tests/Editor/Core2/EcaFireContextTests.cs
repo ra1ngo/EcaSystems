@@ -294,7 +294,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void BaseCallerStateFireForwardsNullWithoutCreatingContexts()
+        public void ForceFire_BaseCallerStateForwardsNullWithoutCreatingContexts()
         {
             var rules = new EcaBaseRuleRegistry(_events);
             var runtime = new EcaBaseRuntime(rules, new EcaBaseActionRunner(), new EcaBaseConditionChecker());

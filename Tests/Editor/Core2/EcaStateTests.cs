@@ -15,6 +15,69 @@ namespace EcaSystems.Tests.Core2
             public void Dispose() => Disposed = true;
         }
 
+        [Test]
+        public void ResolverReadsExecutionLayerWithoutKnowingEventType()
+        {
+            var registry = new EcaStateRegistry();
+            registry.Register<EcaExecutionGroupState>("group", state =>
+                ((IEcaExecutionRuleState)state).ExecutionGroupState);
+            IEcaStateResolver resolver = new EcaStateResolver(registry);
+            var firstGroup = new EcaExecutionGroupState();
+            var secondGroup = new EcaExecutionGroupState();
+            IEcaExecutionRuleState<int> first = new EcaExecutionRuleState<int>("first", 42, firstGroup);
+            IEcaExecutionRuleState<string> second = new EcaExecutionRuleState<string>("second", "payload", secondGroup);
+            Assert.That(resolver.Resolve<EcaExecutionGroupState>("group", first), Is.SameAs(firstGroup));
+            Assert.That(resolver.Resolve<EcaExecutionGroupState>("group", second), Is.SameAs(secondGroup));
+            Assert.That(first.RuleId, Is.EqualTo("first"));
+            Assert.That(first.EventState, Is.EqualTo(42));
+            Assert.That(second.EventState, Is.EqualTo("payload"));
+            Assert.That(first, Is.Not.InstanceOf<IEcaScopeRuleState>());
+            Assert.That(new BaseTestSupport.State(), Is.Not.InstanceOf<IEcaExecutionRuleState>());
+        }
+
+        [Test]
+        public void ResolverUsesScopeAndRuleCoordinatesAcrossUnrelatedEventTypes()
+        {
+            var perScope = new Dictionary<string, ExternalState>
+            {
+                ["first"] = new ExternalState(), ["second"] = new ExternalState()
+            };
+            var perGroup = new Dictionary<(string, string), ExternalState>
+            {
+                [("first", "A")] = new ExternalState(),
+                [("first", "B")] = new ExternalState(),
+                [("second", "A")] = new ExternalState()
+            };
+            var registry = new EcaStateRegistry();
+            registry.Register<ExternalState>("scope", state =>
+                perScope[((IEcaScopeRuleState)state).ScopeState.ScopeId]);
+            registry.Register<ExternalState>("rule", state =>
+                perGroup[(((IEcaScopeRuleState)state).ScopeState.ScopeId, state.RuleId)]);
+            registry.Register<EcaExecutionGroupState>("group", state =>
+                ((IEcaExecutionRuleState)state).ExecutionGroupState);
+            IEcaStateResolver resolver = new EcaStateResolver(registry);
+            var firstScope = new EcaScopeState("first");
+            var secondScope = new EcaScopeState("second");
+            var groupA = new EcaExecutionGroupState();
+            var groupB = new EcaExecutionGroupState();
+            var otherGroupA = new EcaExecutionGroupState();
+            IEcaScopeRuleState<int> a = new EcaScopeRuleState<int>("A", 42, groupA, firstScope);
+            IEcaScopeRuleState<string> b = new EcaScopeRuleState<string>("B", "payload", groupB, firstScope);
+            IEcaScopeRuleState<int> otherA = new EcaScopeRuleState<int>("A", 43, otherGroupA, secondScope);
+            Assert.That(resolver.Resolve<ExternalState>("scope", a), Is.SameAs(perScope["first"]));
+            Assert.That(resolver.Resolve<ExternalState>("scope", b), Is.SameAs(perScope["first"]));
+            Assert.That(resolver.Resolve<ExternalState>("scope", otherA), Is.SameAs(perScope["second"]));
+            Assert.That(resolver.Resolve<ExternalState>("rule", a), Is.SameAs(perGroup[("first", "A")]));
+            Assert.That(resolver.Resolve<ExternalState>("rule", b), Is.SameAs(perGroup[("first", "B")]));
+            Assert.That(resolver.Resolve<ExternalState>("rule", otherA), Is.SameAs(perGroup[("second", "A")]));
+            Assert.That(resolver.Resolve<EcaExecutionGroupState>("group", a), Is.SameAs(groupA));
+            Assert.That(resolver.Resolve<EcaExecutionGroupState>("group", b), Is.SameAs(groupB));
+            Assert.That(resolver.Resolve<EcaExecutionGroupState>("group", otherA), Is.SameAs(otherGroupA));
+            Assert.That(((IEcaScopeRuleState)a).ScopeState, Is.SameAs(firstScope));
+            Assert.That(a.EventState, Is.EqualTo(42));
+            Assert.That(b.EventState, Is.EqualTo("payload"));
+        }
+
         [TestCase(null)]
         [TestCase("")]
         [TestCase(" ")]
@@ -133,7 +196,7 @@ namespace EcaSystems.Tests.Core2
             states.Register<ExternalState>("external", state =>
             {
                 observed.Add(state);
-                var scope = (IEcaScopeRuleState<int>)state;
+                var scope = (IEcaScopeRuleState)state;
                 var key = (scope.ScopeState.ScopeId, state.RuleId);
                 if (!external.TryGetValue(key, out var value)) external.Add(key, value = new ExternalState());
                 return value;

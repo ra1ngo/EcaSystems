@@ -44,7 +44,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_ChecksAllConditionsBeforeActions_InRegistryOrder()
+        public void ForceFire_ChecksAllConditionsBeforeActions_InRegistryOrder()
         {
             var trace = new List<string>();
             var created = new List<string>();
@@ -106,7 +106,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_OptionalConditionRunsActionAfterOtherConditions()
+        public void ForceFire_OptionalConditionRunsActionAfterOtherConditions()
         {
             var trace = new List<string>();
             _runtime.Register(new Rule
@@ -140,7 +140,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_RejectsMissingArguments()
+        public void ForceFire_RejectsMissingArguments()
         {
             Assert.Throws<ArgumentNullException>(() => _runtime.ForceFire<int, State>(
                 null, 0, (rule, value) => new State(), new ConditionContext(), new ActionContext()));

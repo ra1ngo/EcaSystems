@@ -10,6 +10,19 @@ EcaSystems — Unity-first UPM-фреймворк для взаимодейст�
 
 Base `IEcaRuleState` содержит `string RuleId { get; }`. Стандартные constructors: EcaExecutionRuleState<E>(string ruleId,E eventState,EcaExecutionGroupState groupState) и EcaScopeRuleState<E>(string ruleId,E eventState,EcaExecutionGroupState groupState,EcaScopeState scopeState); пустой RuleId отклоняется. Scope создаёт execution state с фактическим rule.Id, затем передаёт RuleId в Scope state/extension factory. Custom Base/Execution factories передают фактический rule.Id; runtime проверяет non-null state и точное совпадение RuleId сразу после factory. Единый helper в ExecutionGroup проверяет Condition и Action state: ошибка Condition распространяется до Action-фазы, ошибка Action state завершает execution как Failed. ForceFire проверяет state до Condition/Action. RuleId — identity Rule и lookup key соответствующей ExecutionGroup внутри конкретного EcaExecutionRuntime. В scoped normal Execution пара ScopeId + RuleId определяет текущую Group; при ForceFire RuleId присутствует, но Group не участвует. ExecutionGroupId не добавлен, EcaExecutionGroupState хранит только ECA counters, без внешнего state.
 
+Non-generic слои RuleState позволяют внешним Systems читать координаты без знания EventState type:
+
+| Contract | Данные / наследование |
+| --- | --- |
+| `IEcaRuleState` | RuleId |
+| `IEcaRuleState<E>` | IEcaRuleState + EventState |
+| `IEcaExecutionRuleState` | IEcaRuleState + ExecutionGroupState |
+| `IEcaExecutionRuleState<E>` | IEcaExecutionRuleState + `IEcaRuleState<E>` |
+| `IEcaScopeRuleState` | IEcaExecutionRuleState + ScopeState |
+| `IEcaScopeRuleState<E>` | IEcaScopeRuleState + `IEcaExecutionRuleState<E>` |
+
+StateResolver по-прежнему принимает `Resolve<T>(stateId, IEcaRuleState ruleState)`. Внешняя функция может проверить `ruleState is IEcaScopeRuleState scoped` и получить `scoped.ScopeState.ScopeId`, либо `ruleState is IEcaExecutionRuleState execution` и получить `execution.ExecutionGroupState`, без generic E. Per-Scope lookup использует ScopeId, per-Group — ScopeId + RuleId внутри выбранного runtime. Standard implementations сохраняют прежние constructors/data; Base custom state не обязан реализовывать Execution/Scope contracts. Новые overloads, Bind и дополнительные State abstractions не добавлены.
+
 Concept `Runtime/Core2/Concepts/State` хранит способы доступа к внешнему state. Точный public API:
 
 ```csharp
