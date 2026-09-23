@@ -137,7 +137,9 @@ Store, Group, Scope и EntityGroup рассматриваются как оди�
 
 Не создавать отдельные VariablesScope / VariablesGroup / EntityGroup abstractions без реального различия semantics.
 
-Hierarchical lookup/inheritance/fallback между parent/child отдельно не считается автоматически выбранной семантикой только из-за наличия дерева.
+ParentId в ближайшей Store-итерации означает только структуру/ownership. Store видит только локально объявленные variables: если variable существует только в parent, child.GetValue(...) должен считать её отсутствующей.
+
+Hierarchical lookup/inheritance/fallback/override между parent/child не входит в Store V1 и вынесен в локальный Roadmap.
 
 ## Независимость partitioning от ECA
 
