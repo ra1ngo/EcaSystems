@@ -21,7 +21,7 @@ Non-generic слои RuleState позволяют внешним Systems чит�
 | `IEcaScopeRuleState` | IEcaExecutionRuleState + ScopeState |
 | `IEcaScopeRuleState<E>` | IEcaScopeRuleState + `IEcaExecutionRuleState<E>` |
 
-StateResolver по-прежнему принимает `Resolve<T>(stateId, IEcaRuleState ruleState)`. Внешняя функция может проверить `ruleState is IEcaScopeRuleState scoped` и получить `scoped.ScopeState.ScopeId`, либо `ruleState is IEcaExecutionRuleState execution` и получить `execution.ExecutionGroupState`, без generic E. Per-Scope lookup использует ScopeId, per-Group — ScopeId + RuleId внутри выбранного runtime. Standard implementations сохраняют прежние constructors/data; Base custom state не обязан реализовывать Execution/Scope contracts. Новые overloads, Bind и дополнительные State abstractions не добавлены.
+StateResolver по-прежнему принимает `Resolve<T>(stateId, IEcaRuleState ruleState)`. Внешняя функция может проверить `ruleState is IEcaScopeRuleState scoped` и получить `scoped.ScopeState.ScopeId`, либо `ruleState is IEcaExecutionRuleState execution` и получить `execution.ExecutionGroupState`, без generic E. Per-Scope lookup использует ScopeId, per-Group — ScopeId + RuleId внутри выбранного runtime. Standard implementations сохраняют прежние constructors/data; Base custom state не обязан реализовывать Execution/Scope contracts. Non-generic RuleState layers не требуют Bind или дополнительных State abstractions.
 
 Concept `Runtime/Core2/Concepts/State` хранит способы доступа к внешнему state. Точный public API:
 
@@ -29,23 +29,28 @@ Concept `Runtime/Core2/Concepts/State` хранит способы доступ�
 public sealed class EcaStateRegistry
 {
     public void Register<T>(string id, Func<IEcaRuleState, T> resolve);
+    public void Register<T>(string id, Func<IEcaRuleState, object, T> resolve);
     public bool Contains(string id);
     public bool Unregister(string id);
 }
 public interface IEcaStateResolver
 {
     T Resolve<T>(string stateId, IEcaRuleState ruleState);
+    T Resolve<T>(string stateId, IEcaRuleState ruleState, object payload);
 }
 public sealed class EcaStateResolver : IEcaStateResolver
 {
     public EcaStateResolver(EcaStateRegistry registry);
     public T Resolve<T>(string stateId, IEcaRuleState ruleState);
+    public T Resolve<T>(string stateId, IEcaRuleState ruleState, object payload);
 }
 ```
 
 Identity регистрации — stable string ID (ordinal comparison). Один T может экспортироваться под несколькими IDs; повторный ID запрещён независимо от типа. Type — только declared contract: после ID lookup Resolve требует точное совпадение registered type с typeof(T), без assignable fallback или поиска по Type. Null/empty/whitespace ID дают ArgumentException; duplicate/missing ID и несовместимый requested type — InvalidOperationException; null function/registry/ruleState — ArgumentNullException. Проверка ID, lookup и declared type предшествуют вызову внешней функции. Каждый Resolve заново получает function и передаёт тот же RuleState reference; result не кешируется, null result допустим, external exception распространяется без замены. Resolver не хранит current RuleState, Bind/bound resolver отсутствуют.
 
-EcaSystem constructor теперь требует EcaStateRegistry states после commands; public States хранит exact local registry. EcaSystemConnector constructor также требует global states. Runtime владеет одним global registry/resolver. Connector переносит exact delegate instances из local States в global registry транзакционно вместе с Namespace/Events/Commands/System. Prevalidation проверяет conflicts/canonical identity; Disconnect и rollback удаляют/восстанавливают регистрации, не вызывают их функции и не Dispose returned state. Внутренняя registration хранит ID, declared Type и delegate; canonical Disconnect проверяет все три, включая reference equality delegate. Это не дополнительный public API. Local exports, включая States, должны оставаться стабильны пока System connected.
+Opaque payload overload передаёт exact object reference, включая null, без интерпретации или casts внутри Core. Shape определяется overload: no-payload registration допускает только no-payload Resolve, payload registration — только payload Resolve. Mismatch даёт InvalidOperationException без fallback. Порядок validation: ID → registration → exact T → shape → non-null RuleState → external callback. Result null допустим; external exception распространяется. Оба Register overload сохраняют исходный delegate instance. Literal null в Register требует явного delegate cast для выбора overload; прежние lambda/typed delegate вызовы и поведение no-payload API сохранены.
+
+EcaSystem constructor теперь требует EcaStateRegistry states после commands; public States хранит exact local registry. EcaSystemConnector constructor также требует global states. Runtime владеет одним global registry/resolver. Connector переносит exact delegate instances из local States в global registry транзакционно вместе с Namespace/Events/Commands/System. Prevalidation проверяет conflicts/canonical identity; Disconnect и rollback удаляют/восстанавливают регистрации, не вызывают их функции и не Dispose returned state. Внутренняя registration хранит ID, declared Type, resolver shape и original delegate; canonical Disconnect проверяет все четыре, включая reference equality delegate. Это не дополнительный public API. Local exports, включая States, должны оставаться стабильны пока System connected.
 
 Actual state принадлежит внешней System. Её function может игнорировать RuleState (global), использовать RuleId, ScopeId или пару ScopeId + RuleId; Core не интерпретирует эти semantics. Ни registry, ни ExecutionGroup не хранят actual external state. Отключение System удаляет доступ через resolver, но не уничтожает уже полученные внешние объекты. Rule cleanup и automatic state inheritance не добавлены.
 
@@ -53,7 +58,7 @@ Class-based Condition/Action используют protected State.Resolve<T>(sta
 
 ForceFire — отдельный технический caller-state Base bypass до уровня EcaScope. Он сохраняет ALL CONDITIONS → ALL ACTIONS и fire-and-forget Task semantics, но не использует ExecutionGroups/ExecutionMode/lifecycle. Обычный Fire/EventEmitter идёт через Groups и сохраняет admission/reentrancy/isolation. EcaScopeRuntime управляет hierarchy/lifetime и создаёт независимые per-Scope RuleRegistry/ExecutionGroupRegistry. EcaScope получает их и shared checker/runner ссылками и создаёт только EcaExecutionRuntime из этих dependencies; shared EventRegistry приходит в RuleRegistry извне.
 
-VariableSystem и Save/Load — следующие отдельные задачи. Queries, snapshots/history, ReactiveState, state inheritance и прочие deferred features не реализованы.
+Standalone Variables Core V1 реализован в Runtime/Systems/Variables/Core: int/float/bool/string, immutable Definition, три setter semantics и отдельный event snapshot. Variables/Eca adapter и Save/Load остаются следующими отдельными задачами. Queries, snapshots/history, ReactiveState, state inheritance и прочие deferred features не реализованы.
 
 ## Core2 Rule creation и Commands — 2026-09-21
 

@@ -121,7 +121,7 @@ namespace EcaSystems.Tests.Core2
             IEcaStateResolver resolver = new EcaStateResolver(registry);
             var state = new BaseTestSupport.State { RuleId = "r" };
             Assert.Throws<ArgumentNullException>(() => new EcaStateResolver(null));
-            Assert.Throws<ArgumentNullException>(() => registry.Register<object>("global", null));
+            Assert.Throws<ArgumentNullException>(() => registry.Register<object>("global", (Func<IEcaRuleState, object>)null));
 
             Assert.Throws<InvalidOperationException>(() => resolver.Resolve<object>("global", state));
             Assert.That(registry.Unregister("global"), Is.False);

@@ -2,6 +2,26 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## State opaque payload + standalone Variables Core V1 — 2026-09-23
+
+Добавлены **32 test cases**: EcaStatePayloadTests (11), Connector payload cases (5), standalone EcaVariablesSystemTests (16). State tests проверяют exact RuleState/payload forwarding, null payload/result, отсутствие caching, strict shape, duplicate ID независимо от T/shape, точный declared type, validation order и external exceptions. Connector tests проверяют original delegate identity, Connect/Disconnect/Reconnect без вызова resolver, shape/delegate mismatch и rollback обоих направлений. Connector production algorithm не менялся: расширена canonical registration validation в StateRegistry.
+
+Variables tests покрывают int/float/bool/string (включая null), declaration/default/current/old, ordinal ID, duplicate/missing/invalid IDs, unsupported types, exact type без conversions, Try-only-missing semantics, три setter и отсутствие mutation/event при ошибках. Проверены неизменность DefaultValue, отдельные snapshots, float NaN equality и snapshot при reentrant callback. Отдельная EcaSystems.Variables.Editor.Tests assembly ссылается только на EcaSystems.Variables; runtime assembly references пусты, noEngineReferences=true.
+
+Единственная адаптация прежних tests — explicit Func<IEcaRuleState, object> cast для null callback в Register validation test: с двумя overload literal null неоднозначен для C#. Assertion ArgumentNullException сохранён. Остальные прежние tests/assertions не ослаблялись. Core/Core1, Time, Fire/Execution/Scope production не менялись.
+
+Unity **6000.5.6f1**, runs выполнены последовательно:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Focused State (existing + payload) | 25 | 25 | 0 | 0 | 0 |
+| Focused Connector | 19 | 19 | 0 | 0 | 0 |
+| Focused Variables | 16 | 16 | 0 | 0 | 0 |
+| Полный Core2 | 280 | 280 | 0 | 0 | 0 |
+| Полный EditMode | 480 | 480 | 0 | 0 | 0 |
+
+Все exit code 0. Full suite: Core 37, Core1 77, Core2 280, Time 53, Time/Eca 17, Variables 16. При compilation повторён прежний CS0108 (EcaScopeTests.Fire(int), строка 60); также остаётся warning пустой EcaSystems.Unity assembly. Новых compiler warnings/errors нет. XML/log локально: `.validation~/variables-state`, `variables-connector`, `variables-focused`, `variables-core2`, `variables-full`, с суффиксами `-results.xml` и `.log`. PlayMode/IL2CPP/remote CI не запускались.
+
 ## PR #21: non-generic RuleState layers — 2026-09-23
 
 Добавлены два focused tests в EcaStateTests: `ResolverReadsExecutionLayerWithoutKnowingEventType` и `ResolverUsesScopeAndRuleCoordinatesAcrossUnrelatedEventTypes`. Один non-generic resolver читает ExecutionGroupState, per-Scope и per-Scope+Rule coordinates для unrelated int/string EventState. Проверены exact references стандартных states, сохранение typed EventState и optional layering Base/Execution/Scope. Existing runtime Connect/Disconnect/Reconnect test использует IEcaScopeRuleState без E; assertions сохранены.
