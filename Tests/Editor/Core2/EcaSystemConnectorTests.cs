@@ -31,7 +31,45 @@ namespace EcaSystems.Tests.Core2
             var commands = new EcaCommandRegistry();
             commands.Register(new CommandTestSupport.Command<CommandTestSupport.Context, int>());
             _system = new EcaSystem("system", new EcaSystemNamespace("ns"), events, commands, new EcaStateRegistry());
-            _system.States.Register<object>(_ => _externalState);
+            _system.States.Register<object>("global", _ => _externalState);
+        }
+
+        [Test]
+        public void StateConflictWithDifferentDeclaredTypeIsRejectedBeforeMutation()
+        {
+            _states.Register<int>("global", _ => 42);
+            Assert.Throws<InvalidOperationException>(() => _connector.Connect(_system));
+            Assert.That(_events.Events, Is.Empty);
+            Assert.That(_commands.Commands, Is.Empty);
+            Assert.That(_systems.Systems, Is.Empty);
+            Assert.That(_namespaces.Namespaces, Is.Empty);
+            Assert.That(new EcaStateResolver(_states).Resolve<int>("global", new BaseTestSupport.State()), Is.EqualTo(42));
+        }
+
+        [TestCase("different-id")]
+        [TestCase("different-type")]
+        [TestCase("different-delegate")]
+        public void DisconnectRequiresIdTypeAndExactDelegateWithoutInvokingResolver(string replacement)
+        {
+            _system.States.Unregister("global");
+            Func<IEcaRuleState, string> callback = _ => throw new Exception("Must not resolve during composition");
+            _system.States.Register<string>("global", callback);
+            _connector.Connect(_system);
+            _states.Unregister("global");
+            if (replacement == "different-id") _states.Register<string>("other", callback);
+            // Covariance permits the exact same delegate instance with a different declared contract.
+            if (replacement == "different-type") _states.Register<object>("global", callback);
+            if (replacement == "different-delegate") _states.Register<string>("global", _ => throw new Exception());
+            Assert.Throws<InvalidOperationException>(() => _connector.Disconnect(_system));
+            Assert.That(_systems.CheckRegistered(_system), Is.True);
+            Assert.That(_events.Events.Count, Is.EqualTo(2));
+            Assert.That(_commands.Commands.Count, Is.EqualTo(1));
+            Assert.That(_namespaces.CheckRegistered(_system.Namespace), Is.True);
+            _states.Unregister("global");
+            _states.Register<string>("global", callback);
+            _connector.Disconnect(_system);
+            Assert.That(_states.Contains("global"), Is.False);
+            Assert.That(_system.States.Contains("global"), Is.True);
         }
 
         [Test]
@@ -52,7 +90,7 @@ namespace EcaSystems.Tests.Core2
             _connector.Disconnect(_system);
             Assert.That(_events.CheckRegistered(otherEvent), Is.True);
             Assert.That(_events.CheckRegistered(localEvents.Resolve("first")), Is.False);
-            Assert.That(_states.Contains<object>(), Is.False);
+            Assert.That(_states.Contains("global"), Is.False);
             Assert.That(_commands.Commands, Is.Empty);
             Assert.That(_systems.Systems, Is.Empty);
             Assert.That(_namespaces.Namespaces, Is.Empty);
@@ -85,16 +123,16 @@ namespace EcaSystems.Tests.Core2
             }
             if (kind == "state")
             {
-                _states.Unregister<object>();
-                _states.Register<object>(_ => new object());
+                _states.Unregister("global");
+                _states.Register<object>("global", _ => new object());
             }
-            var stateRegistration = _states.Resolve<object>();
+            var stateRegistration = _states.Resolve<object>("global");
             var e = _events.Resolve("first");
             var c = _commands.Resolve("command");
             var n = _namespaces.Resolve("ns");
             Assert.Throws<InvalidOperationException>(() => _connector.Disconnect(_system));
             Assert.That(_systems.CheckRegistered(_system), Is.True);
-            Assert.That(_states.Resolve<object>(), Is.SameAs(stateRegistration));
+            Assert.That(_states.Resolve<object>("global"), Is.SameAs(stateRegistration));
             Assert.That(_events.Resolve("first"), Is.SameAs(e));
             Assert.That(_commands.Resolve("command"), Is.SameAs(c));
             Assert.That(_namespaces.Resolve("ns"), Is.SameAs(n));
@@ -108,7 +146,7 @@ namespace EcaSystems.Tests.Core2
             _events.FailRegisterId = "second";
             Assert.Throws<InvalidOperationException>(() => _connector.Connect(_system));
             Assert.That(_events.Events, Is.EqualTo(new[] { other }));
-            Assert.That(_states.Contains<object>(), Is.False);
+            Assert.That(_states.Contains("global"), Is.False);
             Assert.That(_commands.Commands, Is.Empty);
             Assert.That(_systems.Systems, Is.Empty);
             Assert.That(_namespaces.Namespaces, Is.Empty);
@@ -140,26 +178,26 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public void ConnectFailureAfterStateRegistration_RollsBackStateAndOtherCompletedExports()
         {
-            _states.Register<int>(_ => 42);
+            _states.Register<int>("number", _ => 42);
             // Inject a last-step collision after prevalidation, without a new production fault API.
             _events.OnRegister = () => { _events.OnRegister = null; _systems.Register(_system); };
             Assert.Throws<InvalidOperationException>(() => _connector.Connect(_system));
-            Assert.That(_states.Contains<object>(), Is.False);
-            Assert.That(new EcaStateResolver(_states).Resolve<int>(new BaseTestSupport.State()), Is.EqualTo(42));
+            Assert.That(_states.Contains("global"), Is.False);
+            Assert.That(new EcaStateResolver(_states).Resolve<int>("number", new BaseTestSupport.State()), Is.EqualTo(42));
             Assert.That(_events.Events, Is.Empty);
             Assert.That(_commands.Commands, Is.Empty);
             Assert.That(_namespaces.Namespaces, Is.Empty);
             Assert.That(_systems.CheckRegistered(_system), Is.True, "Injected registration is not owned by the failed Connect.");
-            Assert.That(_system.States.Contains<object>(), Is.True);
+            Assert.That(_system.States.Contains("global"), Is.True);
         }
 
         [Test]
         public void StateConflictIsRejectedBeforeAnyExportMutation()
         {
-            _states.Register<object>(_ => new object());
-            var original = _states.Resolve<object>();
+            _states.Register<object>("global", _ => new object());
+            var original = _states.Resolve<object>("global");
             Assert.Throws<InvalidOperationException>(() => _connector.Connect(_system));
-            Assert.That(_states.Resolve<object>(), Is.SameAs(original));
+            Assert.That(_states.Resolve<object>("global"), Is.SameAs(original));
             Assert.That(_events.Events, Is.Empty);
             Assert.That(_commands.Commands, Is.Empty);
             Assert.That(_systems.Systems, Is.Empty);
@@ -170,8 +208,8 @@ namespace EcaSystems.Tests.Core2
         {
             Assert.That(_systems.CheckRegistered(_system), Is.True);
             Assert.That(_namespaces.CheckRegistered(_system.Namespace), Is.True);
-            Assert.That(_states.Resolve<object>(), Is.SameAs(_system.States.Resolve<object>()));
-            Assert.That(new EcaStateResolver(_states).Resolve<object>(new BaseTestSupport.State()), Is.SameAs(_externalState));
+            Assert.That(_states.Resolve<object>("global"), Is.SameAs(_system.States.Resolve<object>("global")));
+            Assert.That(new EcaStateResolver(_states).Resolve<object>("global", new BaseTestSupport.State()), Is.SameAs(_externalState));
             foreach (var e in _system.Events.Events)
             {
                 Assert.That(_events.Resolve(e.Id), Is.SameAs(e));

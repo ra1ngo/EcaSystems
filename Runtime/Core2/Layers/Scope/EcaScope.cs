@@ -13,12 +13,12 @@ namespace EcaSystems.Core2
         public string ParentScopeId { get; }
         public bool IsDisposed { get; private set; }
 
-        internal EcaScope(EcaScopeRuntime owner, EcaScopeState state, IEcaEventRegistry events, IEcaConditionChecker conditionChecker, IEcaActionRunner actionRunner, string parentScopeId)
+        internal EcaScope(EcaScopeRuntime owner, EcaScopeState state, IEcaRuleRegistry rules, IEcaExecutionGroupRegistry groups, IEcaConditionChecker conditionChecker, IEcaActionRunner actionRunner, string parentScopeId)
         {
             _owner = owner;
             ParentScopeId = parentScopeId;
             State = state ?? throw new ArgumentNullException(nameof(state));
-            _executionRuntime = new EcaExecutionRuntime(new EcaBaseRuleRegistry(events), new EcaExecutionGroupRegistry(),
+            _executionRuntime = new EcaExecutionRuntime(rules, groups,
                 conditionChecker, actionRunner);
             var emitter = new EcaEventEmitter();
             emitter.Bind(this);

@@ -51,4 +51,4 @@ EcaSystemsRuntime v1 — production composition root поверх ScopeRuntime �
 
 Time Commands используют AEcaCommand<IEcaRuleState,IEcaActionContext,A>: текущие state/context передаются явно, но сами Time operations их не используют. ActionContext nullable, Commands в нём не хранятся; Action получает stable IEcaCommands через RuleCreator. Task contract и standalone Time business semantics сохранены.
 
-Concepts/State реализован независимо от Time: StateResolver.Resolve<T>(ruleState) передаёт RuleId/Scope state внешней функции без Bind. Actual state и его lifetime остаются во внешней System. TimeEcaSetup пока экспортирует пустой States registry; новую Time state surface эта итерация не добавляет.
+Concepts/State реализован независимо от Time: StateResolver.Resolve<T>(stateId, ruleState) передаёт RuleId/Scope state внешней функции без Bind. Actual state и его lifetime остаются во внешней System. TimeEcaSetup пока экспортирует пустой States registry; новую Time state surface эта итерация не добавляет.

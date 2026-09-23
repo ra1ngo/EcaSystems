@@ -8,37 +8,37 @@ EcaSystems — Unity-first UPM-фреймворк для взаимодейст�
 
 ## Core2 State, ForceFire и Scope composition — 2026-09-21
 
-Base `IEcaRuleState` содержит `string RuleId { get; }`. Стандартные constructors: EcaExecutionRuleState<E>(string ruleId,E eventState,EcaExecutionGroupState groupState) и EcaScopeRuleState<E>(string ruleId,E eventState,EcaExecutionGroupState groupState,EcaScopeState scopeState); пустой RuleId отклоняется. Scope создаёт execution state с фактическим rule.Id, затем передаёт RuleId в Scope state/extension factory. Custom Base/Execution factories отвечают за передачу фактического rule.Id сами. Group identity внутри runtime — RuleId; глобальная координата — ScopeId + RuleId. ExecutionGroupId не добавлен, EcaExecutionGroupState хранит только ECA counters, без внешнего state.
+Base `IEcaRuleState` содержит `string RuleId { get; }`. Стандартные constructors: EcaExecutionRuleState<E>(string ruleId,E eventState,EcaExecutionGroupState groupState) и EcaScopeRuleState<E>(string ruleId,E eventState,EcaExecutionGroupState groupState,EcaScopeState scopeState); пустой RuleId отклоняется. Scope создаёт execution state с фактическим rule.Id, затем передаёт RuleId в Scope state/extension factory. Custom Base/Execution factories передают фактический rule.Id; runtime проверяет non-null state и точное совпадение RuleId сразу после factory. Единый helper в ExecutionGroup проверяет Condition и Action state: ошибка Condition распространяется до Action-фазы, ошибка Action state завершает execution как Failed. ForceFire проверяет state до Condition/Action. RuleId — identity Rule и lookup key соответствующей ExecutionGroup внутри конкретного EcaExecutionRuntime. В scoped normal Execution пара ScopeId + RuleId определяет текущую Group; при ForceFire RuleId присутствует, но Group не участвует. ExecutionGroupId не добавлен, EcaExecutionGroupState хранит только ECA counters, без внешнего state.
 
 Concept `Runtime/Core2/Concepts/State` хранит способы доступа к внешнему state. Точный public API:
 
 ```csharp
 public sealed class EcaStateRegistry
 {
-    public void Register<T>(Func<IEcaRuleState, T> resolve);
-    public bool Contains<T>();
-    public bool Unregister<T>();
+    public void Register<T>(string id, Func<IEcaRuleState, T> resolve);
+    public bool Contains(string id);
+    public bool Unregister(string id);
 }
 public interface IEcaStateResolver
 {
-    T Resolve<T>(IEcaRuleState ruleState);
+    T Resolve<T>(string stateId, IEcaRuleState ruleState);
 }
 public sealed class EcaStateResolver : IEcaStateResolver
 {
     public EcaStateResolver(EcaStateRegistry registry);
-    public T Resolve<T>(IEcaRuleState ruleState);
+    public T Resolve<T>(string stateId, IEcaRuleState ruleState);
 }
 ```
 
-Identity регистрации — точный typeof(T), без string IDs или assignable fallback. Duplicate/missing registration дают InvalidOperationException, null function/registry/ruleState — ArgumentNullException. Каждый Resolve заново получает function и передаёт тот же RuleState reference; result не кешируется, null result допустим, external exception распространяется без замены. Resolver не хранит current RuleState, Bind/bound resolver отсутствуют.
+Identity регистрации — stable string ID (ordinal comparison). Один T может экспортироваться под несколькими IDs; повторный ID запрещён независимо от типа. Type — только declared contract: после ID lookup Resolve требует точное совпадение registered type с typeof(T), без assignable fallback или поиска по Type. Null/empty/whitespace ID дают ArgumentException; duplicate/missing ID и несовместимый requested type — InvalidOperationException; null function/registry/ruleState — ArgumentNullException. Проверка ID, lookup и declared type предшествуют вызову внешней функции. Каждый Resolve заново получает function и передаёт тот же RuleState reference; result не кешируется, null result допустим, external exception распространяется без замены. Resolver не хранит current RuleState, Bind/bound resolver отсутствуют.
 
-EcaSystem constructor теперь требует EcaStateRegistry states после commands; public States хранит exact local registry. EcaSystemConnector constructor также требует global states. Runtime владеет одним global registry/resolver. Connector переносит exact delegate instances из local States в global registry транзакционно вместе с Namespace/Events/Commands/System. Prevalidation проверяет conflicts/canonical identity; Disconnect и rollback удаляют/восстанавливают регистрации, не вызывают их функции и не Dispose returned state. Внутренний type-keyed transport не является дополнительным public API. Local exports, включая States, должны оставаться стабильны пока System connected.
+EcaSystem constructor теперь требует EcaStateRegistry states после commands; public States хранит exact local registry. EcaSystemConnector constructor также требует global states. Runtime владеет одним global registry/resolver. Connector переносит exact delegate instances из local States в global registry транзакционно вместе с Namespace/Events/Commands/System. Prevalidation проверяет conflicts/canonical identity; Disconnect и rollback удаляют/восстанавливают регистрации, не вызывают их функции и не Dispose returned state. Внутренняя registration хранит ID, declared Type и delegate; canonical Disconnect проверяет все три, включая reference equality delegate. Это не дополнительный public API. Local exports, включая States, должны оставаться стабильны пока System connected.
 
 Actual state принадлежит внешней System. Её function может игнорировать RuleState (global), использовать RuleId, ScopeId или пару ScopeId + RuleId; Core не интерпретирует эти semantics. Ни registry, ни ExecutionGroup не хранят actual external state. Отключение System удаляет доступ через resolver, но не уничтожает уже полученные внешние объекты. Rule cleanup и automatic state inheritance не добавлены.
 
-Class-based Condition/Action используют protected State.Resolve<T>(ruleState). Один stable resolver передаётся обоим helpers через RuleCreator. Delegate CreateRule signature сохранена: прямой StateResolver argument не добавлялся; внутренние delegate adapters проходят ту же initialization. Доступ к State в этой итерации предоставляется class-based authoring.
+Class-based Condition/Action используют protected State.Resolve<T>(stateId, ruleState). Один stable resolver передаётся обоим helpers через RuleCreator. Delegate CreateRule signature сохранена: прямой StateResolver argument не добавлялся; внутренние delegate adapters проходят ту же initialization. Доступ к State в этой итерации предоставляется class-based authoring.
 
-ForceFire — отдельный технический caller-state Base bypass до уровня EcaScope. Он сохраняет ALL CONDITIONS → ALL ACTIONS и fire-and-forget Task semantics, но не использует ExecutionGroups/ExecutionMode/lifecycle. Обычный Fire/EventEmitter идёт через Groups и сохраняет admission/reentrancy/isolation. EcaScopeRuntime управляет hierarchy/lifetime, EcaScope создаёт и владеет local ExecutionRuntime; shared EventRegistry/checker/runner только приходят извне.
+ForceFire — отдельный технический caller-state Base bypass до уровня EcaScope. Он сохраняет ALL CONDITIONS → ALL ACTIONS и fire-and-forget Task semantics, но не использует ExecutionGroups/ExecutionMode/lifecycle. Обычный Fire/EventEmitter идёт через Groups и сохраняет admission/reentrancy/isolation. EcaScopeRuntime управляет hierarchy/lifetime и создаёт независимые per-Scope RuleRegistry/ExecutionGroupRegistry. EcaScope получает их и shared checker/runner ссылками и создаёт только EcaExecutionRuntime из этих dependencies; shared EventRegistry приходит в RuleRegistry извне.
 
 VariableSystem и Save/Load — следующие отдельные задачи. Queries, snapshots/history, ReactiveState, state inheritance и прочие deferred features не реализованы.
 
@@ -160,7 +160,7 @@ Bind/BoundCommands, IEcaCommandRunner и IEcaCommandsActionContext удален�
 
 Core2/Base, Core2/Layers/Execution и Core2/Layers/Scope завершены. Scope сочетает vertical enrichment и runtime isolation/lifetime boundary. Orchestration, Group и lifecycle принадлежат Execution; Scope не добавляет Runner/bridge/Executor. Fire/Context API обновлён 2026-09-20 без изменения Execution/Scope lifecycle.
 
-`EcaScopeRuntime(IEcaEventRegistry events, IEcaConditionChecker conditionChecker, IEcaActionRunner actionRunner)` — manager всех активных Scope и их hierarchy. API: `ScopeCount`, `CreateScope(string scopeId = null)`, `TryGetScope(string scopeId, out EcaScope scope)`, `Dispose()`. Общие EventRegistry/checker/runner передаются через constructor; manager передаёт их в EcaScope, который в своём constructor создаёт независимые EcaBaseRuleRegistry, EcaExecutionGroupRegistry и EcaExecutionRuntime/BaseRuntime graph. Shared services внутри Scope не создаются. EcaSystemsRuntime владеет одним checker и action runner для всех своих Scope. Одну Rule instance можно зарегистрировать в нескольких Scope: GroupState, active executions, overlap и lifetime Limit независимы.
+`EcaScopeRuntime(IEcaEventRegistry events, IEcaConditionChecker conditionChecker, IEcaActionRunner actionRunner)` — manager всех активных Scope и их hierarchy. API: `ScopeCount`, `CreateScope(string scopeId = null)`, `TryGetScope(string scopeId, out EcaScope scope)`, `Dispose()`. Общие EventRegistry/checker/runner передаются через constructor; manager создаёт независимые EcaBaseRuleRegistry и EcaExecutionGroupRegistry для каждого Scope и передаёт их вместе с shared checker/runner ссылками в EcaScope. Constructor Scope создаёт только EcaExecutionRuntime из этих dependencies (его внутренний BaseRuntime остаётся деталью Execution). Shared services внутри Scope не создаются. EcaSystemsRuntime владеет одним checker и action runner для всех своих Scope. Одну Rule instance можно зарегистрировать в нескольких Scope: GroupState, active executions, overlap и lifetime Limit независимы.
 
 `EcaScope` — один isolated Scope с собственным ExecutionRuntime. API: `EventEmitter`, `State`, `ScopeId`, `ParentScopeId`, `IsDisposed`, `CreateScope`, `Register`, `Unregister`, `Fire`, `ForceFire`, `GetGroup`, `TryGetGroup`, `Dispose`. Root имеет ParentScopeId == null; child создаётся через parent.CreateScope. Hierarchy определяет ownership/lifetime, но не распространяет Fire: parent и child обрабатывают только собственные Rules.
 

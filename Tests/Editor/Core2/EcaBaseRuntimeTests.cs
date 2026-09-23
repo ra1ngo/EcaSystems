@@ -26,6 +26,23 @@ namespace EcaSystems.Tests.Core2
             _runtime = new EcaBaseRuntime(_rules, new EcaBaseActionRunner(), new EcaBaseConditionChecker());
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void ForceFire_RejectsNullOrWrongRuleIdentityBeforeCallbacks(bool nullState)
+        {
+            var callbacks = 0;
+            _runtime.Register(new Rule
+            {
+                Id = "actual", Event = _event,
+                Condition = new Condition { CheckHandler = (state, context) => { callbacks++; return true; } },
+                Action = new Action { RunHandler = (state, context) => { callbacks++; return Task.CompletedTask; } }
+            });
+            var error = Assert.Throws<InvalidOperationException>(() => _runtime.ForceFire<int, State>(
+                _event, 1, (rule, value) => nullState ? null : new State { RuleId = "foreign" }));
+            Assert.That(error.Message, Does.Contain("actual"));
+            Assert.That(callbacks, Is.Zero);
+        }
+
         [Test]
         public void Fire_ChecksAllConditionsBeforeActions_InRegistryOrder()
         {

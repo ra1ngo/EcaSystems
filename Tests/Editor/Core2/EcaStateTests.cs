@@ -15,6 +15,42 @@ namespace EcaSystems.Tests.Core2
             public void Dispose() => Disposed = true;
         }
 
+        [TestCase(null)]
+        [TestCase("")]
+        [TestCase(" ")]
+        public void StateIdsAreRequiredForEveryOperation(string id)
+        {
+            var registry = new EcaStateRegistry();
+            var resolver = new EcaStateResolver(registry);
+            Assert.Throws<ArgumentException>(() => registry.Register<object>(id, _ => new object()));
+            Assert.Throws<ArgumentException>(() => registry.Contains(id));
+            Assert.Throws<ArgumentException>(() => registry.Unregister(id));
+            Assert.Throws<ArgumentException>(() => resolver.Resolve<object>(id, new BaseTestSupport.State()));
+        }
+
+        [Test]
+        public void StateIdentityIsIdAndDeclaredTypeIsAnExactContract()
+        {
+            var registry = new EcaStateRegistry();
+            var resolver = new EcaStateResolver(registry);
+            var first = new ExternalState();
+            var second = new ExternalState();
+            var calls = 0;
+            registry.Register<IDisposable>("world.variables", _ => { calls++; return first; });
+            registry.Register<IDisposable>("player.variables", _ => second);
+            registry.Register<int>("number", _ => 42);
+            Assert.Throws<InvalidOperationException>(() => registry.Register<int>("world.variables", _ => 0));
+            var state = new BaseTestSupport.State();
+            Assert.Throws<InvalidOperationException>(() => resolver.Resolve<ExternalState>("world.variables", state));
+            Assert.Throws<InvalidOperationException>(() => resolver.Resolve<object>("world.variables", state));
+            Assert.That(calls, Is.Zero);
+            Assert.That(resolver.Resolve<IDisposable>("world.variables", state), Is.SameAs(first));
+            Assert.That(resolver.Resolve<IDisposable>("player.variables", state), Is.SameAs(second));
+            Assert.That(resolver.Resolve<int>("number", state), Is.EqualTo(42));
+            Assert.That(registry.Unregister("world.variables"), Is.True);
+            Assert.That(resolver.Resolve<IDisposable>("player.variables", state), Is.SameAs(second));
+        }
+
         [Test]
         public void RegistryAndResolverValidateInputsAndUseExactTypeIdentity()
         {
@@ -22,18 +58,19 @@ namespace EcaSystems.Tests.Core2
             IEcaStateResolver resolver = new EcaStateResolver(registry);
             var state = new BaseTestSupport.State { RuleId = "r" };
             Assert.Throws<ArgumentNullException>(() => new EcaStateResolver(null));
-            Assert.Throws<ArgumentNullException>(() => registry.Register<object>(null));
-            Assert.Throws<ArgumentNullException>(() => resolver.Resolve<object>(null));
-            Assert.Throws<InvalidOperationException>(() => resolver.Resolve<object>(state));
-            Assert.That(registry.Unregister<object>(), Is.False);
-            registry.Register<string>(_ => "value");
-            Assert.Throws<InvalidOperationException>(() => registry.Register<string>(_ => "duplicate"));
-            Assert.That(registry.Contains<string>(), Is.True);
-            Assert.That(registry.Contains<object>(), Is.False);
-            Assert.Throws<InvalidOperationException>(() => resolver.Resolve<object>(state));
-            Assert.That(resolver.Resolve<string>(state), Is.EqualTo("value"));
-            Assert.That(registry.Unregister<string>(), Is.True);
-            Assert.Throws<InvalidOperationException>(() => resolver.Resolve<string>(state));
+            Assert.Throws<ArgumentNullException>(() => registry.Register<object>("global", null));
+
+            Assert.Throws<InvalidOperationException>(() => resolver.Resolve<object>("global", state));
+            Assert.That(registry.Unregister("global"), Is.False);
+            registry.Register<string>("text", _ => "value");
+            Assert.Throws<ArgumentNullException>(() => resolver.Resolve<string>("text", null));
+            Assert.Throws<InvalidOperationException>(() => registry.Register<string>("text", _ => "duplicate"));
+            Assert.That(registry.Contains("text"), Is.True);
+            Assert.That(registry.Contains("global"), Is.False);
+            Assert.Throws<InvalidOperationException>(() => resolver.Resolve<object>("global", state));
+            Assert.That(resolver.Resolve<string>("text", state), Is.EqualTo("value"));
+            Assert.That(registry.Unregister("text"), Is.True);
+            Assert.Throws<InvalidOperationException>(() => resolver.Resolve<string>("text", state));
         }
 
         [Test]
@@ -41,26 +78,26 @@ namespace EcaSystems.Tests.Core2
         {
             var registry = new EcaStateRegistry();
             var global = new object();
-            registry.Register<object>(_ => global);
+            registry.Register<object>("global", _ => global);
             var seen = new List<IEcaRuleState>();
-            registry.Register<string>(state => { seen.Add(state); return state.RuleId; });
+            registry.Register<string>("text", state => { seen.Add(state); return state.RuleId; });
             var resolver = new EcaStateResolver(registry);
             var first = new BaseTestSupport.State { RuleId = "first" };
             var second = new BaseTestSupport.State { RuleId = "second" };
-            Assert.That(resolver.Resolve<object>(first), Is.SameAs(global));
-            Assert.That(resolver.Resolve<object>(second), Is.SameAs(global));
-            Assert.That(resolver.Resolve<string>(first), Is.EqualTo("first"));
-            Assert.That(resolver.Resolve<string>(second), Is.EqualTo("second"));
+            Assert.That(resolver.Resolve<object>("global", first), Is.SameAs(global));
+            Assert.That(resolver.Resolve<object>("global", second), Is.SameAs(global));
+            Assert.That(resolver.Resolve<string>("text", first), Is.EqualTo("first"));
+            Assert.That(resolver.Resolve<string>("text", second), Is.EqualTo("second"));
             first.RuleId = "changed";
-            Assert.That(resolver.Resolve<string>(first), Is.EqualTo("changed"));
+            Assert.That(resolver.Resolve<string>("text", first), Is.EqualTo("changed"));
             Assert.That(seen, Is.EqualTo(new IEcaRuleState[] { first, second, first }));
-            registry.Unregister<string>();
-            registry.Register<string>(_ => null);
-            Assert.That(resolver.Resolve<string>(first), Is.Null);
-            registry.Unregister<string>();
+            registry.Unregister("text");
+            registry.Register<string>("text", _ => null);
+            Assert.That(resolver.Resolve<string>("text", first), Is.Null);
+            registry.Unregister("text");
             var error = new InvalidOperationException("external");
-            registry.Register<string>(_ => throw error);
-            Assert.That(Assert.Throws<InvalidOperationException>(() => resolver.Resolve<string>(first)), Is.SameAs(error));
+            registry.Register<string>("text", _ => throw error);
+            Assert.That(Assert.Throws<InvalidOperationException>(() => resolver.Resolve<string>("text", first)), Is.SameAs(error));
         }
 
         [Test]
@@ -93,7 +130,7 @@ namespace EcaSystems.Tests.Core2
             var external = new Dictionary<(string, string), ExternalState>();
             var observed = new List<IEcaRuleState>();
             var states = new EcaStateRegistry();
-            states.Register<ExternalState>(state =>
+            states.Register<ExternalState>("external", state =>
             {
                 observed.Add(state);
                 var scope = (IEcaScopeRuleState<int>)state;
@@ -133,12 +170,12 @@ namespace EcaSystems.Tests.Core2
             Assert.That(observed[1], Is.SameAs(action.Seen[0]));
             Assert.That(first.GetGroup(rule.Id), Is.Not.SameAs(second.GetGroup(rule.Id)));
             runtime.DisconnectSystem(stateSystem);
-            Assert.Throws<InvalidOperationException>(() => action.Resolver.Resolve<ExternalState>(observed[0]));
-            Assert.That(states.Contains<ExternalState>(), Is.True);
+            Assert.Throws<InvalidOperationException>(() => action.Resolver.Resolve<ExternalState>("external", observed[0]));
+            Assert.That(states.Contains("external"), Is.True);
             runtime.ConnectSystem(stateSystem);
-            Assert.That(action.Resolver.Resolve<ExternalState>(observed[0]), Is.SameAs(external[("first", "rule-A")]));
+            Assert.That(action.Resolver.Resolve<ExternalState>("external", observed[0]), Is.SameAs(external[("first", "rule-A")]));
             runtime.Dispose();
-            Assert.Throws<InvalidOperationException>(() => action.Resolver.Resolve<ExternalState>(observed[0]));
+            Assert.Throws<InvalidOperationException>(() => action.Resolver.Resolve<ExternalState>("external", observed[0]));
             foreach (var value in external.Values) Assert.That(value.Disposed, Is.False);
         }
 
@@ -202,7 +239,7 @@ namespace EcaSystems.Tests.Core2
             public readonly List<EcaScopeRuleState<int>> Seen = new();
             public override bool Check(EcaScopeRuleState<int> state, IEcaConditionContext context)
             {
-                var external = State.Resolve<ExternalState>(state);
+                var external = State.Resolve<ExternalState>("external", state);
                 Seen.Add(state); external.Reads++; return true;
             }
         }
@@ -214,7 +251,7 @@ namespace EcaSystems.Tests.Core2
             public readonly List<EcaScopeRuleState<int>> Seen = new();
             public override Task Run(EcaScopeRuleState<int> state, IEcaActionContext context)
             {
-                var external = State.Resolve<ExternalState>(state);
+                var external = State.Resolve<ExternalState>("external", state);
                 Seen.Add(state); external.Reads++; return Task.CompletedTask;
             }
         }

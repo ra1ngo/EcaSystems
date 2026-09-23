@@ -298,7 +298,7 @@ namespace EcaSystems.Tests.Core2
         {
             var rules = new EcaBaseRuleRegistry(_events);
             var runtime = new EcaBaseRuntime(rules, new EcaBaseActionRunner(), new EcaBaseConditionChecker());
-            var state = new BaseTestSupport.State { EventState = 12 };
+            var state = new BaseTestSupport.State { RuleId = "base", EventState = 12 };
             var calls = 0;
             runtime.Register(Rule<BaseTestSupport.State>("base",
                 (s, c) => { Assert.That(s, Is.SameAs(state)); Assert.That(c, Is.Null); return true; },

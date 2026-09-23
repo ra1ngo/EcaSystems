@@ -44,8 +44,8 @@ namespace EcaSystems.Core2
                 }
                 foreach (var registration in system.States.Registrations)
                 {
-                    _states.Register(registration.Key, registration.Value);
-                    undo.Push(() => RequireRemoved(_states.Unregister(registration.Key)));
+                    _states.Register(registration);
+                    undo.Push(() => RequireRemoved(_states.Unregister(registration.Id)));
                 }
                 _systems.Register(system);
             }
@@ -70,8 +70,8 @@ namespace EcaSystems.Core2
                 undo.Push(() => _systems.Register(system));
                 foreach (var registration in system.States.Registrations)
                 {
-                    RequireRemoved(_states.Unregister(registration.Key));
-                    undo.Push(() => _states.Register(registration.Key, registration.Value));
+                    RequireRemoved(_states.Unregister(registration.Id));
+                    undo.Push(() => _states.Register(registration));
                 }
                 foreach (var command in system.Commands.Commands)
                 {
@@ -116,8 +116,8 @@ namespace EcaSystems.Core2
                 RequirePresence(connected ? _commands.CheckRegistered(command) : _commands.Contains(command.Id), connected, "Command", command.Id);
             }
             foreach (var registration in system.States.Registrations)
-                RequirePresence(connected ? _states.CheckRegistered(registration.Key, registration.Value) : _states.Contains(registration.Key),
-                    connected, "State", registration.Key.ToString());
+                RequirePresence(connected ? _states.CheckRegistered(registration) : _states.Contains(registration.Id),
+                    connected, "State", registration.Id);
         }
 
         private static void ValidateId(string id)

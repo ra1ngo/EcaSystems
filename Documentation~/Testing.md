@@ -2,6 +2,22 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## PR #21 follow-up: State ID / RuleId invariant / Scope composition — 2026-09-23
+
+Добавлены 14 cases: State IDs/declared contract (4), Connector ID conflict/canonical registration (4), normal Execution null/wrong RuleId в Condition и Action state creation (4), ForceFire null/wrong RuleId до callbacks (2). Проверены несколько ID одного T, разные declared types, exact type без assignable fallback, отсутствие вызова resolver при несовместимости, canonical ID + Type + exact delegate (включая covariant delegate с другим declared type). Прежние forwarding/no-cache/external exception, State rollback, ForceFire и Scope isolation assertions сохранены.
+
+Existing EcaStateTests и EcaSystemConnectorTests мигрированы на explicit string IDs. Проверка null RuleState выполняется с зарегистрированным ID после lookup/type validation. В BaseCallerStateFireForwardsNullWithoutCreatingContexts исправлен только RuleId fixture с default `rule` на фактический `base`; exact-reference/null-context assertions не изменены. Production Time/Core, Time/Eca, Core/Core1 и EventEmitter не менялись.
+
+Unity **6000.5.6f1**, фактически завершённые EditMode runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Первый Core2, до исправления старой RuleId fixture | 262 | 261 | 1 | 0 | 0 |
+| Итоговый focused Core2 assembly | 262 | 262 | 0 | 0 | 0 |
+| Полный EditMode | 446 | 446 | 0 | 0 | 0 |
+
+Первый run exit code 2: новый invariant обнаружил неверный RuleId в указанной fixture. Оба итоговых runs exit code 0. Полный suite: Core 37, Core1 77, Core2 262, Time 53, Time/Eca 17; все прошли. При перекомпиляции повторён существующий CS0108 в EcaScopeTests.Fire(int), строка 60. Unity также сообщает о пустой EcaSystems.Unity assembly; новых compiler warnings/errors нет. XML/log: `.validation~/pr21-state-id-core2`, `pr21-state-id-core2-final`, `pr21-state-id-full` (суффиксы `-results.xml` и `.log`). PlayMode/IL2CPP/remote CI не запускались.
+
 ## Core2 State / ForceFire / RuleId / Scope composition — 2026-09-21
 
 Добавлены 11 cases: EcaStateTests (8) и расширение Connector suite с 7 до 10. Проверены typed State identity, duplicate/missing/null validation, exact RuleState forwarding, global/per-Rule/per-Scope+Rule access, отсутствие result caching/ownership/Dispose внешних объектов, stable capabilities обоих authoring helpers, atomic one-time initialization, Connect/Disconnect/Reconnect, canonical delegate identity, rollback с State exports, ForceFire barrier/bypass и обычный emitter admission. Existing Disconnect rollback теперь также проверяет восстановление exact State registration. Fault injection для Connect создаёт last-step System conflict после prevalidation; компенсируются только операции Connector, injected unrelated registration не удаляется.

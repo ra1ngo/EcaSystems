@@ -179,7 +179,7 @@ Rule creation по Event ID реализован через internal EcaRuleCrea
 
 ## State
 
-Core2 StateRegistry хранит typed resolution functions, stable StateResolver принимает RuleState явно без Bind. Actual data остаётся во внешней System; RuleId находится в Base state, координата Group — ScopeId + RuleId без ExecutionGroupId. Эти primitives не реализуют VariableSystem, Save/Load или automatic inheritance.
+Core2 StateRegistry хранит resolution functions по stable string ID; один T допустим под разными IDs. Type служит только строгим declared contract. Stable StateResolver.Resolve<T>(stateId, ruleState) требует оба аргумента явно, без Bind и Type-only lookup. Actual data остаётся во внешней System. RuleId — identity Rule и lookup key Group внутри конкретного ExecutionRuntime; в scoped normal Execution текущая Group определяется ScopeId + RuleId. ForceFire имеет RuleId без участия Group. ExecutionGroupId не добавлен. Эти primitives не реализуют VariableSystem, Save/Load или automatic inheritance.
 
 - [ ] VariableSystem как отдельная standalone System и её ECA exports.
 - [ ] Save/Load внешних state отдельно от registry/resolver infrastructure.
