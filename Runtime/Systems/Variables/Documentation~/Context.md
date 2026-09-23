@@ -58,12 +58,37 @@ Duplicate declaration, missing variable и wrong requested/set type должны
 
 Базовое направление API:
 - Declare
-- Get
-- TryGet
-- Set
+- GetValue
+- TryGetValue
 - Contains
+- SetValue
+- ForceSetValue
+- SetCurrentValue
 
-Конкретные signatures согласуются перед реализацией.
+Mutation semantics:
+- `SetValue<T>(id, value)` — обычная tracked-запись только при фактическом изменении значения. Если новое значение равно CurrentValue, операция является no-op: OldValue не меняется и VariableChanged не испускается. Если значение отличается, OldValue получает прежний CurrentValue, затем CurrentValue меняется и испускается VariableChanged.
+- `ForceSetValue<T>(id, value)` — безусловная tracked-запись. Всегда выполняет OldValue = CurrentValue, затем CurrentValue = value и испускает VariableChanged, даже если значение не изменилось. Force не обходит ID/type validation.
+- `SetCurrentValue<T>(id, value)` — прямое присваивание только CurrentValue. OldValue не меняется и VariableChanged не испускается.
+
+Пример:
+
+```text
+Old = 0, Current = 0
+
+SetValue(50)
+→ Old = 0, Current = 50, VariableChanged
+
+SetValue(50)
+→ Old = 0, Current = 50, no-op
+
+ForceSetValue(50)
+→ Old = 50, Current = 50, VariableChanged
+
+SetCurrentValue(100)
+→ Old = 50, Current = 100, no event
+```
+
+Разделение намеренно сохраняет три разных смысла: обычное изменение, принудительный tracked write и direct current assignment. В будущем это должно естественно расширяться в History.
 
 ## Модель Variable
 
@@ -76,9 +101,9 @@ Duplicate declaration, missing variable и wrong requested/set type должны
 
 `EcaVariableDefinition` содержит immutable declaration metadata, как минимум ID, declared value Type и default value.
 
-OldValue хранит непосредственно предыдущее значение. В будущем вместо одного OldValue может появиться History; сейчас History не реализуется.
+OldValue хранит непосредственно предыдущее tracked значение. В будущем вместо одного OldValue может появиться History; сейчас History не реализуется.
 
-Generic access допустим на API-методах `Declare<T>/Get<T>/TryGet<T>/Set<T>`, но сами `EcaVariable` и `EcaVariableDefinition` в MVP не generic.
+Generic access допустим на API-методах `Declare<T>/GetValue<T>/TryGetValue<T>/SetValue<T>/ForceSetValue<T>/SetCurrentValue<T>`, но сами `EcaVariable` и `EcaVariableDefinition` в MVP не generic.
 
 Отдельные interfaces для Variable/Definition в MVP не требуются без конкретной необходимости.
 
@@ -162,7 +187,7 @@ State export должен быть read-oriented и не обязан отдав
 Предварительное направление:
 - State: `variables.state`
 - Event: один общий `VariableChanged`
-- Command: как минимум `Set`
+- Command: как минимум `SetValue`
 
 ECA adapter не входит в первую Variables Core-итерацию.
 
