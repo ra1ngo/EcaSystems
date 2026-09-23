@@ -10,7 +10,10 @@
 - [x] Core2 Fire/Context refactor: IEcaRule<E,R>, nullable раздельные contexts конкретного Fire, event-only Fire и Scope-owned EventEmitter.
 - [x] EcaSystemsRuntime v1 — production composition root: EcaScopeRuntime, global System/Event/Command/Namespace registries, EcaSystemConnector и EcaCommandRunner; без автоматического root Scope. Внешний adapter lifecycle не принадлежит Core/Runtime. Class/delegate Rule creation реализован; Unity/visual authoring остаётся Roadmap.
 - [x] RuleCreator/CreateRule, AEcaCondition/AEcaAction, shared checker/runner и state-aware Commands без Bind; Time Commands мигрированы.
-- [ ] Global State / Variables standalone System + ECA.
+- [x] State registrations/resolver без Bind, State initialization Condition/Action, Base RuleId, технический ForceFire и local ExecutionRuntime composition внутри Scope.
+- [x] PR #21 follow-up: State ID lookup + exact declared type, canonical ID/type/delegate validation, runtime RuleId invariant. ScopeRuntime создаёт per-Scope registries и передаёт их ссылками в Scope; Scope создаёт только ExecutionRuntime из dependencies.
+- [ ] VariableSystem / Global Variables standalone System + ECA.
+- [ ] Save/Load как отдельная следующая задача.
 - [ ] Небольшой end-to-end Sandbox / PlayMode scenario.
 - [ ] External event adapters.
 - [ ] Project cleanup/consolidation.
@@ -23,7 +26,7 @@
 - [x] Scope: EcaScopeRuntime manager + isolated EcaScope, независимые Execution graphs, hierarchy/ParentScopeId, local Fire, recursive Dispose и ScopeId reuse без отмены Actions; enrichment через Func<IEcaExecutionRuleState<E>, EcaScopeState, R> сохранён.
 - [x] Commands validated как самостоятельный Concept: standalone tests и BaseRuntime integration через явные state/context; Base не зависит от Commands.
 - [x] Commands abstraction: AEcaCommand/AEcaCommand<R,C,A> используют class virtual dispatch для Unity compatibility; Registry.Register(AEcaCommand) принимает heterogeneous Commands, Contains добавлен.
-- [x] EventEmitter concept: public IEcaEventEmitter.Fire<E>, internal Bind одного IEcaEventHandler, прямой generic callback; Base integration через test runtime. Core2 runtime API переименован в Fire с сохранением semantics overloads.
+- [x] EventEmitter concept: public IEcaEventEmitter.Fire<E>, internal Bind одного IEcaEventHandler, прямой generic callback; Base integration через test runtime. Обычный Fire layer-aware; технический caller-state Base bypass снова называется ForceFire.
 - [x] NUnit/Unity EditMode tests для Execution и недостающие Unity metadata.
 - [x] Systems v1: passive EcaSystem/Namespace, отдельные registries, EcaSystemConnector.Connect/Disconnect с prevalidation и локальным rollback; EventRegistry расширен non-generic Register/Unregister/Contains.
 - [x] Standalone TimeSystem Core v1: независимая Unity assembly, ID timers, lifecycle events, PlayerLoop и Awaitable Wait; изолированные tests.
@@ -91,7 +94,7 @@
 
 ## 6. Scope-aware / hierarchical SystemState
 
-- [ ] После Global State/Variables спроектировать global → child → grandchild/local scopes: inheritance, lookup и override semantics. Сейчас SystemState предполагается глобальным; scoped state не реализован. Это отдельная возможность, не EcaScopeState с ScopeId.
+- [ ] После Global State/Variables спроектировать global → child → grandchild/local scopes: inheritance, lookup и override semantics. StateResolver уже позволяет внешней System выбрать global/per-Scope/per-Rule state; automatic hierarchy/inheritance пока не реализована. Это отдельная возможность, не EcaScopeState с ScopeId.
 
 ## 7. Интеграция Unity и удобство пакета
 

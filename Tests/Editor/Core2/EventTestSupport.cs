@@ -37,6 +37,7 @@ namespace EcaSystems.Tests.Core2
 
         internal sealed class State<E> : IEcaRuleState<E>
         {
+            public string RuleId { get; set; } = "rule";
             public E EventState { get; }
             public State(E eventState) => EventState = eventState;
         }
@@ -85,7 +86,7 @@ namespace EcaSystems.Tests.Core2
         void IEcaEventHandler.Handle<E>(IEcaEvent<E> ecaEvent, E eventState, IEcaConditionContext conditionContext, IEcaActionContext actionContext) => Fire(ecaEvent, eventState, conditionContext, actionContext);
 
         public void Fire<E>(IEcaEvent<E> ecaEvent, E eventState, IEcaConditionContext conditionContext = null, IEcaActionContext actionContext = null) =>
-            base.Fire<E, EventTestSupport.State<E>>(
-                ecaEvent, eventState, (rule, state) => new EventTestSupport.State<E>(state), conditionContext, actionContext);
+            base.ForceFire<E, EventTestSupport.State<E>>(
+                ecaEvent, eventState, (rule, state) => new EventTestSupport.State<E>(state) { RuleId = rule.Id }, conditionContext, actionContext);
     }
 }

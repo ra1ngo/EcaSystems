@@ -10,9 +10,10 @@ namespace EcaSystems.Core2
         public EcaSystemNamespace Namespace { get; }
         public IEcaEventRegistry Events { get; }
         public EcaCommandRegistry Commands { get; }
+        public EcaStateRegistry States { get; }
 
         public EcaSystem(string id, EcaSystemNamespace systemNamespace,
-            IEcaEventRegistry events, EcaCommandRegistry commands,
+            IEcaEventRegistry events, EcaCommandRegistry commands, EcaStateRegistry states,
             string name = null, string description = null)
         {
             Id = id;
@@ -20,6 +21,7 @@ namespace EcaSystems.Core2
             // Local exports and metadata must remain stable while connected.
             Events = events ?? throw new ArgumentNullException(nameof(events));
             Commands = commands ?? throw new ArgumentNullException(nameof(commands));
+            States = states ?? throw new ArgumentNullException(nameof(states));
             Name = name;
             Description = description;
         }

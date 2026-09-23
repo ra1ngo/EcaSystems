@@ -8,6 +8,8 @@ namespace EcaSystems.Core2
     public sealed class EcaSystemsRuntime : IDisposable
     {
         private readonly EcaBaseEventRegistry _events;
+        private readonly EcaStateRegistry _states;
+        private readonly EcaStateResolver _stateResolver;
         private readonly EcaBaseConditionChecker _conditionChecker;
         private readonly EcaBaseActionRunner _actionRunner;
         private readonly EcaRuleCreator _ruleCreator;
@@ -21,13 +23,15 @@ namespace EcaSystems.Core2
         {
             _events = new EcaBaseEventRegistry();
             var commands = new EcaCommandRegistry();
+            _states = new EcaStateRegistry();
+            _stateResolver = new EcaStateResolver(_states);
             _systems = new EcaSystemRegistry();
             var namespaces = new EcaSystemNamespaceRegistry();
-            _connector = new EcaSystemConnector(_systems, namespaces, _events, commands);
+            _connector = new EcaSystemConnector(_systems, namespaces, _events, commands, _states);
             _commandRunner = new EcaCommandRunner(commands);
             _conditionChecker = new EcaBaseConditionChecker();
             _actionRunner = new EcaBaseActionRunner();
-            _ruleCreator = new EcaRuleCreator(_events, _commandRunner);
+            _ruleCreator = new EcaRuleCreator(_events, _commandRunner, _stateResolver);
             _scopes = new EcaScopeRuntime(_events, _conditionChecker, _actionRunner);
         }
 

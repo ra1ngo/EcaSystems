@@ -7,11 +7,13 @@ namespace EcaSystems.Core2
     {
         private readonly IEcaEventRegistry _events;
         private readonly IEcaCommands _commands;
+        private readonly IEcaStateResolver _stateResolver;
 
-        internal EcaRuleCreator(IEcaEventRegistry events, IEcaCommands commands)
+        internal EcaRuleCreator(IEcaEventRegistry events, IEcaCommands commands, IEcaStateResolver stateResolver)
         {
             _events = events ?? throw new ArgumentNullException(nameof(events));
             _commands = commands ?? throw new ArgumentNullException(nameof(commands));
+            _stateResolver = stateResolver ?? throw new ArgumentNullException(nameof(stateResolver));
         }
 
         internal EcaRule<E, R> Create<E, R, C, A>(string id, string eventId)
@@ -21,8 +23,9 @@ namespace EcaSystems.Core2
         {
             var ecaEvent = Resolve<E>(id, eventId);
             var condition = new C();
+            condition.Initialize(_stateResolver);
             var action = new A();
-            action.Initialize(_commands);
+            action.Initialize(_commands, _stateResolver);
             return new EcaRule<E, R>(id, ecaEvent, condition, action);
         }
 
@@ -32,7 +35,7 @@ namespace EcaSystems.Core2
         {
             var ecaEvent = Resolve<E>(id, eventId);
             var action = new A();
-            action.Initialize(_commands);
+            action.Initialize(_commands, _stateResolver);
             return new EcaRule<E, R>(id, ecaEvent, null, action);
         }
 
@@ -44,9 +47,10 @@ namespace EcaSystems.Core2
             if (action == null) throw new ArgumentNullException(nameof(action));
             var ecaEvent = Resolve<E>(id, eventId);
             var wrappedAction = new DelegateAction<R>(id + ".action", action);
-            wrappedAction.Initialize(_commands);
-            return new EcaRule<E, R>(id, ecaEvent,
-                condition == null ? null : new DelegateCondition<R>(id + ".condition", condition), wrappedAction);
+            wrappedAction.Initialize(_commands, _stateResolver);
+            var wrappedCondition = condition == null ? null : new DelegateCondition<R>(id + ".condition", condition);
+            wrappedCondition?.Initialize(_stateResolver);
+            return new EcaRule<E, R>(id, ecaEvent, wrappedCondition, wrappedAction);
         }
 
         private IEcaEvent<E> Resolve<E>(string id, string eventId)

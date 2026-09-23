@@ -9,9 +9,11 @@ namespace EcaSystems.Tests.Core2
 {
     public sealed class EcaCommandStateTests
     {
-        private class State : IEcaRuleState { public int Value; }
+        private class State : IEcaRuleState {
+            public string RuleId { get; set; } = "rule"; public int Value; }
         private sealed class DerivedState : State { }
-        private sealed class OtherState : IEcaRuleState { }
+        private sealed class OtherState : IEcaRuleState {
+            public string RuleId { get; set; } = "rule"; }
         private sealed class StatefulCommand : AEcaCommand<State, Context, Args>
         {
             public override string Id => "stateful";

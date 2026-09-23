@@ -11,6 +11,7 @@ namespace EcaSystems.Tests.Core2
     {
         internal sealed class State : IEcaExecutionRuleState<int>
         {
+            public string RuleId { get; set; } = "rule";
             public int EventState { get; }
             public EcaExecutionGroupState ExecutionGroupState { get; }
             public string Extra => "extended state";
@@ -143,6 +144,17 @@ namespace EcaSystems.Tests.Core2
                     Handler = run ?? ((state, context) => Task.CompletedTask)
                 }
             };
+        }
+
+        internal void RegisterRule(IEcaRule<int, ExecutionTestSupport.State> rule, EcaExecutionMode mode,
+            Func<int, EcaExecutionGroupState, ExecutionTestSupport.State> createState)
+        {
+            Runtime.Register(rule, mode, createState == null ? null : (value, group) =>
+            {
+                var state = createState(value, group);
+                state.RuleId = rule.Id;
+                return state;
+            });
         }
 
         internal void Fire(int value = 1) => Runtime.Fire<int>(Event, value, Conditions, Actions);

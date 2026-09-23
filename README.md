@@ -4,11 +4,15 @@ EcaSystems — Unity-first framework / UPM-пакет для связи неза
 
 ## Назначение и текущий Core2
 
-Фреймворк связывает независимые Dialogue, Time, Inventory, Quest и другие Systems. System экспортирует Events и Commands через passive EcaSystem; внешний adapter получает scope.EventEmitter. Lifecycle внешних Systems/adapters остаётся ответственностью game composition. Core2 не зависит от Unity; Time/Core — отдельная standalone Unity assembly.
+Фреймворк связывает независимые Dialogue, Time, Inventory, Quest и другие Systems. System экспортирует Events, Commands и State resolution functions через passive EcaSystem; внешний adapter получает scope.EventEmitter. Lifecycle внешних Systems/adapters остаётся ответственностью game composition. Core2 не зависит от Unity; Time/Core — отдельная standalone Unity assembly.
 
 **Action ≠ Command.** Action — программируемый блок Rule: он может вызвать несколько Commands, напрямую обратиться к API игровой System или выполнить произвольный C# код. Предметные операции Systems — Commands, например ShowDialogueCommand и WaitCommand; отдельные ShowDialogueAction/WaitAction для таких операций не являются моделью EcaSystems. Rule содержит один Event, optional Condition и одну Action. Action всегда async на уровне контракта: Task Run(...), без sync overload.
 
-EcaSystemsRuntime — composition root с global registries, одним stable IEcaCommands, shared EcaBaseConditionChecker/EcaBaseActionRunner и ScopeRuntime. Root автоматически не создаётся. Scope владеет локальными Rule/Execution registries и emitter. Все Conditions текущего Fire проверяются до Actions; Fire local/immediate/reentrant. Dispose не отменяет running Actions.
+EcaSystemsRuntime — composition root с global registries, одним stable IEcaCommands, shared EcaBaseConditionChecker/EcaBaseActionRunner и ScopeRuntime. Root автоматически не создаётся. ScopeRuntime создаёт локальные Rule/Execution registries и передаёт их в Scope; Scope создаёт из переданных dependencies свой ExecutionRuntime и владеет emitter. Все Conditions текущего Fire проверяются до Actions; Fire local/immediate/reentrant. Dispose не отменяет running Actions.
+
+StateRegistry.Register<T>(string id, Func<IEcaRuleState,T>) регистрирует способ получить actual external state; State.Resolve<T>(stateId, ruleState) передаёт текущий state явно, без Bind. Один T может иметь несколько IDs; Type используется только для точной проверки declared contract после ID lookup. Данные принадлежат внешней System. Base RuleState содержит RuleId; внешняя System сама выбирает global/per-Rule/per-Scope state или координату ScopeId + RuleId.
+
+Технический ForceFire на Base/Execution/Scope сохраняет Base condition barrier, но обходит ExecutionMode/Groups/lifecycle. Обычный Fire/EventEmitter его не использует. Scope сам создаёт local ExecutionRuntime из переданных shared services.
 
 ## Создание Rule
 
@@ -37,11 +41,11 @@ var rule = runtime.CreateRule<MyEventState>(
     });
 ```
 
-Condition можно опустить или передать null. Action delegate всегда возвращает Task. AEcaAction предоставляет protected Commands после однократного internal Initialize; обычный CreateRule path гарантирует initialization до публикации Rule. Class-based Action вызывает тот же `Commands.Run(commandId,state,context,args)`.
+Condition можно опустить или передать null. Action delegate всегда возвращает Task. AEcaCondition предоставляет protected State; AEcaAction предоставляет protected Commands и State после однократного internal Initialize; обычный CreateRule path гарантирует initialization до публикации Rule. Class-based Action вызывает тот же `Commands.Run(commandId,state,context,args)`.
 
 Commands больше не bind'ятся к ActionContext. EcaCommandRunner : IEcaCommands ничего per-Fire не захватывает; RuleState и nullable ActionContext передаются явно при каждом Run. AEcaCommand<R,C,A> предоставляет typed bridge и metadata через обычный class virtual dispatch. Context — внешний input, а Scope/Execution данные остаются в RuleState. Commands не помещаются в ActionContext.
 
-Global State/Variables, Unity authoring automation, JSON/visual definitions и routing пока отложены. Исторические Runtime/Core и Runtime/Core1 сохранены отдельно; их API не определяет текущий Core2.
+VariableSystem/Save-Load, Unity authoring automation, JSON/visual definitions и routing пока отложены. Исторические Runtime/Core и Runtime/Core1 сохранены отдельно; их API не определяет текущий Core2.
 
 ## ECA: академический термин и игровая практика
 

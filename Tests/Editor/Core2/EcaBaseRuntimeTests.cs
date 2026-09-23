@@ -26,8 +26,25 @@ namespace EcaSystems.Tests.Core2
             _runtime = new EcaBaseRuntime(_rules, new EcaBaseActionRunner(), new EcaBaseConditionChecker());
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void ForceFire_RejectsNullOrWrongRuleIdentityBeforeCallbacks(bool nullState)
+        {
+            var callbacks = 0;
+            _runtime.Register(new Rule
+            {
+                Id = "actual", Event = _event,
+                Condition = new Condition { CheckHandler = (state, context) => { callbacks++; return true; } },
+                Action = new Action { RunHandler = (state, context) => { callbacks++; return Task.CompletedTask; } }
+            });
+            var error = Assert.Throws<InvalidOperationException>(() => _runtime.ForceFire<int, State>(
+                _event, 1, (rule, value) => nullState ? null : new State { RuleId = "foreign" }));
+            Assert.That(error.Message, Does.Contain("actual"));
+            Assert.That(callbacks, Is.Zero);
+        }
+
         [Test]
-        public void Fire_ChecksAllConditionsBeforeActions_InRegistryOrder()
+        public void ForceFire_ChecksAllConditionsBeforeActions_InRegistryOrder()
         {
             var trace = new List<string>();
             var created = new List<string>();
@@ -76,10 +93,10 @@ namespace EcaSystems.Tests.Core2
                 Action = new Action { RunHandler = (state, context) => throw new AssertionException("Unmatched action") }
             });
 
-            _runtime.Fire<int, State>(_event, 42, (rule, eventState) =>
+            _runtime.ForceFire<int, State>(_event, 42, (rule, eventState) =>
             {
                 created.Add(rule.Id);
-                var state = new State { EventState = eventState };
+                var state = new State { RuleId = rule.Id, EventState = eventState };
                 states.Add(rule.Id, state);
                 return state;
             }, conditionContext, actionContext);
@@ -89,7 +106,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_OptionalConditionRunsActionAfterOtherConditions()
+        public void ForceFire_OptionalConditionRunsActionAfterOtherConditions()
         {
             var trace = new List<string>();
             _runtime.Register(new Rule
@@ -104,8 +121,8 @@ namespace EcaSystems.Tests.Core2
                 Action = new Action { RunHandler = (state, context) => throw new AssertionException("Failed rule action") }
             });
 
-            _runtime.Fire<int, State>(
-                _event, 7, (rule, value) => new State { EventState = value }, new ConditionContext(), new ActionContext());
+            _runtime.ForceFire<int, State>(
+                _event, 7, (rule, value) => new State { RuleId = rule.Id, EventState = value }, new ConditionContext(), new ActionContext());
 
             Assert.That(trace, Is.EqualTo(new[] { "Condition failed", "Action optional" }));
         }
@@ -117,17 +134,17 @@ namespace EcaSystems.Tests.Core2
             _runtime.Register(rule);
             Assert.That(_runtime.Unregister(rule), Is.True);
             Assert.That(_runtime.Unregister(rule), Is.False);
-            _runtime.Fire<int, State>(
+            _runtime.ForceFire<int, State>(
                 _event, 0, (matching, value) => throw new AssertionException("No matching rule"),
                 new ConditionContext(), new ActionContext());
         }
 
         [Test]
-        public void Fire_RejectsMissingArguments()
+        public void ForceFire_RejectsMissingArguments()
         {
-            Assert.Throws<ArgumentNullException>(() => _runtime.Fire<int, State>(
+            Assert.Throws<ArgumentNullException>(() => _runtime.ForceFire<int, State>(
                 null, 0, (rule, value) => new State(), new ConditionContext(), new ActionContext()));
-            Assert.Throws<ArgumentNullException>(() => _runtime.Fire<int, State>(
+            Assert.Throws<ArgumentNullException>(() => _runtime.ForceFire<int, State>(
                 _event, 0, null, new ConditionContext(), new ActionContext()));
         }
 

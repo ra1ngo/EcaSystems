@@ -13,12 +13,13 @@ namespace EcaSystems.Core2
         public string ParentScopeId { get; }
         public bool IsDisposed { get; private set; }
 
-        internal EcaScope(EcaScopeRuntime owner, EcaScopeState state, EcaExecutionRuntime executionRuntime, string parentScopeId)
+        internal EcaScope(EcaScopeRuntime owner, EcaScopeState state, IEcaRuleRegistry rules, IEcaExecutionGroupRegistry groups, IEcaConditionChecker conditionChecker, IEcaActionRunner actionRunner, string parentScopeId)
         {
             _owner = owner;
             ParentScopeId = parentScopeId;
             State = state ?? throw new ArgumentNullException(nameof(state));
-            _executionRuntime = executionRuntime ?? throw new ArgumentNullException(nameof(executionRuntime));
+            _executionRuntime = new EcaExecutionRuntime(rules, groups,
+                conditionChecker, actionRunner);
             var emitter = new EcaEventEmitter();
             emitter.Bind(this);
             EventEmitter = emitter;
@@ -32,13 +33,13 @@ namespace EcaSystems.Core2
             ThrowIfDisposed();
             if (extendState == null) throw new ArgumentNullException(nameof(extendState));
             _executionRuntime.Register(rule, executionMode, (eventState, groupState) =>
-                extendState(new EcaExecutionRuleState<E>(eventState, groupState), State));
+                extendState(new EcaExecutionRuleState<E>(rule.Id, eventState, groupState), State));
         }
 
         public void Register<E>(IEcaRule<E, EcaScopeRuleState<E>> rule, EcaExecutionMode executionMode)
         {
             Register(rule, executionMode, (executionState, scopeState) => new EcaScopeRuleState<E>(
-                executionState.EventState, executionState.ExecutionGroupState, scopeState));
+                executionState.RuleId, executionState.EventState, executionState.ExecutionGroupState, scopeState));
         }
 
         public void Fire<E>(IEcaEvent<E> ecaEvent, E eventState, IEcaConditionContext conditionContext = null, IEcaActionContext actionContext = null)
@@ -63,13 +64,13 @@ namespace EcaSystems.Core2
             return _executionRuntime.Unregister(rule);
         }
 
-        public void Fire<E, R>(
+        public void ForceFire<E, R>(
             IEcaEvent<E> ecaEvent, E eventState, Func<IEcaRule<E, R>, E, R> createState,
             IEcaConditionContext conditionContext = null, IEcaActionContext actionContext = null)
             where R : IEcaRuleState<E>
         {
             ThrowIfDisposed();
-            _executionRuntime.Fire(ecaEvent, eventState, createState, conditionContext, actionContext);
+            _executionRuntime.ForceFire(ecaEvent, eventState, createState, conditionContext, actionContext);
         }
 
         public IEcaExecutionGroup GetGroup(string ruleId)

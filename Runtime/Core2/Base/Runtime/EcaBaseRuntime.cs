@@ -23,7 +23,7 @@ namespace EcaSystems.Core2
 
         public bool Unregister(IEcaRule rule) => _rules.Unregister(rule);
 
-        public void Fire<E, R>(
+        public void ForceFire<E, R>(
             IEcaEvent<E> ecaEvent, E eventState,
             Func<IEcaRule<E, R>, E, R> createState,
             IEcaConditionContext conditionContext = null, IEcaActionContext actionContext = null)
@@ -41,6 +41,8 @@ namespace EcaSystems.Core2
             {
                 var rule = rules[i];
                 var state = createState(rule, eventState);
+                if (state == null || !string.Equals(state.RuleId, rule.Id, StringComparison.Ordinal))
+                    throw new InvalidOperationException($"State for rule '{rule.Id}' must be non-null and have the same RuleId.");
                 states[i] = state;
                 passed[i] = rule.Condition == null || _conditionChecker.Check(rule.Condition, state, conditionContext);
             }

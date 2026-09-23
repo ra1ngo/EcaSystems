@@ -16,10 +16,47 @@ namespace EcaSystems.Tests.Core2
             Func<State, ConditionContext, bool> check = null, Func<State, ActionContext, Task> run = null,
             Func<int, EcaExecutionGroupState, State> createState = null)
         {
+            var rule = NewRule(check: check, run: run);
             return new EcaExecutionGroup<int, State>(
-                NewRule(check: check, run: run), new EcaExecutionMode(overlap, limit),
-                createState ?? ((value, state) => new State(value, state)),
+                rule, new EcaExecutionMode(overlap, limit),
+                createState ?? ((value, state) => new State(value, state) { RuleId = rule.Id }),
                 new EcaBaseConditionChecker(), new EcaBaseActionRunner());
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void Check_RejectsNullOrWrongRuleIdentityBeforeCondition(bool nullState)
+        {
+            var checks = 0;
+            var group = CreateGroup(check: (state, context) => { checks++; return true; },
+                createState: (value, state) => nullState ? null : new State(value, state) { RuleId = "foreign" });
+            var error = Assert.Throws<InvalidOperationException>(() => group.Check(1, Conditions));
+            Assert.That(error.Message, Does.Contain("RuleId"));
+            Assert.That(checks, Is.Zero);
+            Assert.That(group.State.TotalStarted, Is.Zero);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public async Task Run_RejectsNullOrWrongRuleIdentityAsFailedExecution(bool nullState)
+        {
+            var actions = 0;
+            EcaExecution captured = null;
+            EcaExecutionGroup<int, State> group = null;
+            group = CreateGroup(run: (state, context) => { actions++; return Task.CompletedTask; },
+                createState: (value, state) =>
+                {
+                    captured = group.Executions[0];
+                    return nullState ? null : new State(value, state) { RuleId = "foreign" };
+                });
+            await group.Run(1, Actions);
+            Assert.That(actions, Is.Zero);
+            Assert.That(captured.Status, Is.EqualTo(EcaExecutionStatus.Failed));
+            Assert.That(captured.Exception, Is.TypeOf<InvalidOperationException>());
+            Assert.That(captured.Exception.Message, Does.Contain("RuleId"));
+            Assert.That(group.State.TotalStarted, Is.EqualTo(1));
+            Assert.That(group.State.TotalFinished, Is.EqualTo(1));
+            Assert.That(group.Executions, Is.Empty);
         }
 
         [TestCase(EcaExecutionModeOverlap.Ignore, -1)]
@@ -52,10 +89,10 @@ namespace EcaSystems.Tests.Core2
         public void RuleState_PreservesPayloadAndLiveState()
         {
             var group = CreateGroup();
-            var state = new EcaExecutionRuleState<int>(42, group.State);
+            var state = new EcaExecutionRuleState<int>("rule", 42, group.State);
             Assert.That(state.EventState, Is.EqualTo(42));
             Assert.That(state.ExecutionGroupState, Is.SameAs(group.State));
-            Assert.Throws<ArgumentNullException>(() => new EcaExecutionRuleState<int>(42, null));
+            Assert.Throws<ArgumentNullException>(() => new EcaExecutionRuleState<int>("rule", 42, null));
         }
 
         [Test]

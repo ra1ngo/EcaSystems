@@ -36,7 +36,15 @@ namespace EcaSystems.Core2
         public bool Check(E eventState, IEcaConditionContext context)
         {
             if (_rule.Condition == null) return true;
-            return _conditionChecker.Check(_rule.Condition, _createState(eventState, State), context);
+            return _conditionChecker.Check(_rule.Condition, CreateState(eventState), context);
+        }
+
+        private R CreateState(E eventState)
+        {
+            var state = _createState(eventState, State);
+            if (state == null || !string.Equals(state.RuleId, _rule.Id, StringComparison.Ordinal))
+                throw new InvalidOperationException($"State for rule '{_rule.Id}' must be non-null and have the same RuleId.");
+            return state;
         }
 
         public Task Run(E eventState, IEcaActionContext context)
@@ -63,7 +71,7 @@ namespace EcaSystems.Core2
             try
             {
                 // Active и Started уже видны даже из reentrant createState/Action.
-                var state = _createState(eventState, State);
+                var state = CreateState(eventState);
                 var task = _actionRunner.Run(_rule.Action, state, context)
                     ?? throw new InvalidOperationException($"Action for rule '{RuleId}' returned null Task.");
                 await task;

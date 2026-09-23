@@ -42,8 +42,8 @@ namespace EcaSystems.Tests.Core2
                 (Func<IEcaExecutionRuleState<int>, EcaScopeState, EcaScopeRuleState<int>>)null));
             Assert.Throws<ObjectDisposedException>(() => scope.Unregister(rule));
             Assert.Throws<ObjectDisposedException>(() => Fire(scope));
-            Assert.Throws<ObjectDisposedException>(() => scope.Fire<int, EcaScopeRuleState<int>>(
-                Event, 0, (r, e) => new EcaScopeRuleState<int>(e, new EcaExecutionGroupState(), scope.State), new C(), new A()));
+            Assert.Throws<ObjectDisposedException>(() => scope.ForceFire<int, EcaScopeRuleState<int>>(
+                Event, 0, (r, e) => new EcaScopeRuleState<int>(r.Id, e, new EcaExecutionGroupState(), scope.State), new C(), new A()));
             Assert.Throws<ObjectDisposedException>(() => scope.GetGroup("shared"));
             Assert.Throws<ObjectDisposedException>(() => scope.TryGetGroup("shared", out _));
         }
@@ -260,7 +260,7 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
-        public void Fire_UsesOnlyLocalRegistryAndCallerState()
+        public void ForceFire_UsesOnlyLocalRegistryAndCallerState()
         {
             var parent = _owner.CreateScope("parent");
             var child = parent.CreateScope("child");
@@ -268,8 +268,8 @@ namespace EcaSystems.Tests.Core2
             var rule = Rule(s => { calls.Add(s.ScopeState.ScopeId); return Task.CompletedTask; });
             parent.Register(rule, new EcaExecutionMode(EcaExecutionModeOverlap.Ignore, 0));
             child.Register(rule, new EcaExecutionMode(EcaExecutionModeOverlap.Allow));
-            parent.Fire<int, EcaScopeRuleState<int>>(Event, 1,
-                (r, e) => new EcaScopeRuleState<int>(e, new EcaExecutionGroupState(), parent.State), new C(), new A());
+            parent.ForceFire<int, EcaScopeRuleState<int>>(Event, 1,
+                (r, e) => new EcaScopeRuleState<int>(r.Id, e, new EcaExecutionGroupState(), parent.State), new C(), new A());
             Assert.That(calls, Is.EqualTo(new[] { "parent" }));
             Assert.That(parent.GetGroup("shared").State.TotalStarted, Is.Zero);
             Assert.That(child.GetGroup("shared").State.TotalStarted, Is.Zero);

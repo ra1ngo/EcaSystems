@@ -17,7 +17,7 @@ namespace EcaSystems.Tests.Core2
         {
             var rule = NewRule();
             var mode = Mode;
-            Runtime.Register(rule, mode, CreateState);
+            RegisterRule(rule, mode, CreateState);
             var group = Runtime.GetGroup(rule.Id);
             Assert.That(group.Rule, Is.SameAs(rule));
             Assert.That(group.RuleId, Is.EqualTo(rule.Id));
@@ -35,7 +35,7 @@ namespace EcaSystems.Tests.Core2
         [Test]
         public void Registry_MissingAndIncompatibleTypesAreExplicit()
         {
-            Runtime.Register(NewRule(), Mode, CreateState);
+            RegisterRule(NewRule(), Mode, CreateState);
             Assert.Throws<InvalidOperationException>(() => Groups.Get("missing"));
             Assert.That(Runtime.TryGetGroup("missing", out var missing), Is.False);
             Assert.That(missing, Is.Null);
@@ -77,10 +77,10 @@ namespace EcaSystems.Tests.Core2
         public void Register_DuplicatesLeaveOriginalGroupIntact()
         {
             var rule = NewRule();
-            Runtime.Register(rule, Mode, CreateState);
+            RegisterRule(rule, Mode, CreateState);
             var original = Runtime.GetGroup(rule.Id);
-            Assert.Throws<InvalidOperationException>(() => Runtime.Register(rule, Mode, CreateState));
-            Assert.Throws<InvalidOperationException>(() => Runtime.Register(NewRule(), Mode, CreateState));
+            Assert.Throws<InvalidOperationException>(() => RegisterRule(rule, Mode, CreateState));
+            Assert.Throws<InvalidOperationException>(() => RegisterRule(NewRule(), Mode, CreateState));
             Assert.Throws<InvalidOperationException>(() => Groups.Register(original));
             Assert.Throws<ArgumentNullException>(() => Groups.Register(null));
             Assert.That(Runtime.GetGroup(rule.Id), Is.SameAs(original));
@@ -93,7 +93,7 @@ namespace EcaSystems.Tests.Core2
             var original = new EcaExecutionGroup<int, State>(
                 NewRule(), Mode, CreateState, new EcaBaseConditionChecker(), new EcaBaseActionRunner());
             Groups.Register(original);
-            Assert.Throws<InvalidOperationException>(() => Runtime.Register(NewRule(), Mode, CreateState));
+            Assert.Throws<InvalidOperationException>(() => RegisterRule(NewRule(), Mode, CreateState));
             Assert.That(Rules.GetByEvent<int, State>(Event), Is.Empty);
             Assert.That(Runtime.GetGroup("rule"), Is.SameAs(original));
         }
@@ -103,11 +103,11 @@ namespace EcaSystems.Tests.Core2
         public void Register_RollsBackRuleWhenGroupConstructionFails(bool missingMode)
         {
             var rule = NewRule();
-            Assert.Throws<ArgumentNullException>(() => Runtime.Register(
+            Assert.Throws<ArgumentNullException>(() => RegisterRule(
                 rule, missingMode ? null : Mode, missingMode ? CreateState : (Func<int, EcaExecutionGroupState, State>)null));
             Assert.That(Rules.GetByEvent<int, State>(Event), Is.Empty);
             Assert.That(Runtime.TryGetGroup(rule.Id, out _), Is.False);
-            Runtime.Register(rule, Mode, CreateState);
+            RegisterRule(rule, Mode, CreateState);
             Assert.That(Runtime.GetGroup(rule.Id).Rule, Is.SameAs(rule));
         }
 
@@ -116,7 +116,7 @@ namespace EcaSystems.Tests.Core2
         {
             var rule = NewRule();
             rule.Event = new BaseTestSupport.Event<int> { Id = "missing" };
-            Assert.Throws<InvalidOperationException>(() => Runtime.Register(rule, Mode, CreateState));
+            Assert.Throws<InvalidOperationException>(() => RegisterRule(rule, Mode, CreateState));
             Assert.That(Runtime.TryGetGroup(rule.Id, out _), Is.False);
         }
 
@@ -125,7 +125,7 @@ namespace EcaSystems.Tests.Core2
         {
             var calls = 0;
             var rule = NewRule(run: (state, context) => { calls++; return Task.CompletedTask; });
-            Runtime.Register(rule, Mode, CreateState);
+            RegisterRule(rule, Mode, CreateState);
             var group = Runtime.GetGroup(rule.Id);
             Assert.That(Runtime.Unregister(NewRule()), Is.False);
             Assert.That(Runtime.GetGroup(rule.Id), Is.SameAs(group));
@@ -147,13 +147,13 @@ namespace EcaSystems.Tests.Core2
             var calls = 0;
             var rule = NewRule(run: (state, context) => ++calls == 1 ? oldGate.Task : newGate.Task);
             var mode = new EcaExecutionMode(EcaExecutionModeOverlap.Ignore, 1);
-            Runtime.Register(rule, mode, CreateState);
+            RegisterRule(rule, mode, CreateState);
             Fire();
             var oldGroup = Runtime.GetGroup(rule.Id);
             var oldExecution = oldGroup.Executions[0];
             Assert.That(Runtime.Unregister(rule), Is.True);
             Assert.That(oldExecution.Status, Is.EqualTo(EcaExecutionStatus.Running));
-            Runtime.Register(rule, mode, CreateState);
+            RegisterRule(rule, mode, CreateState);
             var newGroup = Runtime.GetGroup(rule.Id);
             Assert.That(newGroup, Is.Not.SameAs(oldGroup));
             Assert.That(newGroup.State, Is.Not.SameAs(oldGroup.State));

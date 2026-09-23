@@ -25,7 +25,7 @@ Core v1 реализует только одноразовые ID timers и Awai
 - [ ] Polling sources.
 - [ ] UnityEvent, InputAction / Unity callbacks и другие adapters по практическим сценариям.
 
-Первый конкретный TimeEcaAdapter уже использует typed Fire<E>. Перечисленные generic adapters остаются будущими возможностями после production composition / Global State / Sandbox; универсальный binding framework, Signals и State не реализованы. Способы адаптации могут различаться; lifecycle внешних Systems/adapters не принадлежит Core. Framework helpers допустимы без обязательной общей Core abstraction.
+Первый конкретный TimeEcaAdapter уже использует typed Fire<E>. Перечисленные generic adapters остаются будущими возможностями после production composition / Global State / Sandbox; универсальный binding framework, Signals не реализованы; State registry/resolver добавлен отдельно, без владения внешними данными. Способы адаптации могут различаться; lifecycle внешних Systems/adapters не принадлежит Core. Framework helpers допустимы без обязательной общей Core abstraction.
 
 ## Core2: согласованность Runtime и registries
 
@@ -179,7 +179,12 @@ Rule creation по Event ID реализован через internal EcaRuleCrea
 
 ## State
 
-- [ ] Scoped/hierarchical SystemState после Global State/Variables: inheritance, lookup, override по global → child → grandchild/local scopes. Этап отражён в ToDo; глобальный SystemState допустим как первый простой шаг, но не финальная модель.
+Core2 StateRegistry хранит resolution functions по stable string ID; один T допустим под разными IDs. Type служит только строгим declared contract. Stable StateResolver.Resolve<T>(stateId, ruleState) требует оба аргумента явно, без Bind и Type-only lookup. Actual data остаётся во внешней System. RuleId — identity Rule и lookup key Group внутри конкретного ExecutionRuntime; в scoped normal Execution текущая Group определяется ScopeId + RuleId. ForceFire имеет RuleId без участия Group. ExecutionGroupId не добавлен. Эти primitives не реализуют VariableSystem, Save/Load или automatic inheritance.
+
+- [ ] VariableSystem как отдельная standalone System и её ECA exports.
+- [ ] Save/Load внешних state отдельно от registry/resolver infrastructure.
+
+- [ ] Scoped/hierarchical SystemState после Global State/Variables: inheritance, lookup, override по global → child → grandchild/local scopes. Этап отражён в ToDo; внешние функции уже могут использовать ScopeId/RuleId, но automatic inheritance/override не предоставляются.
 
 ## Технический долг и архитектурное review
 
