@@ -40,14 +40,16 @@
 
 - [ ] Спроектировать один общий container concept вместо отдельных Store/Group/Scope/EntityGroup сущностей.
 - [ ] Рабочий naming: Store; подтвердить или заменить при проектировании.
-- [ ] Stable container ID.
+- [ ] Stable container ID, глобально уникальный внутри одного EcaVariablesSystem.
 - [ ] Optional ParentId.
-- [ ] Дерево вложенных containers.
+- [ ] Дерево/forest вложенных containers.
+- [ ] ParentId означает только ownership/structure; parent variable lookup отсутствует.
+- [ ] Store lookup variables только локальный.
 - [ ] Container lifecycle/API обсуждается отдельно.
 - [ ] Не связывать container existence с EcaScope.
 - [ ] Не связывать container ID с RuleId/entityId автоматически.
 - [ ] Mapping ECA coordinates → Variables container остаётся adapter policy.
-- [ ] Отдельно решить hierarchy lookup/inheritance/override semantics.
+- [ ] Hierarchical lookup/inheritance/override не реализовывать в этой итерации; это Roadmap.
 - [ ] Событие изменения container/store спроектировать позже.
 
 ## Итерация 3 — Variables / ECA adapter
