@@ -14,5 +14,12 @@ namespace EcaSystems.Core2
             if (ruleState == null) throw new ArgumentNullException(nameof(ruleState));
             return resolve(ruleState);
         }
+
+        public T Resolve<T>(string stateId, IEcaRuleState ruleState, object payload)
+        {
+            var resolve = _registry.ResolveWithPayload<T>(stateId);
+            if (ruleState == null) throw new ArgumentNullException(nameof(ruleState));
+            return resolve(ruleState, payload);
+        }
     }
 }

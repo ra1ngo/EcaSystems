@@ -4,37 +4,37 @@
 
 ### EcaSystems State prerequisite
 
-- [ ] Добавить overload регистрации State resolver с opaque `object payload`.
-- [ ] Добавить overload `Resolve<T>(stateId, ruleState, payload)`.
-- [ ] Сохранить текущие no-payload overloads без изменения public behavior.
-- [ ] Зафиксировать validation при вызове payload/no-payload overload не того registration shape.
-- [ ] Payload не интерпретируется Core и передаётся exact resolver function.
-- [ ] Сохранить canonical connector validation exact registration/delegate semantics.
-- [ ] Добавить focused payload forwarding/validation tests.
+- [x] Добавить overload регистрации State resolver с opaque `object payload`.
+- [x] Добавить overload `Resolve<T>(stateId, ruleState, payload)`.
+- [x] Сохранить текущие no-payload overloads без изменения public behavior.
+- [x] Зафиксировать validation при вызове payload/no-payload overload не того registration shape.
+- [x] Payload не интерпретируется Core и передаётся exact resolver function.
+- [x] Сохранить canonical connector validation exact registration/delegate semantics.
+- [x] Добавить focused payload forwarding/validation tests.
 
 ### Variables Core
 
-- [ ] Создать standalone `Runtime/Systems/Variables/Core` без зависимости от Core2.
-- [ ] Использовать префикс `Eca` для concrete файлов и классов.
-- [ ] Реализовать `EcaVariablesSystem`.
-- [ ] Реализовать non-generic `EcaVariableDefinition`.
-- [ ] Реализовать non-generic `EcaVariable` с Definition / CurrentValue / OldValue.
-- [ ] Реализовать `int / float / bool / string`.
-- [ ] Реализовать explicit declaration.
-- [ ] Реализовать `Declare<T>/GetValue<T>/TryGetValue<T>/Contains`.
-- [ ] Реализовать `SetValue<T>`: same-value → no-op; changed value → Old=previous Current, Current=new, VariableChanged.
-- [ ] Реализовать `ForceSetValue<T>`: всегда Old=previous Current, Current=new, VariableChanged, включая same-value; validation не обходится.
-- [ ] Реализовать `SetCurrentValue<T>`: меняет только CurrentValue, OldValue не меняется, VariableChanged не испускается.
-- [ ] Duplicate declaration → exception.
-- [ ] Missing variable для обязательных операций → exception.
-- [ ] `TryGetValue<T>`: missing → false.
-- [ ] Wrong requested/set type → exception, включая TryGetValue.
-- [ ] Реализовать standalone VariableChanged event.
-- [ ] Event payload — отдельный `EcaVariableChanged`, явно mapped из `EcaVariable`.
-- [ ] `EcaVariableChanged` содержит Definition / CurrentValue / OldValue.
-- [ ] Добавить standalone tests.
-- [ ] Не добавлять Stores/Groups/Scopes/EntityGroups в этой итерации.
-- [ ] Не добавлять Save/Load, enum, history или reactivity.
+- [x] Создать standalone `Runtime/Systems/Variables/Core` без зависимости от Core2.
+- [x] Использовать префикс `Eca` для concrete файлов и классов.
+- [x] Реализовать `EcaVariablesSystem`.
+- [x] Реализовать non-generic `EcaVariableDefinition`.
+- [x] Реализовать non-generic `EcaVariable` с Definition / CurrentValue / OldValue.
+- [x] Реализовать `int / float / bool / string`.
+- [x] Реализовать explicit declaration.
+- [x] Реализовать `Declare<T>/GetValue<T>/TryGetValue<T>/Contains`.
+- [x] Реализовать `SetValue<T>`: same-value → no-op; changed value → Old=previous Current, Current=new, VariableChanged.
+- [x] Реализовать `ForceSetValue<T>`: всегда Old=previous Current, Current=new, VariableChanged, включая same-value; validation не обходится.
+- [x] Реализовать `SetCurrentValue<T>`: меняет только CurrentValue, OldValue не меняется, VariableChanged не испускается.
+- [x] Duplicate declaration → exception.
+- [x] Missing variable для обязательных операций → exception.
+- [x] `TryGetValue<T>`: missing → false.
+- [x] Wrong requested/set type → exception, включая TryGetValue.
+- [x] Реализовать standalone VariableChanged event.
+- [x] Event payload — отдельный `EcaVariableChanged`, явно mapped из `EcaVariable`.
+- [x] `EcaVariableChanged` содержит Definition / CurrentValue / OldValue.
+- [x] Добавить standalone tests.
+- [x] Не добавлять Stores/Groups/Scopes/EntityGroups в этой итерации.
+- [x] Не добавлять Save/Load, enum, history или reactivity.
 
 ## Итерация 2 — древовидные containers
 

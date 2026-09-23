@@ -11,11 +11,13 @@ namespace EcaSystems.Core2
             internal string Id { get; }
             internal Type StateType { get; }
             internal Delegate Resolver { get; }
-            internal Registration(string id, Type stateType, Delegate resolver)
+            internal bool HasPayload { get; }
+            internal Registration(string id, Type stateType, Delegate resolver, bool hasPayload)
             {
                 Id = id;
                 StateType = stateType;
                 Resolver = resolver;
+                HasPayload = hasPayload;
             }
         }
 
@@ -26,7 +28,14 @@ namespace EcaSystems.Core2
         {
             ValidateId(id);
             if (resolve == null) throw new ArgumentNullException(nameof(resolve));
-            Register(new Registration(id, typeof(T), resolve));
+            Register(new Registration(id, typeof(T), resolve, false));
+        }
+
+        public void Register<T>(string id, Func<IEcaRuleState, object, T> resolve)
+        {
+            ValidateId(id);
+            if (resolve == null) throw new ArgumentNullException(nameof(resolve));
+            Register(new Registration(id, typeof(T), resolve, true));
         }
 
         public bool Contains(string id)
@@ -50,16 +59,25 @@ namespace EcaSystems.Core2
 
         internal bool CheckRegistered(Registration registration) =>
             _registrations.TryGetValue(registration.Id, out var current) &&
-            current.StateType == registration.StateType && ReferenceEquals(current.Resolver, registration.Resolver);
+            current.StateType == registration.StateType && current.HasPayload == registration.HasPayload &&
+            ReferenceEquals(current.Resolver, registration.Resolver);
 
-        internal Func<IEcaRuleState, T> Resolve<T>(string id)
+        internal Func<IEcaRuleState, T> Resolve<T>(string id) =>
+            (Func<IEcaRuleState, T>)ResolveRegistration<T>(id, false).Resolver;
+
+        internal Func<IEcaRuleState, object, T> ResolveWithPayload<T>(string id) =>
+            (Func<IEcaRuleState, object, T>)ResolveRegistration<T>(id, true).Resolver;
+
+        private Registration ResolveRegistration<T>(string id, bool hasPayload)
         {
             ValidateId(id);
             if (!_registrations.TryGetValue(id, out var registration))
                 throw new InvalidOperationException($"State '{id}' is not registered.");
             if (registration.StateType != typeof(T))
                 throw new InvalidOperationException($"State '{id}' declares '{registration.StateType}', not '{typeof(T)}'.");
-            return (Func<IEcaRuleState, T>)registration.Resolver;
+            if (registration.HasPayload != hasPayload)
+                throw new InvalidOperationException($"State '{id}' resolver shape does not match the requested overload.");
+            return registration;
         }
 
         private static void ValidateId(string id)

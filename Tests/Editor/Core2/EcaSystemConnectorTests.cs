@@ -35,6 +35,73 @@ namespace EcaSystems.Tests.Core2
         }
 
         [Test]
+        public void PayloadConnectDisconnectReconnectPreservesOriginalDelegateWithoutCallingIt()
+        {
+            var calls = 0;
+            Func<IEcaRuleState, object, object> callback = (state, payload) => { calls++; return payload; };
+            _system.States.Register<object>("payload", callback);
+            _connector.Connect(_system);
+            Assert.That(_states.ResolveWithPayload<object>("payload"), Is.SameAs(callback));
+            _connector.Disconnect(_system);
+            Assert.That(_states.Contains("payload"), Is.False);
+            _connector.Connect(_system);
+            Assert.That(_states.ResolveWithPayload<object>("payload"), Is.SameAs(callback));
+            Assert.That(calls, Is.Zero);
+            var payload = new object();
+            Assert.That(new EcaStateResolver(_states).Resolve<object>("payload", new BaseTestSupport.State(), payload), Is.SameAs(payload));
+            Assert.That(calls, Is.EqualTo(1));
+            _connector.Disconnect(_system);
+            Assert.That(calls, Is.EqualTo(1));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void PayloadDisconnectRejectsForeignShapeOrDelegateBeforeMutation(bool changeShape)
+        {
+            _system.States.Register<object>("payload", (state, payload) => throw new Exception("Must not call"));
+            _connector.Connect(_system);
+            _states.Unregister("payload");
+            if (changeShape) _states.Register<object>("payload", state => throw new Exception("Must not call"));
+            else _states.Register<object>("payload", (state, payload) => throw new Exception("Must not call"));
+            Assert.Throws<InvalidOperationException>(() => _connector.Disconnect(_system));
+            Assert.That(_systems.CheckRegistered(_system), Is.True);
+            Assert.That(_events.Events.Count, Is.EqualTo(2));
+            Assert.That(_commands.Commands.Count, Is.EqualTo(1));
+            Assert.That(_states.Contains("global"), Is.True);
+            Assert.That(_states.Contains("payload"), Is.True);
+        }
+
+        [Test]
+        public void PayloadDisconnectRollbackRestoresOriginalDelegateAndShape()
+        {
+            Func<IEcaRuleState, object, object> callback = (state, payload) => throw new Exception("Must not call");
+            _system.States.Register<object>("payload", callback);
+            _connector.Connect(_system);
+            _events.FailUnregisterId = "second";
+            Assert.Throws<InvalidOperationException>(() => _connector.Disconnect(_system));
+            AssertConnected();
+            Assert.That(_states.ResolveWithPayload<object>("payload"), Is.SameAs(callback));
+            Assert.Throws<InvalidOperationException>(() => _states.Resolve<object>("payload"));
+        }
+
+        [Test]
+        public void PayloadConnectRollbackRemovesOnlyCompletedExports()
+        {
+            Func<IEcaRuleState, object, object> callback = (state, payload) => throw new Exception("Must not call");
+            _system.States.Register<object>("payload", callback);
+            _states.Register<object>("unrelated", callback);
+            _events.OnRegister = () => { _events.OnRegister = null; _systems.Register(_system); };
+            Assert.Throws<InvalidOperationException>(() => _connector.Connect(_system));
+            Assert.That(_states.Contains("payload"), Is.False);
+            Assert.That(_states.Contains("global"), Is.False);
+            Assert.That(_states.ResolveWithPayload<object>("unrelated"), Is.SameAs(callback));
+            Assert.That(_system.States.ResolveWithPayload<object>("payload"), Is.SameAs(callback));
+            Assert.That(_events.Events, Is.Empty);
+            Assert.That(_commands.Commands, Is.Empty);
+            Assert.That(_namespaces.Namespaces, Is.Empty);
+        }
+
+        [Test]
         public void StateConflictWithDifferentDeclaredTypeIsRejectedBeforeMutation()
         {
             _states.Register<int>("global", _ => 42);

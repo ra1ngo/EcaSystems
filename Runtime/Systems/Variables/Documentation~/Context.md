@@ -4,7 +4,7 @@
 
 `VariablesSystem` — standalone runtime-система хранения типизированных игровых переменных по stable string ID.
 
-Система проектируется как самодостаточная и не должна зависеть от EcaSystems Core2. При этом она целенаправленно создаётся для удобной интеграции с EcaSystems и позже может быть вынесена в отдельный репозиторий.
+Core V1 реализован как самодостаточная assembly EcaSystems.Variables без ссылок на EcaSystems Core2 или Unity. При этом она целенаправленно создаётся для удобной интеграции с EcaSystems и позже может быть вынесена в отдельный репозиторий.
 
 ## Размещение
 
@@ -18,7 +18,7 @@ Runtime/Systems/Variables/
 └── README.md
 ```
 
-`Core` не зависит от ECA. `Eca` является адаптером/экспортом в EcaSystems.
+`Core` не зависит от ECA. `Eca` зарезервирован под будущий адаптер, production code отсутствует.
 
 ## Нейминг
 
@@ -56,7 +56,7 @@ ID является identity переменной, type является стр�
 
 Duplicate declaration, missing variable и wrong requested/set type должны давать exception.
 
-Базовое направление API:
+Реализованный API:
 - Declare
 - GetValue
 - TryGetValue
@@ -109,7 +109,7 @@ Generic access допустим на API-методах `Declare<T>/GetValue<T>/
 
 ## Change event
 
-Standalone Core должен иметь одно общее событие изменения variable.
+Standalone Core имеет одно общее синхронное событие Action<EcaVariableChanged> VariableChanged.
 
 Typed events вроде `IntVariableChanged` / `BoolVariableChanged` не нужны.
 
@@ -160,9 +160,9 @@ ECA adapter позже может использовать:
 
 ## Opaque State payload в EcaSystems
 
-Core2 State требуется расширить отдельным opaque payload произвольного типа `object`.
+Core2 State расширен отдельным opaque payload произвольного типа `object`, без dependency из Variables Core.
 
-Предпочтительное направление — overloads, сохраняя существующий API:
+Реализованы overloads, сохраняющие прежние no-payload signatures/behavior:
 
 ```csharp
 Register<T>(string id, Func<IEcaRuleState, T> resolve);
@@ -174,7 +174,7 @@ Resolve<T>(string stateId, IEcaRuleState ruleState, object payload);
 
 Payload не интерпретируется EcaSystems и передаётся exact resolver function.
 
-Точные validation semantics для mismatch между registration shape и Resolve overload нужно зафиксировать перед реализацией.
+Resolver shape — строгий contract выбранного overload; payload null допустим и не означает no-payload вызов. До внешней функции проверяются ID → registration → exact T → shape → non-null RuleState. Shape mismatch даёт InvalidOperationException, fallback отсутствует. Один ID уникален независимо от T/shape. Connector переносит original delegate без wrapper; canonical validation включает ID/type/shape/delegate identity и не вызывает функцию при composition/rollback.
 
 Payload позже позволит ECA adapter передавать Variables-specific selector вроде container/store/group/entity id без обязательного совпадения с EcaScope/RuleId.
 
@@ -196,3 +196,22 @@ ECA adapter не входит в первую Variables Core-итерацию.
 Save/Load — отдельная следующая задача после стабилизации базового Variables API и container model.
 
 Actual variables принадлежат VariablesSystem; EcaStateRegistry не владеет и не сериализует их.
+
+## Точный контракт Core V1
+
+```csharp
+public event Action<EcaVariableChanged> VariableChanged;
+public EcaVariable Declare<T>(string variableId, T defaultValue);
+public bool Contains(string variableId);
+public T GetValue<T>(string variableId);
+public bool TryGetValue<T>(string variableId, out T value);
+public void SetValue<T>(string variableId, T value);
+public void ForceSetValue<T>(string variableId, T value);
+public void SetCurrentValue<T>(string variableId, T value);
+```
+
+Namespace — EcaSystems.Variables. Все четыре concrete класса sealed. Definition имеет get-only Id/ValueType/DefaultValue; Variable — публично read-only Definition/CurrentValue/OldValue; Changed — get-only snapshot этих данных. Constructors трёх data-классов internal, mutation производится EcaVariablesSystem. DefaultValue immutable навсегда, включая возможный будущий Load.
+
+Реализация минимальна: ordinal Dictionary<string, EcaVariable> внутри системы, без отдельного registry/controller. Поддержаны только int/float/bool/string, string null разрешён. Invalid ID → ArgumentException; unsupported T → NotSupportedException; duplicate/missing/wrong exact T → InvalidOperationException. TryGetValue возвращает false + default только для missing ID. Setters валидируют ID, supported T, existence и exact type до mutation/event. EqualityComparer<T>.Default определяет same-value. Declare event не создаёт; SetCurrentValue сохраняет Old; следующая tracked-запись берёт Old из текущего direct value.
+
+Каждый tracked event явно копирует Definition/CurrentValue/OldValue в новый EcaVariableChanged до вызова подписчиков; shared Definition безопасна, так как immutable. Reentrant writes не меняют уже созданный snapshot. Это обычный synchronous C# event, без новой lifecycle/queue/exception-isolation архитектуры. Тесты вынесены в отдельную EcaSystems.Variables.Editor.Tests assembly.
