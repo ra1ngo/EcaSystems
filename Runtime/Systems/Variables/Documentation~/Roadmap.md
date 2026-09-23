@@ -18,6 +18,20 @@
 - Save/Load и persistence identity;
 - влияние на templates/copies.
 
+### Tree navigation: parent / siblings
+
+После базовых child/subtree navigation отдельно рассмотреть классические навигационные операции:
+- получить parent Store;
+- получить siblings Store;
+- получить ancestors;
+- получить roots / соседние root Stores.
+
+Предпочтительно не дублировать tree ownership внутри Store: navigation должна использовать authoritative структуру EcaVariablesSystem.
+
+Перед реализацией siblings отдельно зафиксировать semantics для root Stores: считать ли остальные roots siblings при общем null ParentId.
+
+Если в ближайшей Core-итерации Store получит internal owner/reference на EcaVariablesSystem для GetChildren/GetSubtree, parent/siblings технически станут простыми, но не добавлять public API автоматически без согласованной semantics.
+
 ### Copy Store
 
 Добавить явное копирование Store.
