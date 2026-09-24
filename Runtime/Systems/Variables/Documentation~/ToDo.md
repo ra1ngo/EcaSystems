@@ -82,14 +82,19 @@ Reparent, Copy, Templates, hierarchical lookup/inheritance/override остают
 - [x] Сохранить V3 Data/facade/controller, navigation, snapshots, bubbling и local lookup.
 - [x] Unity 6000.5.6f1: focused 13/13, Variables 66/66, Core2 280/280, EditMode 530/530.
 
-## Следующая итерация — Variables / ECA adapter
+## Variables / ECA V1 — выполнено
 
-- [ ] Добавить `Runtime/Systems/Variables/Eca`.
-- [ ] Согласовать read-only State contract.
-- [ ] Использовать opaque State payload для explicit container/entity selection при необходимости.
-- [ ] Согласовать общий ECA `VariableChanged` event payload.
-- [ ] Добавить минимальный SetValue Command.
-- [ ] Не требовать соответствующих EcaScope/Variables containers с обеих сторон.
+- [x] EcaVariablesSystemState / GetState: immutable whole-forest snapshot на StoreState representation.
+- [x] Отдельная EcaSystems.Variables.Eca assembly без Unity dependencies.
+- [x] Passive VariablesEcaSetup с 1 Event + 2 Commands + 3 States.
+- [x] variables.state — canonical visual-programming read model без payload.
+- [x] variables.store/subtree — explicit EcaVariablesStatePayload(StoreId), строгие resolver shapes.
+- [x] Отдельный flat EcaVariableChangedEventState и internal mapper.
+- [x] Explicit Connect/Disconnect adapter, только System aggregate subscription, cached Event, future Stores.
+- [x] Set/ForceSet Commands с exact object Value dispatch в четыре Core generic setters без conversions.
+- [x] Нет automatic Store↔Scope/Rule mapping; Core2 и Core V3 semantics сохранены.
+- [x] Focused snapshots/State/Commands/lifecycle/Connector и real Scope emitter tests.
+- [x] Unity 6000.5.6f1: SystemState 5/5, Eca 23/23, весь Variables 95/95, Core2 280/280, EditMode 559/559.
 
 ## Следом
 

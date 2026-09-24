@@ -1,0 +1,8 @@
+{
+  "name": "EcaSystems.Variables.Eca",
+  "references": [
+    "EcaSystems.Variables",
+    "EcaSystems.Core2"
+  ],
+  "noEngineReferences": true
+}

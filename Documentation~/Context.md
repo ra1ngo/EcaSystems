@@ -458,6 +458,8 @@ Global State / Variables планируется отдельной system/capabi
 
 ## Тестовая инфраструктура
 
+Локальная разработка и проверки выполняются на Unity **6000.5.6f1**, а GitHub Actions / GameCI намеренно закреплён на **6000.3.19f1**. Это не случайная устаревшая версия. Попытка GameCI `unity-test-runner@v4` в package mode с Unity 6000.5.6f1 вызвала проблему Code Coverage / compilation: нормальный EditMode test result не создавался. `coverageEnabled: false` также не помог: используемая версия GameCI формировала некорректный CLI argument `--no-coverageEnabled`. После pin на 6000.3.19f1 CI снова заработал. Не обновлять CI обратно на 6000.5.6f1, пока отдельной проверкой не подтверждено устранение проблемы GameCI/coverage. Текущая конфигурация — [.github/workflows/tests.yml](../.github/workflows/tests.yml).
+
 Unity Test Framework + NUnit; Core проверяется в EditMode. GitHub Actions запускает один EditMode job на Unity 6000.3.19f1 через GameCI packageMode с копией пакета в _ci/EcaSystemsPackage. Триггеры: PR, push main, workflow_dispatch. PlayMode job отсутствует до появления lifecycle-сценариев. Coverage input не задан; отсутствие input не гарантирует отключение coverage внутри GameCI. Recovery-срез сообщает о предыдущем CI результате 31/31, а не о проверке этой ветки. CI остаётся authoritative проверкой; фактические проверки checkpoint — в [Testing.md](Testing.md).
 
 Core1 уже содержит минимальные Base/empty Rule shortcuts; дальнейшая ergonomics и factory-style Rule API остаются возможностями Roadmap.

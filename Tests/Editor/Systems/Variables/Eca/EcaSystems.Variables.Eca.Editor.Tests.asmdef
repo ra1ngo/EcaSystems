@@ -1,0 +1,15 @@
+{
+  "name": "EcaSystems.Variables.Eca.Editor.Tests",
+  "references": [
+    "EcaSystems.Variables",
+    "EcaSystems.Variables.Eca",
+    "EcaSystems.Core2"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": []
+}

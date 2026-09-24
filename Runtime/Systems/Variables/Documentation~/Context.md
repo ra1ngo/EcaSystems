@@ -1,14 +1,14 @@
-# VariablesSystem — актуальный Context Core V3
+# VariablesSystem — актуальный Context Core V3 + ECA V1
 
 ## Границы
 
-Standalone assembly/namespace EcaSystems.Variables без dependencies на Core/Core1/Core2 и Unity. Concrete Eca-prefixed naming служит изоляции имён. Production только в Core, Eca зарезервирован. Variables/ECA adapter остаётся следующей отдельной итерацией; read State/mutation Commands/change Events — только будущее направление, не реализация. Точные public signatures собраны в [README](../README.md).
+Standalone assembly/namespace EcaSystems.Variables без dependencies на Core/Core1/Core2 и Unity. Concrete Eca-prefixed naming служит изоляции имён. Standalone production находится в Core. Eca содержит отдельную assembly EcaSystems.Variables.Eca с references только на Variables/Core2, noEngineReferences=true; adapter V1 реализован. Точные public signatures собраны в [README](../README.md).
 
 ## Ownership и authoritative tree
 
 EcaVariablesSystem хранит единственный authoritative ordinal `Dictionary<string, EcaVariableStore>`. Store IDs globally unique внутри System, opaque strings, не paths. ParentId optional и immutable; parent должен существовать до child, поэтому cycles при CreateStore невозможны. Roots может быть несколько, automatic default/global/root Store не создаётся. CreateStore сначала валидирует storeId/non-null parentId, затем duplicate ID и existence parent. Self-parent нового ID — missing parent, существующего — duplicate. Ошибки не резервируют ID.
 
-Каждый Store содержит owner reference на System и собственный get-only EcaVariableRegistry Variables. Local ordinal Dictionary<string, EcaVariable> находится только в Registry. Registry отвечает за ID validation, existence и storage; generic type validation и event routing в нём отсутствуют. Parent/children/siblings object graph, indexes и tree service не добавлены. ParentId задаёт ownership; navigation/events не добавляют Variable inheritance. GetVariable/GetValue/Contains/Try и все setters работают только local. Одинаковый Variable ID в parent/child — независимые declaration/data, возможны разные value types. Stores независимы от EcaScope/RuleId; будущий adapter выбирает mapping сам.
+Каждый Store содержит owner reference на System и собственный get-only EcaVariableRegistry Variables. Local ordinal Dictionary<string, EcaVariable> находится только в Registry. Registry отвечает за ID validation, existence и storage; generic type validation и event routing в нём отсутствуют. Parent/children/siblings object graph, indexes и tree service не добавлены. ParentId задаёт ownership; navigation/events не добавляют Variable inheritance. GetVariable/GetValue/Contains/Try и все setters работают только local. Одинаковый Variable ID в parent/child — независимые declaration/data, возможны разные value types. Stores независимы от EcaScope/RuleId; adapter использует explicit StoreId, без automatic Scope/Rule mapping.
 
 ## Definition → Data → facade → Controller
 
@@ -72,8 +72,28 @@ Payload не интерпретируется EcaSystems и передаётся
 
 Resolver shape — строгий contract выбранного overload; payload null допустим и не означает no-payload вызов. До внешней функции проверяются ID → registration → exact T → shape → non-null RuleState. Shape mismatch даёт InvalidOperationException, fallback отсутствует. Один ID уникален независимо от T/shape. Connector переносит original delegate без wrapper; canonical validation включает ID/type/shape/delegate identity и не вызывает функцию при composition/rollback.
 
-Payload позже позволит ECA adapter передавать Variables-specific selector вроде container/store/group/entity id без обязательного совпадения с EcaScope/RuleId.
+Variables adapter передаёт EcaVariablesStatePayload(StoreId) для адресных Store/Subtree snapshots без совпадения с EcaScope/RuleId.
+
+## Whole-forest snapshot и Variables/ECA V1
+
+EcaVariablesSystem.GetState() собирает EcaVariablesSystemState.Stores из существующих GetStoreState(): flat read-only point-in-time collection всех roots/descendants, каждый ровно один раз, order unspecified. StoreState содержит только local Variable snapshots. Topology остаётся ParentId/IsRoot. Snapshot не меняется после CreateStore/Declare/SetValue/ForceSetValue/SetCurrentValue. Это главный broad read model, не subtree wrapper и не live Store collection.
+
+VariablesEcaSetup.CreateSystem создаёт passive descriptor variables/variables/Variables и local registries с ровно шестью exports:
+
+- variables.state: no-payload → EcaVariablesSystemState, canonical/default read model будущего visual programming.
+- variables.store: EcaVariablesStatePayload(StoreId) → EcaVariableStoreState.
+- variables.subtree: тот же payload → EcaVariableSubtreeState.
+- variables.variable.changed: IEcaEvent<EcaVariableChangedEventState>.
+- variables.variable.set и variables.variable.force-set: EcaSetVariableArgs(StoreId, VariableId, object Value).
+
+State payload class валидирует непустой StoreId. Null/wrong opaque payload → ArgumentException, missing Store → InvalidOperationException; нет fallback. Core2 resolver-shape contract сохранён, no-payload и payload overload не взаимозаменяемы. Results — Core snapshots напрямую, без wrapper. IDs централизованы в internal key/Ids mappings по Time/Eca pattern.
+
+VariablesEcaAdapter один раз resolve-ит typed Event и сверяет EventStateType; кеширует instance. Explicit Connect подписывает только System.VariableChanged, duplicate Connect бросает, Disconnect idempotent, reconnect работает. Constructor не auto-connect; exports connect перед adapter.Connect, adapter.Disconnect перед exports disconnect. Lifecycle caller-owned, не Connector/runtime-owned. Созданные после Connect Stores автоматически охвачены System aggregate.
+
+Отдельный internal EcaVariableChangedEventStateMapper maps Core Changed в immutable flat ECA snapshot: StoreId/VariableId/ValueType/CurrentValue/OldValue. Emitter получает null contexts. Reentrant mutation не меняет outer snapshot; раннее исключение Core subscriber прерывает route до ECA без rollback.
+
+Два sealed Commands наследуют AEcaCommand<IEcaRuleState, IEcaActionContext, EcaSetVariableArgs>, инкапсулируют System. Null args отклоняется, затем explicit Store/Variable lookup. Dispatch по declared int/float/bool/string вызывает Core SetValue<T> либо ForceSetValue<T>. Value exact runtime type; null только string; mismatch → ArgumentException. Conversions/dynamic/reflection invoke/object Core setter отсутствуют. Command не fire-ит Event вручную: mutation → bubbling → System → adapter. Selection не зависит от RuleState/ScopeState. SetCurrentValue Command не добавлен.
 
 ## Следующие итерации
 
-Variables/ECA adapter и SaveLoad не реализованы. Remove/Clear/Reparent/Copy/Templates, parent lookup/inheritance/override, Store lifecycle events, History, enum, reactive/computed/watch/collections остаются отложенными. Согласованные будущие возможности — [Roadmap](Roadmap.md), необходимые шаги — [ToDo](ToDo.md).
+Variables/ECA V1 завершён; SaveLoad — следующий отдельный этап, пока не реализован. Remove/Clear/Reparent/Copy/Templates, parent lookup/inheritance/override, Store lifecycle events, History, enum, reactive/computed/watch/collections остаются отложенными. Согласованные будущие возможности — [Roadmap](Roadmap.md), необходимые шаги — [ToDo](ToDo.md).
