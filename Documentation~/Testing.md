@@ -2,6 +2,28 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## Variables/ECA V1 — 2026-09-24
+
+Добавлены **28 cases**: 5 EcaVariablesSystemStateTests и 23 VariablesEcaAdapterTests в новой EcaSystems.Variables.Eca.Editor.Tests assembly. Прежние tests/assertions не изменены.
+
+Core tests проверяют empty/whole forest, все roots/descendants ровно один раз без order contract, ParentId/IsRoot topology, local-only Variables, read-only collections и point-in-time values после SetValue/ForceSetValue/SetCurrentValue/Declare/CreateStore.
+
+Adapter tests покрывают descriptor variables/variables/Variables, exact IDs, 1 typed Event + 2 Commands с exact R/C/Args metadata + 3 State shapes; реальный Connector connect/disconnect/reconnect canonical exports; no-payload whole-state и explicit Store/Subtree selection через EcaStateResolver; wrong shape/type/null payload и missing Store; immutable snapshots. Set/ForceSet проверены для int/float/bool/string/null string, changed/equal writes, Old/Current, exact object Value errors без mutation/conversions, null args и missing local Variable. Проверены отдельный flat EventState, nested mutation snapshot, исключение Core subscriber до aggregate без rollback, explicit lifecycle/reconnect/future Stores, single cached declaration, null/missing/wrong metadata dependencies. Real EcaSystemsRuntime/Scope emitter test подтверждает null contexts, local routing и отсутствие StoreId↔ScopeId/RuleId mapping.
+
+Unity **6000.5.6f1**, фактически завершённые последовательные runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Focused SystemState | 5 | 5 | 0 | 0 | 0 |
+| Focused Variables/Eca (вся новая assembly) | 23 | 23 | 0 | 0 | 0 |
+| Полный Variables suite (Core + Eca) | 95 | 95 | 0 | 0 | 0 |
+| Полный Core2 | 280 | 280 | 0 | 0 | 0 |
+| Полный EditMode | 559 | 559 | 0 | 0 | 0 |
+
+Все exit code 0. Full suite: Core 37, Core1 77, Core2 280, Time 53, Time/Eca 17, Variables Core 72, Variables/Eca 23. Compiler warnings/errors отсутствуют. Логи содержат существующее предупреждение о пустой EcaSystems.Unity assembly и timeout Unity Cloud configuration (public-cdn.cloud.unity3d.com, HTTP 0/299) после успешного завершения tests. XML/log: `.validation~/variables-eca-systemstate`, `variables-eca-focused`, `variables-eca-all-variables`, `variables-eca-core2`, `variables-eca-full` с суффиксами `-results.xml` и `.log`. PlayMode/IL2CPP/remote CI не запускались.
+
+Core/Core1/Core2/Time не изменены. Variables Core остаётся standalone; добавлены только GetState и EcaVariablesSystemState поверх существующих Store snapshots. Registry/Data/facade/controller/navigation/bubbling не менялись. SaveLoad, SetCurrentValue/Declare/CreateStore Commands, Remove/Reparent/Copy/Templates/inheritance, History/enum/reactive и generic adapter abstractions не реализованы.
+
 ## Variables Core V3 Registry follow-up — 2026-09-24
 
 Добавлены **13 focused cases** в EcaVariableRegistryTests: exact facade identity через Declare/Registry/Store proxies, local и ordinal storage, duplicate без изменения original, invalid/missing IDs, read-only live collection и snapshot enumeration, mandatory Get/Set/ForceSet/SetCurrent precedence, TryGetValue missing с unsupported T, declaration validation перед duplicate registration.

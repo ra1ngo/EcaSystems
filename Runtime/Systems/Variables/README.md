@@ -1,8 +1,8 @@
-# VariablesSystem — Core V3
+# VariablesSystem — Core V3 + ECA V1
 
 VariablesSystem является standalone system. Она разрабатывается для EcaSystems и использует Eca-prefixed naming, но Core VariablesSystem не зависит от EcaSystems runtime.
 
-Assembly/namespace — `EcaSystems.Variables`. References пусты, `noEngineReferences: true`. В `Core/` находится standalone implementation, `Eca/` зарезервирован для будущего adapter. Архитектурный контекст — [Context](Documentation~/Context.md), следующие шаги — [ToDo](Documentation~/ToDo.md), будущие возможности — [Roadmap](Documentation~/Roadmap.md).
+Assembly/namespace — `EcaSystems.Variables`. References пусты, `noEngineReferences: true`. В `Core/` находится standalone implementation; отдельная assembly `EcaSystems.Variables.Eca` в `Eca/` ссылается только на Variables и Core2, без Unity dependencies. Архитектурный контекст — [Context](Documentation~/Context.md), следующие шаги — [ToDo](Documentation~/ToDo.md), будущие возможности — [Roadmap](Documentation~/Roadmap.md).
 
 ## Ownership и использование
 
@@ -111,6 +111,7 @@ public EcaVariableStore CreateStore(string storeId, string parentId = null);
 public bool ContainsStore(string storeId);
 public EcaVariableStore GetStore(string storeId);
 public bool TryGetStore(string storeId, out EcaVariableStore store);
+public EcaVariablesSystemState GetState();
 ```
 
 GetStore/TryGetStore возвращают exact instance; missing GetStore бросает InvalidOperationException, Try возвращает false + null. CreateStore требует существующего parent; non-null пустой parentId и invalid storeId дают ArgumentException. Duplicate ID и missing parent дают InvalidOperationException без изменения manager. Self-parent нового ID отклоняется как missing parent, существующего — как duplicate. Flat Variable API System отсутствует.
@@ -131,4 +132,41 @@ Controller после записи создаёт snapshot через отдел
 
 Events синхронны/reentrant: nested mutation полностью проходит маршрут до продолжения outer callbacks, outer snapshot не меняется. Исключение subscriber распространяется без замены, останавливает следующих subscribers и оставшийся маршрут; mutation уже выполнена, rollback/isolation/queue отсутствуют. Concurrent access не синхронизирован.
 
-Remove/Reparent/Copy/Templates, inheritance, ECA adapter, SaveLoad, Store lifecycle events, History, enum и reactive features не реализованы. Tests: `Tests/Editor/Systems/Variables`, assembly `EcaSystems.Variables.Editor.Tests`.
+Remove/Reparent/Copy/Templates, inheritance, SaveLoad, Store lifecycle events, History, enum и reactive features не реализованы. Tests: `Tests/Editor/Systems/Variables`, assembly `EcaSystems.Variables.Editor.Tests`.
+
+## Whole-system State и ECA exports
+
+`EcaVariablesSystem.GetState()` возвращает `EcaVariablesSystemState` с `IReadOnlyList<EcaVariableStoreState> Stores`: flat point-in-time snapshot всего forest, каждый root/descendant ровно один раз, с local Variables. Topology выражается ParentId/IsRoot, порядок не гарантирован. Это отдельный contract от SubtreeState; live Store references в нём нет. Последующие CreateStore/Declare и все три setters snapshot не меняют; empty System даёт empty Stores.
+
+`VariablesEcaSetup.CreateSystem(variables)` создаёт passive descriptor: Id/Namespace `variables`, Name `Variables`, local registries. Экспорты:
+
+| Вид | ID | Payload / Args | Результат |
+| --- | --- | --- | --- |
+| State | `variables.state` | без payload | EcaVariablesSystemState |
+| State | `variables.store` | EcaVariablesStatePayload(StoreId) | EcaVariableStoreState |
+| State | `variables.subtree` | EcaVariablesStatePayload(StoreId) | EcaVariableSubtreeState |
+| Event | `variables.variable.changed` | EcaVariableChangedEventState | — |
+| Command | `variables.variable.set` | EcaSetVariableArgs(StoreId, VariableId, object Value) | Task |
+| Command | `variables.variable.force-set` | EcaSetVariableArgs(StoreId, VariableId, object Value) | Task |
+
+`variables.state` — canonical/default broad read model для будущего visual programming. Store/Subtree — адресные read models с explicit selector, без automatic StoreId↔ScopeId/RuleId mapping. Resolvers возвращают Core snapshots напрямую. Payload — sealed class с get-only StoreId: invalid ID в constructor, null/wrong opaque payload дают ArgumentException; missing Store — InvalidOperationException. Неверный payload/no-payload overload отклоняется Core2 shape validation без fallback.
+
+EventState — отдельный immutable flat snapshot: StoreId, VariableId, ValueType, CurrentValue, OldValue. Internal EcaVariableChangedEventStateMapper явно копирует Core EcaVariableChanged; Definition/Data/Core Changed не выдаются как ECA EventState.
+
+Commands — отдельные EcaSetVariableCommand/EcaForceSetVariableCommand. Они resolve-ят local Variable и явно dispatch-ят только int/float/bool/string по Definition.ValueType в Core SetValue<T>/ForceSetValue<T>. Value требует exact runtime type, null допустим только для string; mismatch даёт ArgumentException без conversions, dynamic/reflection invoke или object setter в Core. Args с invalid StoreId/VariableId отклоняются constructor; null args — ArgumentNullException. Set equal не испускает event, ForceSet equal испускает; Commands сами не fire-ят Event.
+
+## Explicit adapter lifecycle
+
+```csharp
+var system = VariablesEcaSetup.CreateSystem(variables);
+var adapter = new VariablesEcaAdapter(variables, system.Events, scope.EventEmitter);
+connector.Connect(system);
+adapter.Connect();
+// Core mutation → source Store → ancestors → System aggregate → adapter → emitter.
+adapter.Disconnect();
+connector.Disconnect(system);
+```
+
+Connect повторно бросает InvalidOperationException; Disconnect idempotent, reconnect допустим. Constructor не подключает adapter: он один раз resolve-ит и проверяет typed canonical Event + metadata, затем кеширует declaration. Подписка только на System.VariableChanged охватывает Stores, созданные после Connect. Condition/Action contexts null. Если прежний Core subscriber прерывает bubbling exception, ECA Event не возникает; rollback/isolation нет. Adapter lifecycle принадлежит caller, не Connector/Core runtime.
+
+Tests adapter находятся в `Tests/Editor/Systems/Variables/Eca`, отдельная assembly `EcaSystems.Variables.Eca.Editor.Tests`. Save/Load — следующий отдельный этап. SetCurrentValue/Declare/CreateStore Commands и другие deferred features не добавлены.

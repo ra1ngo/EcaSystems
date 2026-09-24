@@ -12,7 +12,7 @@
 - [x] RuleCreator/CreateRule, AEcaCondition/AEcaAction, shared checker/runner и state-aware Commands без Bind; Time Commands мигрированы.
 - [x] State registrations/resolver без Bind, State initialization Condition/Action, Base RuleId, технический ForceFire и local ExecutionRuntime composition внутри Scope.
 - [x] PR #21 follow-up: State ID lookup + exact declared type, canonical ID/type/delegate validation, runtime RuleId invariant. ScopeRuntime создаёт per-Scope registries и передаёт их ссылками в Scope; Scope создаёт только ExecutionRuntime из dependencies.
-- [ ] VariableSystem / Global Variables standalone System + ECA.
+- [x] VariableSystem / Global Variables standalone System + ECA: Core V3, whole-forest State, адресные Store/Subtree States, VariableChanged и Set/ForceSet, explicit adapter lifecycle. Save/Load остаётся отдельным этапом.
 - [ ] Save/Load как отдельная следующая задача.
 - [ ] Небольшой end-to-end Sandbox / PlayMode scenario.
 - [ ] External event adapters.

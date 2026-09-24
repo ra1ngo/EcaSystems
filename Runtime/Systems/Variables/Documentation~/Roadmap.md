@@ -2,6 +2,10 @@
 
 Будущие возможности VariablesSystem, которые не входят в ближайшие обязательные итерации.
 
+## После Variables/ECA V1
+
+Variables/ECA V1 завершён: variables.state — whole-forest EcaVariablesSystemState и default read model для будущего visual programming; variables.store/subtree дают адресные snapshots. Это не Save/Load implementation. Следующий отдельный этап — persistence/SaveLoad contract, включая identity, immutable defaults и event policy при восстановлении. Visual authoring/Sandbox может опираться на эти read models без automatic Store↔Scope mapping.
+
 ## Store tree evolution
 
 ### Reparent / изменение ParentId

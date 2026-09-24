@@ -9,6 +9,13 @@ namespace EcaSystems.Variables
 
         public event Action<EcaVariableChanged> VariableChanged;
 
+        public EcaVariablesSystemState GetState()
+        {
+            var stores = new List<EcaVariableStoreState>(_stores.Count);
+            foreach (var store in _stores.Values) stores.Add(store.GetStoreState());
+            return new EcaVariablesSystemState(stores);
+        }
+
         public EcaVariableStore CreateStore(string storeId, string parentId = null)
         {
             ValidateId(storeId, nameof(storeId));
