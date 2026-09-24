@@ -8,6 +8,10 @@ namespace EcaSystems.Variables
         private readonly Dictionary<string, EcaVariable> _variables = new(StringComparer.Ordinal);
         public IReadOnlyCollection<EcaVariable> Variables => _variables.Values;
 
+        internal EcaVariableRegistry()
+        {
+        }
+
         public bool Contains(string variableId)
         {
             ValidateId(variableId);

@@ -8,6 +8,26 @@ namespace EcaSystems.Tests.Variables
     public sealed class EcaVariableRegistryTests
     {
         [Test]
+        public void StoresOwnDistinctStableRegistriesWithLiveLocalViews()
+        {
+            var system = new EcaVariablesSystem();
+            var first = system.CreateStore("first");
+            var second = system.CreateStore("second");
+            EcaVariableRegistry registry = first.Variables;
+            var view = registry.Variables;
+            Assert.That(registry, Is.Not.SameAs(second.Variables));
+            Assert.That(view, Is.Empty);
+
+            var firstVariable = first.Declare("id", 1);
+            var secondVariable = second.Declare("id", 2);
+            Assert.That(first.Variables, Is.SameAs(registry));
+            Assert.That(view, Is.EquivalentTo(new[] { firstVariable }));
+            Assert.That(registry.Resolve("id"), Is.SameAs(firstVariable));
+            Assert.That(second.Variables.Resolve("id"), Is.SameAs(secondVariable));
+            Assert.That(second.Variables.Variables, Is.EquivalentTo(new[] { secondVariable }));
+        }
+
+        [Test]
         public void DeclarationRegistersExactFacadeAndStoreProxiesReturnIt()
         {
             var store = new EcaVariablesSystem().CreateStore("store");
@@ -51,7 +71,7 @@ namespace EcaSystems.Tests.Variables
         [TestCase(" ")]
         public void RegistryRejectsInvalidIds(string id)
         {
-            var registry = new EcaVariableRegistry();
+            var registry = new EcaVariablesSystem().CreateStore("store").Variables;
             Assert.Throws<ArgumentException>(() => registry.Contains(id));
             Assert.Throws<ArgumentException>(() => registry.Resolve(id));
             Assert.Throws<ArgumentException>(() => registry.TryResolve(id, out _));
@@ -60,7 +80,7 @@ namespace EcaSystems.Tests.Variables
         [Test]
         public void MissingRegistryLookupThrowsOrReturnsFalseAndNull()
         {
-            var registry = new EcaVariableRegistry();
+            var registry = new EcaVariablesSystem().CreateStore("store").Variables;
             Assert.That(registry.Contains("missing"), Is.False);
             Assert.Throws<InvalidOperationException>(() => registry.Resolve("missing"));
             Assert.That(registry.TryResolve("missing", out var variable), Is.False);
