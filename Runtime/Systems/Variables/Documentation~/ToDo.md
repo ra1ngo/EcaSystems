@@ -70,6 +70,18 @@ Reparent, Copy, Templates, hierarchical lookup/inheritance/override остают
 - [x] 23 новых focused cases; прежние 30 cases сохранены, две parent-event expectations адаптированы к V3.
 - [x] Unity 6000.5.6f1: focused 23/23, Variables 53/53, Core2 280/280, EditMode 517/517.
 
+## Core V3 follow-up — local Registry
+
+- [x] EcaVariableRegistry хранит local ordinal Dictionary и отвечает за ID/existence/storage.
+- [x] Store.Variables get-only; Register internal, без Remove/Unregister и cross-owner public registration.
+- [x] Все convenience methods сохранены; GetStoreState перечисляет Variables.Variables.
+- [x] Удалить повторную generic validation Store proxies: ID → existence → supported T → exact T.
+- [x] TryGetValue missing → false + default даже для unsupported T; existing проверяется Controller.
+- [x] Declare сохраняет supported type validation до duplicate registration; direct Variable API без изменений.
+- [x] Добавить 13 Registry/validation cases; адаптировать прежний unsupported-types test к согласованному precedence.
+- [x] Сохранить V3 Data/facade/controller, navigation, snapshots, bubbling и local lookup.
+- [x] Unity 6000.5.6f1: focused 13/13, Variables 66/66, Core2 280/280, EditMode 530/530.
+
 ## Следующая итерация — Variables / ECA adapter
 
 - [ ] Добавить `Runtime/Systems/Variables/Eca`.

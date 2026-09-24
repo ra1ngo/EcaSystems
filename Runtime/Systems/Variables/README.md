@@ -51,13 +51,36 @@ Definition.DefaultValue никогда не меняется; при declaration
 | ForceSetValue | предыдущий Current | new | один snapshot даже при equal |
 | SetCurrentValue | без изменений | new | нет |
 
-Store proxies resolve-ят тот же facade и вызывают его методы. GetVariable/TryGetVariable возвращают exact instance из Declare. Invalid ID → ArgumentException; unsupported T → NotSupportedException; duplicate/missing/wrong exact type → InvalidOperationException. TryGetValue подавляет только missing (false + default), TryGetVariable — missing (false + null). Старый порядок validation proxies сохранён: ID → supported T → existence → exact type.
+Store proxies получают тот же facade через Registry и вызывают его методы. GetVariable/TryGetVariable возвращают exact instance из Declare. Invalid ID → ArgumentException; unsupported T → NotSupportedException; duplicate/missing/wrong exact type → InvalidOperationException.
+
+Порядок validation:
+
+- Store Get/Set/ForceSet/SetCurrent: **ID → existence → supported T → exact T**. Поэтому GetValue<double>("missing") даёт InvalidOperationException.
+- TryGetValue: ID → missing=false + default, даже для unsupported T; supported/exact type проверяется только у существующей Variable.
+- Direct EcaVariable: supported T → exact T, без изменений.
+- Declare: ID → supported declaration T → duplicate registration.
+
+## Local Registry
+
+Store владеет одним `EcaVariableRegistry`: только он хранит ordinal Dictionary<string, EcaVariable> и отвечает за ID validation, existence и storage. Store сохраняет declaration, tree/navigation, bubbling, snapshots и convenience facade; EcaVariable делегирует type/mutation behavior Controller без повторной generic validation в Store proxies.
+
+Public API `EcaVariableRegistry`:
+
+```csharp
+public IReadOnlyCollection<EcaVariable> Variables { get; }
+public bool Contains(string variableId);
+public EcaVariable Resolve(string variableId);
+public bool TryResolve(string variableId, out EcaVariable variable);
+```
+
+`Register(EcaVariable)` internal: только Store.Declare создаёт и регистрирует facade с правильным owner. Public Remove/Unregister отсутствуют. Resolve возвращает exact instance или бросает при missing; TryResolve возвращает false + null. Все lookup methods отклоняют invalid ID. Variables — live read-only collection фасадов, не mutable Dictionary и не point-in-time snapshot. GetStoreState перечисляет Variables.Variables и копирует значения в отдельные snapshots.
 
 ## Public API Store/System
 
 `EcaVariableStore`:
 
 ```csharp
+public EcaVariableRegistry Variables { get; }
 public string Id { get; }
 public string ParentId { get; }
 public bool IsRoot { get; }

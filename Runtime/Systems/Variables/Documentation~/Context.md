@@ -8,7 +8,7 @@ Standalone assembly/namespace EcaSystems.Variables без dependencies на Core
 
 EcaVariablesSystem хранит единственный authoritative ordinal `Dictionary<string, EcaVariableStore>`. Store IDs globally unique внутри System, opaque strings, не paths. ParentId optional и immutable; parent должен существовать до child, поэтому cycles при CreateStore невозможны. Roots может быть несколько, automatic default/global/root Store не создаётся. CreateStore сначала валидирует storeId/non-null parentId, затем duplicate ID и existence parent. Self-parent нового ID — missing parent, существующего — duplicate. Ошибки не резервируют ID.
 
-Каждый Store содержит owner reference на System и отдельный local `Dictionary<string, EcaVariable>`. Parent/children/siblings object graph, indexes, registry/tree service не добавлены. ParentId задаёт ownership; navigation/events не добавляют Variable inheritance. GetVariable/GetValue/Contains/Try и все setters работают только local. Одинаковый Variable ID в parent/child — независимые declaration/data, возможны разные value types. Stores независимы от EcaScope/RuleId; будущий adapter выбирает mapping сам.
+Каждый Store содержит owner reference на System и собственный get-only EcaVariableRegistry Variables. Local ordinal Dictionary<string, EcaVariable> находится только в Registry. Registry отвечает за ID validation, existence и storage; generic type validation и event routing в нём отсутствуют. Parent/children/siblings object graph, indexes и tree service не добавлены. ParentId задаёт ownership; navigation/events не добавляют Variable inheritance. GetVariable/GetValue/Contains/Try и все setters работают только local. Одинаковый Variable ID в parent/child — независимые declaration/data, возможны разные value types. Stores независимы от EcaScope/RuleId; будущий adapter выбирает mapping сам.
 
 ## Definition → Data → facade → Controller
 
@@ -18,7 +18,9 @@ EcaVariableData — public sealed, constructor internal, StoreId и Definition g
 
 EcaVariable — public sealed facade, constructor internal. Data выдаётся exact reference; StoreId/Definition/CurrentValue/OldValue proxy на Data без дублирования. `GetValue<T>`/`SetValue<T>`/`ForceSetValue<T>`/`SetCurrentValue<T>` делегируют internal sealed EcaVariableController. Controller валидирует supported/exact type, меняет Data, maps event и уведомляет owning Store. Новых interfaces нет.
 
-Store Declare отвечает за ID, type declaration и создание facade. GetVariable/TryGetVariable возвращают exact instance из Declare, не копию. Store Get/Set proxies делегируют behavior facade. Supported type validation перед missing lookup сохранена для совместимости V1/V2: ID → supported T → existence → exact T. Controller содержит общую supported type проверку, а Store вызывает её до lookup, включая TryGetValue.
+Store Declare валидирует ID и supported declaration T, создаёт Definition/Data/facade с owning Store и вызывает internal Registry.Register. Duplicate registration проверяет Registry после declaration type. Register не public: внешний код не может перенести facade в чужой Store. Remove/Unregister отсутствуют. Registry.Resolve/TryResolve и Store.GetVariable/TryGetVariable возвращают exact instance из Declare. Registry.Variables — live read-only collection фасадов; mutable Dictionary наружу не выдаётся.
+
+Store сохраняет tree/node, navigation, bubbling, snapshots и convenience facade. Его Get/Set proxies resolve-ят Variable через Registry и вызывают facade; type/mutation behavior принадлежит Controller. Двойной generic validation нет. Mandatory Store precedence: **ID → existence → supported T → exact T**. Missing + unsupported T даёт InvalidOperationException из lookup. TryGetValue: ID → missing=false + default независимо от T; только existing Variable проверяет supported/exact T. Direct Variable по-прежнему проверяет supported T → exact T. Declare: ID → supported T → duplicate registration.
 
 ## Variable semantics
 
@@ -34,7 +36,7 @@ Internal sealed EcaVariableSnapshotMapper отдельно имеет Map(EcaVar
 
 ## Core snapshots
 
-GetStoreState возвращает EcaVariableStoreState: StoreId, ParentId, derived IsRoot и read-only snapshot collection Variables. Каждый EcaVariableSnapshot содержит StoreId/Definition/CurrentValue/OldValue. Только local Variables, без parent/children.
+GetStoreState перечисляет Variables.Variables и возвращает EcaVariableStoreState: StoreId, ParentId, derived IsRoot и read-only snapshot collection Variables. Каждый EcaVariableSnapshot содержит StoreId/Definition/CurrentValue/OldValue. Только local Variables, без parent/children.
 
 GetSubtreeState возвращает EcaVariableSubtreeState: RootStoreId и read-only snapshot collection Stores. Включает исходный Store и всех descendants ровно один раз, без ancestors/siblings. Форма flat, ParentId сохраняет topology (включая parent вне выбранного subtree). Collections скопированы и read-only, values point-in-time. Последующие mutation/Declare/CreateStore не меняют snapshots. Порядок не является semantic contract. SaveLoad/history не реализуются этим API.
 

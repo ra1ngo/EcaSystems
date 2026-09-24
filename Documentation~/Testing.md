@@ -2,6 +2,25 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## Variables Core V3 Registry follow-up — 2026-09-24
+
+Добавлены **13 focused cases** в EcaVariableRegistryTests: exact facade identity через Declare/Registry/Store proxies, local и ordinal storage, duplicate без изменения original, invalid/missing IDs, read-only live collection и snapshot enumeration, mandatory Get/Set/ForceSet/SetCurrent precedence, TryGetValue missing с unsupported T, declaration validation перед duplicate registration.
+
+В EcaVariableStoreTests тест UnsupportedTypesAreRejectedByEveryGenericOperationEvenForMissingIds переименован в UnsupportedTypesAreRejectedForExistingVariablesAfterMissingLookup и содержательно адаптирован: для десяти unsupported T missing mandatory lookup теперь даёт InvalidOperationException, missing Try — false + default. Проверки unsupported declaration сохранены, добавлены NotSupportedException assertions для всех операций над existing Variable. Это согласованная смена Store validation precedence, не механическая API migration. Остальные прежние 52 cases (включая все 23 V3) не менялись; direct facade/controller, snapshots, navigation, bubbling/reentrancy/exception propagation и local lookup сохранены.
+
+Unity **6000.5.6f1**, фактически завершённые последовательные runs (focused/Variables — 23 сентября, Core2/full — 24 сентября):
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Focused Registry/validation | 13 | 13 | 0 | 0 | 0 |
+| Полный Variables assembly | 66 | 66 | 0 | 0 | 0 |
+| Полный Core2 | 280 | 280 | 0 | 0 | 0 |
+| Полный EditMode | 530 | 530 | 0 | 0 | 0 |
+
+Все runs завершились с exit code 0. Full suite: Core 37, Core1 77, Core2 280, Time 53, Time/Eca 17, Variables 66. Compiler warnings/errors отсутствуют. В логах есть прежнее предупреждение о пустой EcaSystems.Unity assembly и timeout запроса Unity Cloud configuration (public-cdn.cloud.unity3d.com, HTTP 0/299) после завершения tests; результаты suite успешны. XML/log: `.validation~/v3-registry-focused`, `v3-registry-variables`, `v3-registry-core2`, `v3-registry-full` с суффиксами `-results.xml` и `.log`. PlayMode/IL2CPP/remote CI не запускались.
+
+Production changes ограничены новым EcaVariableRegistry и EcaVariableStore. Core/Core1/Core2/Time не менялись; ECA adapter, SaveLoad, Remove/Reparent/Copy/Templates/inheritance и остальные deferred features не добавлены.
+
 ## Variables Core V3 — 2026-09-23
 
 Добавлены **23 focused cases** в EcaVariablesV3Tests: Data/facade и direct mutations для int/float/bool/string, identity GetVariable/TryGetVariable, invalid/unsupported/exact type errors, navigation exact references и root siblings, read-only membership snapshots, point-in-time Store/Subtree snapshots без ancestors/foreign variables, одинаковый ordered bubbling direct/proxy writes, source StoreId и same event reference по маршруту, future Store aggregate subscription, root isolation, nested synchronous mutation и exception stopping на child/parent/root/System без rollback.
