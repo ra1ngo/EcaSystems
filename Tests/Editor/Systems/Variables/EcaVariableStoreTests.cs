@@ -150,7 +150,7 @@ namespace EcaSystems.Tests.Variables
         }
 
         [Test]
-        public void UnsupportedTypesAreRejectedByEveryGenericOperationEvenForMissingIds()
+        public void UnsupportedTypesAreRejectedForExistingVariablesAfterMissingLookup()
         {
             VerifyUnsupported<double>(); VerifyUnsupported<long>(); VerifyUnsupported<decimal>();
             VerifyUnsupported<DayOfWeek>(); VerifyUnsupported<object>(); VerifyUnsupported<DateTime>();
@@ -163,11 +163,18 @@ namespace EcaSystems.Tests.Variables
             var store = new EcaVariablesSystem().CreateStore("store");
             Assert.Throws<NotSupportedException>(() => store.Declare<T>("id", default));
             Assert.That(store.Contains("id"), Is.False);
-            Assert.Throws<NotSupportedException>(() => store.GetValue<T>("missing"));
-            Assert.Throws<NotSupportedException>(() => store.TryGetValue<T>("missing", out _));
-            Assert.Throws<NotSupportedException>(() => store.SetValue<T>("missing", default));
-            Assert.Throws<NotSupportedException>(() => store.ForceSetValue<T>("missing", default));
-            Assert.Throws<NotSupportedException>(() => store.SetCurrentValue<T>("missing", default));
+            store.Declare("existing", 1);
+            Assert.Throws<NotSupportedException>(() => store.GetValue<T>("existing"));
+            Assert.Throws<NotSupportedException>(() => store.TryGetValue<T>("existing", out _));
+            Assert.Throws<NotSupportedException>(() => store.SetValue<T>("existing", default));
+            Assert.Throws<NotSupportedException>(() => store.ForceSetValue<T>("existing", default));
+            Assert.Throws<NotSupportedException>(() => store.SetCurrentValue<T>("existing", default));
+            Assert.Throws<InvalidOperationException>(() => store.GetValue<T>("missing"));
+            Assert.That(store.TryGetValue<T>("missing", out var value), Is.False);
+            Assert.That(value, Is.EqualTo(default(T)));
+            Assert.Throws<InvalidOperationException>(() => store.SetValue<T>("missing", default));
+            Assert.Throws<InvalidOperationException>(() => store.ForceSetValue<T>("missing", default));
+            Assert.Throws<InvalidOperationException>(() => store.SetCurrentValue<T>("missing", default));
         }
 
         [Test]

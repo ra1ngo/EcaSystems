@@ -1,13 +1,13 @@
 namespace EcaSystems.Variables
 {
-    public sealed class EcaVariableChanged
+    public sealed class EcaVariableSnapshot
     {
         public string StoreId { get; }
         public EcaVariableDefinition Definition { get; }
         public object CurrentValue { get; }
         public object OldValue { get; }
 
-        internal EcaVariableChanged(string storeId, EcaVariableDefinition definition, object currentValue, object oldValue)
+        internal EcaVariableSnapshot(string storeId, EcaVariableDefinition definition, object currentValue, object oldValue)
         {
             StoreId = storeId;
             Definition = definition;

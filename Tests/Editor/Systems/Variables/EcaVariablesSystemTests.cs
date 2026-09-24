@@ -182,11 +182,11 @@ namespace EcaSystems.Tests.Variables
             Assert.That(siblingValue.CurrentValue, Is.EqualTo("different contract"));
             Assert.That(rootValue.CurrentValue, Is.EqualTo(4));
             Assert.That(childEvents, Is.EqualTo(2));
-            Assert.That(parentEvents, Is.Zero);
+            Assert.That(parentEvents, Is.EqualTo(2));
             Assert.That(siblingEvents, Is.Zero);
             Assert.That(rootEvents, Is.Zero);
             parent.SetValue("id", 10);
-            Assert.That(parentEvents, Is.EqualTo(1));
+            Assert.That(parentEvents, Is.EqualTo(3));
             Assert.That(childEvents, Is.EqualTo(2));
             Assert.That(child.GetValue<int>("id"), Is.EqualTo(30));
         }
