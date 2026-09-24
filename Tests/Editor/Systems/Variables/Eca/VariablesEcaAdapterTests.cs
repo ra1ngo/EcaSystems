@@ -53,6 +53,7 @@ namespace EcaSystems.Tests.VariablesEca
             Assert.That(_system.Name, Is.EqualTo("Variables"));
             Assert.That(_system.Events.Events.Select(e => e.Id), Is.EquivalentTo(new[] { Changed }));
             var declaration = _system.Events.Resolve(Changed);
+            Assert.That(declaration, Is.TypeOf<EcaVariableChangedEvent>());
             Assert.That(declaration, Is.InstanceOf<IEcaEvent<EcaVariableChangedEventState>>());
             Assert.That(declaration.EventStateType, Is.EqualTo(typeof(EcaVariableChangedEventState)));
             Assert.That(_system.Commands.Commands.Select(c => c.Id), Is.EquivalentTo(new[] { Set, Force }));

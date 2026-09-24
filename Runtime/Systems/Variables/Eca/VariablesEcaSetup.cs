@@ -10,7 +10,7 @@ namespace EcaSystems.Variables.Eca
         {
             if (variables == null) throw new ArgumentNullException(nameof(variables));
             var events = new EcaBaseEventRegistry();
-            events.Register(new EcaVariablesEvent());
+            events.Register(new EcaVariableChangedEvent());
             var commands = new EcaCommandRegistry();
             commands.Register(new EcaSetVariableCommand(variables));
             commands.Register(new EcaForceSetVariableCommand(variables));

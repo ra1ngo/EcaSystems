@@ -2,6 +2,16 @@
 
 Тесты используют Unity Test Framework + NUnit. Production Runtime не содержит test-only кода. Карта всех 22 сценариев бывшего `EcaSystemsSmokeTest` находится в [TestMigration.md](TestMigration.md); дополнительные проверки покрывают валидацию Rule, Pending, расход Limit при ошибке и внутреннюю защиту Bind из старого .NET harness.
 
+## Версии локальной Unity и CI
+
+Локальная разработка и проверки выполняются на Unity **6000.5.6f1**, а GitHub Actions / GameCI намеренно закреплён на **6000.3.19f1**. Это не случайная устаревшая версия. Попытка GameCI `unity-test-runner@v4` в package mode с Unity 6000.5.6f1 вызвала проблему Code Coverage / compilation: нормальный EditMode test result не создавался. `coverageEnabled: false` также не помог: используемая версия GameCI формировала некорректный CLI argument `--no-coverageEnabled`. После pin на 6000.3.19f1 CI снова заработал. Не обновлять CI обратно на 6000.5.6f1, пока отдельной проверкой не подтверждено устранение проблемы GameCI/coverage. Текущая конфигурация — [.github/workflows/tests.yml](../.github/workflows/tests.yml).
+
+## PR #25 cleanup — 2026-09-24
+
+Declaration переименован в EcaVariableChangedEvent с сохранением meta GUID; descriptor test дополнен проверкой concrete type, прежние assertions сохранены. Event ID/type/exports/lifecycle/behavior не менялись. Unity asmdef теперь ссылается на существующую EcaSystems.Core2; лишних references нет. Placeholder Eca/.gitkeep уже отсутствовал в исходном HEAD.
+
+Unity **6000.5.6f1**: Variables Core+Eca **95/95**, Core2 **280/280**, полный EditMode **559/559**. Все runs завершены с exit code 0, failed/skipped/inconclusive — 0. Compiler warnings/errors отсутствуют; остаются сообщения о пустой EcaSystems.Unity assembly и timeout Unity Cloud configuration после test completion. XML/log: `.validation~/pr25-cleanup-variables`, `pr25-cleanup-core2`, `pr25-cleanup-full` с суффиксами `-results.xml` и `.log`. Удалённый GameCI в рамках локальной проверки не запускался; описанная выше причина pin — ранее установленное ограничение, не новый CI result.
+
 ## Variables/ECA V1 — 2026-09-24
 
 Добавлены **28 cases**: 5 EcaVariablesSystemStateTests и 23 VariablesEcaAdapterTests в новой EcaSystems.Variables.Eca.Editor.Tests assembly. Прежние tests/assertions не изменены.

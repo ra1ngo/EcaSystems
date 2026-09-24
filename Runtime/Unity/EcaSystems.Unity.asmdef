@@ -1,7 +1,7 @@
 {
   "name": "EcaSystems.Unity",
   "references": [
-    "EcaSystems.Core"
+    "EcaSystems.Core2"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
