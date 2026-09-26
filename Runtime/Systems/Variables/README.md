@@ -68,6 +68,7 @@ Public API `EcaVariableRegistry`:
 
 ```csharp
 public IReadOnlyCollection<EcaVariable> Variables { get; }
+public IReadOnlyList<EcaVariable> GetSnapshot();
 public bool Contains(string variableId);
 public EcaVariable Resolve(string variableId);
 public bool TryResolve(string variableId, out EcaVariable variable);
@@ -149,13 +150,13 @@ Remove/Reparent/Copy/Templates, inheritance, SaveLoad, Store lifecycle events, H
 | Command | `variables.variable.set` | EcaSetVariableArgs(StoreId, VariableId, object Value) | Task |
 | Command | `variables.variable.force-set` | EcaSetVariableArgs(StoreId, VariableId, object Value) | Task |
 
-`variables.state` — canonical/default broad read model для будущего visual programming. Store/Subtree — адресные read models с explicit selector, без automatic StoreId↔ScopeId/RuleId mapping. Resolvers возвращают Core snapshots напрямую. Payload — sealed class с get-only StoreId: invalid ID в constructor, null/wrong opaque payload дают ArgumentException; missing Store — InvalidOperationException. Неверный payload/no-payload overload отклоняется Core2 shape validation без fallback.
+`variables.state` — canonical/default broad read model для будущего visual programming. Store/Subtree — адресные read models с explicit selector, независимо от automatic mirrored Stores lifecycle (см. ниже). Resolvers возвращают Core snapshots напрямую. Payload — sealed class с get-only StoreId: invalid ID в constructor, null/wrong opaque payload дают ArgumentException; missing Store — InvalidOperationException. Неверный payload/no-payload overload отклоняется Core2 shape validation без fallback.
 
 EventState — отдельный immutable flat snapshot: StoreId, VariableId, ValueType, CurrentValue, OldValue. Internal EcaVariableChangedEventStateMapper явно копирует Core EcaVariableChanged; Definition/Data/Core Changed не выдаются как ECA EventState.
 
 Commands — отдельные EcaSetVariableCommand/EcaForceSetVariableCommand. Они resolve-ят local Variable и явно dispatch-ят только int/float/bool/string по Definition.ValueType в Core SetValue<T>/ForceSetValue<T>. Value требует exact runtime type, null допустим только для string; mismatch даёт ArgumentException без conversions, dynamic/reflection invoke или object setter в Core. Args с invalid StoreId/VariableId отклоняются constructor; null args — ArgumentNullException. Set equal не испускает event, ForceSet equal испускает; Commands сами не fire-ят Event.
 
-## Explicit adapter lifecycle
+## Ручной aggregate adapter lifecycle (whole-system/debug)
 
 ```csharp
 var system = VariablesEcaSetup.CreateSystem(variables);
@@ -169,4 +170,23 @@ connector.Disconnect(system);
 
 Connect повторно бросает InvalidOperationException; Disconnect idempotent, reconnect допустим. Constructor не подключает adapter: он один раз resolve-ит и проверяет typed canonical Event + metadata, затем кеширует declaration. Подписка только на System.VariableChanged охватывает Stores, созданные после Connect. Condition/Action contexts null. Если прежний Core subscriber прерывает bubbling exception, ECA Event не возникает; rollback/isolation нет. Adapter lifecycle принадлежит caller, не Connector/Core runtime.
 
-Tests adapter находятся в `Tests/Editor/Systems/Variables/Eca`, отдельная assembly `EcaSystems.Variables.Eca.Editor.Tests`. Save/Load — следующий отдельный этап. SetCurrentValue/Declare/CreateStore Commands и другие deferred features не добавлены.
+Tests adapter находятся в `Tests/Editor/Systems/Variables/Eca`, отдельная assembly `EcaSystems.Variables.Eca.Editor.Tests`. Global Store — следующий отдельный этап, затем Save/Load. SetCurrentValue/Declare/CreateStore Commands и другие deferred features не добавлены.
+
+## Automatic scoped integration
+
+```csharp
+var variables = new EcaVariablesSystem();
+var system = VariablesEcaSetup.CreateSystem(variables);
+runtime.ConnectSystem(system);
+var gameplay = runtime.CreateScope("gameplay");
+var combat = gameplay.CreateScope("combat");
+// Stores scope:gameplay и scope:gameplay/combat уже существуют.
+// scope.Register(rule, mode) также materialize-ит rule:gameplay/combat:<escaped RuleId>.
+// Не подключать дополнительный aggregate adapter для ordinary scoped routing.
+```
+
+Setup предоставляет один lifecycle connector, который создаёт scoped VariablesEcaAdapter(store, events, scope.EventEmitter). Источник — Store.VariableChanged, поэтому события идут self + bubble-up, без siblings/downward/cross-tree. Core aggregate остаётся для ручных whole-system сценариев. Runtime late-connect синхронизирует существующие Scope/Rules; transactional rollback возвращает bindings. Persistent Stores не удаляются при unregister/disconnect/dispose, включая Stores, созданные до последующей ошибки binding. Existing Store требует matching ParentId; values сохраняются при reconnect. Scope path/RuleId segments экранируются; public Scope path API не добавлен.
+
+Дополнительный export `variables.rule.variable.set`: EcaSetRuleVariableCommand требует IEcaScopeRuleState и EcaSetRuleVariableArgs(VariableId, Value). Store выбирается из live Scope binding и current RuleId, а не передаётся caller. Exact Value validation и SetValue semantics прежние. Force Rule variant отсутствует: same-value Force event может рекурсивно запускать Rule. GetSnapshot у Registry копирует membership, сохраняя live facade references; immutable values по-прежнему получаются через State snapshots.
+
+Global Store, Save/Load, Remove/Reparent/Copy/Templates/inheritance не реализованы. Продуктовый план находится только в локальном Documentation~/ToDo.md; Core2 отвечает за общие lifecycle contracts и не владеет external state.

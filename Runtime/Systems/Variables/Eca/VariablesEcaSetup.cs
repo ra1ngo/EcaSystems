@@ -11,7 +11,9 @@ namespace EcaSystems.Variables.Eca
             if (variables == null) throw new ArgumentNullException(nameof(variables));
             var events = new EcaBaseEventRegistry();
             events.Register(new EcaVariableChangedEvent());
+            var lifecycle = new EcaVariablesLifecycleConnector(variables, events);
             var commands = new EcaCommandRegistry();
+            commands.Register(new EcaSetRuleVariableCommand(lifecycle, variables));
             commands.Register(new EcaSetVariableCommand(variables));
             commands.Register(new EcaForceSetVariableCommand(variables));
             var states = new EcaStateRegistry();
@@ -22,7 +24,7 @@ namespace EcaSystems.Variables.Eca
             states.Register(EcaVariablesStateIds.Get(EcaVariablesStateKey.ECA_STATE_SUBTREE_ID),
                 (_, payload) => ResolveStore(variables, payload).GetSubtreeState());
             return new EcaSystem("variables", new EcaSystemNamespace("variables"), events, commands, states,
-                name: "Variables", description: "Standalone Variables state and mutations");
+                name: "Variables", description: "Standalone Variables state and mutations", lifecycleConnector: lifecycle);
         }
 
         private static EcaVariableStore ResolveStore(EcaVariablesSystem variables, object payload)

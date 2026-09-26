@@ -6,6 +6,31 @@
 
 Локальная разработка и проверки выполняются на Unity **6000.5.6f1**, а GitHub Actions / GameCI намеренно закреплён на **6000.3.19f1**. Это не случайная устаревшая версия. Попытка GameCI `unity-test-runner@v4` в package mode с Unity 6000.5.6f1 вызвала проблему Code Coverage / compilation: нормальный EditMode test result не создавался. `coverageEnabled: false` также не помог: используемая версия GameCI формировала некорректный CLI argument `--no-coverageEnabled`. После pin на 6000.3.19f1 CI снова заработал. Не обновлять CI обратно на 6000.5.6f1, пока отдельной проверкой не подтверждено устранение проблемы GameCI/coverage. Текущая конфигурация — [.github/workflows/tests.yml](../.github/workflows/tests.yml).
 
+## Scope/System lifecycle + Variables binding — 2026-09-26
+
+Добавлены **43 cases**: EcaLifecycleTests 17, EcaLifecycleRegistrySnapshotTests 8, EcaVariableRegistrySnapshotTests 1, VariablesLifecycleTests 17. Покрыты multiple listeners/connectors, обратная компенсация, ошибки компенсации, Rule membership, deterministic late synchronization, failure удаления exports, atomic subtree prepare failure на leaf/child/root и retry, целостность forest при Runtime.Dispose failure, ScopeId reuse, snapshots всех актуальных registries. Variables tests проверяют persistent reconnect, escaped full path, self+bubble-up без sibling/downward routing, восстановление подписок после failure, SetRule exact dispatch int/float/bool/string/null string и immediate reentrancy. Прежние running Actions/Dispose/Fire/Context regressions сохранены.
+
+Unity **6000.5.6f1**, фактически завершённые runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Core2 до добавления новых cases | 280 | 280 | 0 | 0 | 0 |
+| Первый focused lifecycle | 23 | 22 | 1 | 0 | 0 |
+| Focused lifecycle/Registry после исправления test capture + 2 cases | 25 | 25 | 0 | 0 | 0 |
+| Полный Variables Core + Eca | 113 | 113 | 0 | 0 | 0 |
+| Полный Core2 | 305 | 305 | 0 | 0 | 0 |
+| Полный EditMode | 602 | 602 | 0 | 0 | 0 |
+
+Первый focused failure был ошибкой нового теста: observer перезаписывал сохранённую ссылку failed Scope при создании replacement. Observer очищен перед retry; production ради этого failure не менялся. Первый focused run exit code 2; остальные runs exit code 0. Full breakdown: Core 37, Core1 77, Core2 305, Time 53, Time/Eca 17, Variables Core 73, Variables/Eca 40.
+
+Существующие tests: IEcaEventRegistry doubles в EcaSystemConnectorTests, EcaSystemsRuntimeTests, TimeEcaAdapterTests и VariablesEcaAdapterTests получили только GetSnapshot forwarding. В VariablesEcaAdapterTests точные export/metadata assertions расширены третьей командой; null constructor test получил явный cast из-за scoped overload. Assertions прежних гарантий не ослаблены. Runtime/Core, Runtime/Core1 и production Time не менялись.
+
+При recompilation обнаружен существующий CS0108 в неизменённом EcaScopeTests.cs:60 (Fire скрывает helper базового fixture). Новых compiler warnings/errors от изменённых файлов нет. Unity logs также содержат служебные licensing/access-token diagnostics, предупреждение о пустой EcaSystems.Unity assembly и Unity Cloud configuration timeout; ожидаемые callback exceptions Time tests входят в успешные regression checks. PlayMode/IL2CPP/remote GameCI не запускались.
+
+XML/log находятся локально в `.validation~/lifecycle-baseline`, `lifecycle-focused`, `lifecycle-focused-final`, `lifecycle-variables`, `lifecycle-core2`, `lifecycle-full` с суффиксами `-results.xml` и `.log`. Временные artifacts не входят в package/commit.
+
+Ограничения: callbacks обязаны быть atomic относительно собственных bindings; при отказе compensation ошибки агрегируются, произвольные внешние side effects Core восстановить не может. Уже созданные persistent Stores не удаляются даже при последующем failure binding. Registry snapshots фиксируют membership, а не глубокое состояние объектов. Global Store и generic adapter framework не добавлены.
+
 ## PR #25 cleanup — 2026-09-24
 
 Declaration переименован в EcaVariableChangedEvent с сохранением meta GUID; descriptor test дополнен проверкой concrete type, прежние assertions сохранены. Event ID/type/exports/lifecycle/behavior не менялись. Unity asmdef теперь ссылается на существующую EcaSystems.Core2; лишних references нет. Placeholder Eca/.gitkeep уже отсутствовал в исходном HEAD.

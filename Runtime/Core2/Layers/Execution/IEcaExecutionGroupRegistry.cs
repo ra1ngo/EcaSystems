@@ -1,7 +1,11 @@
+using System.Collections.Generic;
+
 namespace EcaSystems.Core2
 {
     public interface IEcaExecutionGroupRegistry
     {
+        IReadOnlyList<IEcaExecutionGroup> GetSnapshot();
+
         void Register(IEcaExecutionGroup group);
         bool Unregister(string ruleId);
         IEcaExecutionGroup Get(string ruleId);

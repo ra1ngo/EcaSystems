@@ -96,7 +96,24 @@ Reparent, Copy, Templates, hierarchical lookup/inheritance/override остают
 - [x] Focused snapshots/State/Commands/lifecycle/Connector и real Scope emitter tests.
 - [x] Unity 6000.5.6f1: SystemState 5/5, Eca 23/23, весь Variables 95/95, Core2 280/280, EditMode 559/559.
 
-## Следом
+## Lifecycle / automatic Scope–Rule binding — выполнено
+
+- [x] Optional System lifecycle connector; late sync existing hierarchy/Rules.
+- [x] Persistent Scope/Rule Stores и reconnect exact instances без удаления state.
+- [x] Full escaped Scope path identity; Rule Store child Scope Store.
+- [x] Ordinary scoped adapter слушает Scope Store, routing self + bubble-up.
+- [x] EcaSetRuleVariableCommand / variables.rule.variable.set без Force variant.
+- [x] Registry GetSnapshot и regression/integration tests; Variables Core остаётся независимым.
+
+## Следующие Variables-итерации
+
+1. Global Store — отдельный механизм; не implicit parent всех обычных Stores. Global event/access semantics согласовать отдельно, ordinary events оставить self + bubble-up.
+2. Save/Load.
+3. Enum после persistence contract.
+4. History / Store lifecycle operations / Copy / Templates / inheritance — позже.
+5. Reactive/computed/watch/collections в текущий scope не добавлять.
+
+## Отложенные задачи
 
 - [ ] Save/Load VariablesSystem отдельной итерацией.
 - [ ] Enum после решения persistence contract.

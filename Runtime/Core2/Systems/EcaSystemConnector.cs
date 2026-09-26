@@ -10,10 +10,13 @@ namespace EcaSystems.Core2
         private readonly IEcaEventRegistry _events;
         private readonly EcaCommandRegistry _commands;
         private readonly EcaStateRegistry _states;
+        private readonly EcaSystemLifecycleConnectorRegistry _lifecycle;
 
         public EcaSystemConnector(EcaSystemRegistry systems, EcaSystemNamespaceRegistry namespaces,
-            IEcaEventRegistry events, EcaCommandRegistry commands, EcaStateRegistry states)
+            IEcaEventRegistry events, EcaCommandRegistry commands, EcaStateRegistry states,
+            EcaSystemLifecycleConnectorRegistry lifecycle = null)
         {
+            _lifecycle = lifecycle ?? new EcaSystemLifecycleConnectorRegistry();
             _systems = systems ?? throw new ArgumentNullException(nameof(systems));
             _namespaces = namespaces ?? throw new ArgumentNullException(nameof(namespaces));
             _events = events ?? throw new ArgumentNullException(nameof(events));
@@ -47,6 +50,11 @@ namespace EcaSystems.Core2
                     _states.Register(registration);
                     undo.Push(() => RequireRemoved(_states.Unregister(registration.Id)));
                 }
+                if (system.LifecycleConnector != null)
+                {
+                    _lifecycle.Register(system.Id, system.LifecycleConnector);
+                    undo.Push(() => RequireRemoved(_lifecycle.Unregister(system.Id)));
+                }
                 _systems.Register(system);
             }
             catch (Exception failure)
@@ -66,6 +74,11 @@ namespace EcaSystems.Core2
             var undo = new Stack<Action>();
             try
             {
+                if (system.LifecycleConnector != null)
+                {
+                    RequireRemoved(_lifecycle.Unregister(system.Id));
+                    undo.Push(() => _lifecycle.Register(system.Id, system.LifecycleConnector));
+                }
                 RequireRemoved(_systems.Unregister(system.Id));
                 undo.Push(() => _systems.Register(system));
                 foreach (var registration in system.States.Registrations)
@@ -94,6 +107,9 @@ namespace EcaSystems.Core2
 
         private void ValidateExports(EcaSystem system, bool connected)
         {
+            if (system.LifecycleConnector != null)
+                RequirePresence(connected ? _lifecycle.CheckRegistered(system.Id, system.LifecycleConnector) : _lifecycle.Contains(system.Id),
+                    connected, "Lifecycle connector", system.Id);
             if (system.Namespace == null) throw new ArgumentException("System namespace is required.", nameof(system));
             ValidateId(system.Namespace.Id);
             RequirePresence(connected ? _namespaces.CheckRegistered(system.Namespace) : _namespaces.Contains(system.Namespace.Id), connected, "Namespace", system.Namespace.Id);

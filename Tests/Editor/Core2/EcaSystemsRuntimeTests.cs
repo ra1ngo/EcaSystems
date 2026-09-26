@@ -223,6 +223,7 @@ namespace EcaSystems.Tests.Core2
             {
                 get { Reads++; OnRead?.Invoke(); return _inner.Events; }
             }
+            public IReadOnlyList<IEcaEvent> GetSnapshot() => _inner.GetSnapshot();
             public void Register(IEcaEvent item) => _inner.Register(item);
             public bool Unregister(string id) => _inner.Unregister(id);
             public bool Contains(string id) => _inner.Contains(id);

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace EcaSystems.Core2
 {
@@ -6,6 +7,8 @@ namespace EcaSystems.Core2
     {
         private readonly EcaScopeRuntime _owner;
         private EcaExecutionRuntime _executionRuntime;
+        private IEcaRuleRegistry _rules;
+        internal IReadOnlyList<IEcaRule> GetRulesSnapshot() => _rules.GetSnapshot();
 
         public IEcaEventEmitter EventEmitter { get; }
         public EcaScopeState State { get; }
@@ -16,6 +19,7 @@ namespace EcaSystems.Core2
         internal EcaScope(EcaScopeRuntime owner, EcaScopeState state, IEcaRuleRegistry rules, IEcaExecutionGroupRegistry groups, IEcaConditionChecker conditionChecker, IEcaActionRunner actionRunner, string parentScopeId)
         {
             _owner = owner;
+            _rules = rules;
             ParentScopeId = parentScopeId;
             State = state ?? throw new ArgumentNullException(nameof(state));
             _executionRuntime = new EcaExecutionRuntime(rules, groups,
@@ -32,8 +36,13 @@ namespace EcaSystems.Core2
         {
             ThrowIfDisposed();
             if (extendState == null) throw new ArgumentNullException(nameof(extendState));
-            _executionRuntime.Register(rule, executionMode, (eventState, groupState) =>
-                extendState(new EcaExecutionRuleState<E>(rule.Id, eventState, groupState), State));
+            _owner.Mutate(() =>
+            {
+                _executionRuntime.Register(rule, executionMode, (eventState, groupState) =>
+                    extendState(new EcaExecutionRuleState<E>(rule.Id, eventState, groupState), State));
+                try { _owner.Lifecycle.ConnectRule(this, rule); }
+                catch { _executionRuntime.Unregister(rule); throw; }
+            });
         }
 
         public void Register<E>(IEcaRule<E, EcaScopeRuleState<E>> rule, EcaExecutionMode executionMode)
@@ -61,7 +70,19 @@ namespace EcaSystems.Core2
         public bool Unregister(IEcaRule rule)
         {
             ThrowIfDisposed();
-            return _executionRuntime.Unregister(rule);
+            if (rule == null) throw new ArgumentNullException(nameof(rule));
+            var removed = false;
+            _owner.Mutate(() =>
+            {
+                foreach (var registered in _rules.GetSnapshot())
+                {
+                    if (!ReferenceEquals(registered, rule)) continue;
+                    _owner.Lifecycle.DisconnectRule(this, rule);
+                    removed = _executionRuntime.Unregister(rule);
+                    break;
+                }
+            });
+            return removed;
         }
 
         public void ForceFire<E, R>(
@@ -88,10 +109,15 @@ namespace EcaSystems.Core2
         public void Dispose()
         {
             if (IsDisposed) return;
-            IsDisposed = true;
             _owner.DisposeScope(this);
+        }
+
+        internal void CommitDispose()
+        {
+            IsDisposed = true;
             // Новые операции закрыты; текущие Fire и Action Tasks удерживают свои Groups до завершения.
             _executionRuntime = null;
+            _rules = null;
         }
 
         private void ThrowIfDisposed()

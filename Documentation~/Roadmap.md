@@ -4,9 +4,15 @@
 
 Core1 Base создан параллельно старому Core: A/Abstractions плоский, RuleState = data, RunnerContext = infrastructure, RuleRun скрывает типы от BaseEngine. В prototype уже выбран синхронный classic C# event dispatcher с immediate/reentrant Fire; ALL CONDITIONS → ALL ACTIONS принадлежит BaseEngine. Reuse через ExecutionRuleRunner и ScopeRuleRunner реализован; следующий обязательный шаг — review Core1 Execution/Scope (ToDo). Возможности ниже не реализованы этим prototype.
 
+## Scope identity / full path — future reconsideration
+
+Core сохраняет globally unique active ScopeId в одном runtime, не только среди siblings. Local duplicate ScopeId возможен только как отдельный identity redesign с пересмотром lookup/lifetime/registrations, не текущая задача.
+
+Сейчас Variables integration вычисляет escaped full Scope path, а public Scope хранит только ScopeId/ParentScopeId. Persistence, relocation/reparent, сложная topology или external addressing могут потребовать first-class path/identity abstraction; добавлять её только при реальном use case. Persistent Variables identity остаётся path-based даже при глобально уникальных active ScopeId: один ScopeId может последовательно появляться под разными parents.
+
 ## Standalone TimeSystem: будущие возможности
 
-Core v1 реализует только одноразовые ID timers и Awaitable Wait через обычную Update phase. Time ECA adapter реализован; EcaSystemsRuntime v1 реализован; следующий этап — Global State / Variables (ToDo). Дополнительные candidates, не входящие в v1:
+Core v1 реализует только одноразовые ID timers и Awaitable Wait через обычную Update phase. Time ECA adapter реализован; EcaSystemsRuntime v1 реализован; продуктовые этапы внешних Systems ведутся в локальных ToDo. Дополнительные candidates, не входящие в v1:
 
 - [ ] Repeat/looping timers, restart/reset convenience.
 - [ ] Cancellation для Wait.
@@ -16,7 +22,7 @@ Core v1 реализует только одноразовые ID timers и Awai
 - [ ] Conditional/frame waits.
 - [ ] Timer debug/editor tooling.
 
-## Core2: adapters внешних событий — после composition / Global State / Sandbox
+## Core2: adapters внешних событий — после composition / Sandbox
 
 Предоставить несколько способов адаптации источников к одному public порту `IEcaEventEmitter.Fire<E>(IEcaEvent<E> ecaEvent, E eventState, IEcaConditionContext conditionContext = null, IEcaActionContext actionContext = null)`:
 
@@ -25,7 +31,7 @@ Core v1 реализует только одноразовые ID timers и Awai
 - [ ] Polling sources.
 - [ ] UnityEvent, InputAction / Unity callbacks и другие adapters по практическим сценариям.
 
-Первый конкретный TimeEcaAdapter уже использует typed Fire<E>. Перечисленные generic adapters остаются будущими возможностями после production composition / Global State / Sandbox; универсальный binding framework, Signals не реализованы; State registry/resolver добавлен отдельно, без владения внешними данными. Способы адаптации могут различаться; lifecycle внешних Systems/adapters не принадлежит Core. Framework helpers допустимы без обязательной общей Core abstraction.
+Первый конкретный TimeEcaAdapter уже использует typed Fire<E>. Перечисленные generic adapters остаются будущими возможностями после production composition / Sandbox; универсальный binding framework, Signals не реализованы; State registry/resolver добавлен отдельно, без владения внешними данными. Способы адаптации могут различаться; lifecycle внешних Systems/adapters не принадлежит Core. Framework helpers допустимы без обязательной общей Core abstraction.
 
 ## Core2: согласованность Runtime и registries
 

@@ -56,17 +56,17 @@ namespace EcaSystems.Tests.VariablesEca
             Assert.That(declaration, Is.TypeOf<EcaVariableChangedEvent>());
             Assert.That(declaration, Is.InstanceOf<IEcaEvent<EcaVariableChangedEventState>>());
             Assert.That(declaration.EventStateType, Is.EqualTo(typeof(EcaVariableChangedEventState)));
-            Assert.That(_system.Commands.Commands.Select(c => c.Id), Is.EquivalentTo(new[] { Set, Force }));
+            Assert.That(_system.Commands.Commands.Select(c => c.Id), Is.EquivalentTo(new[] { Set, Force, "variables.rule.variable.set" }));
             foreach (var command in _system.Commands.Commands)
             {
-                Assert.That(command.RuleStateType, Is.EqualTo(typeof(IEcaRuleState)));
+                Assert.That(command.RuleStateType, Is.EqualTo(command.Id == "variables.rule.variable.set" ? typeof(IEcaScopeRuleState) : typeof(IEcaRuleState)));
                 Assert.That(command.ContextType, Is.EqualTo(typeof(IEcaActionContext)));
-                Assert.That(command.ArgsType, Is.EqualTo(typeof(EcaSetVariableArgs)));
+                Assert.That(command.ArgsType, Is.EqualTo(command.Id == "variables.rule.variable.set" ? typeof(EcaSetRuleVariableArgs) : typeof(EcaSetVariableArgs)));
             }
             var stateIds = Enum.GetValues(typeof(EcaVariablesStateKey)).Cast<EcaVariablesStateKey>().Select(EcaVariablesStateIds.Get).ToArray();
             Assert.That(stateIds, Is.EquivalentTo(new[] { "variables.state", "variables.store", "variables.subtree" }));
             Assert.That(Enum.GetValues(typeof(EcaVariablesEventKey)).Cast<EcaVariablesEventKey>().Select(EcaVariablesEventIds.Get), Is.EquivalentTo(new[] { Changed }));
-            Assert.That(Enum.GetValues(typeof(EcaVariablesCommandKey)).Cast<EcaVariablesCommandKey>().Select(EcaVariablesCommandIds.Get), Is.EquivalentTo(new[] { Set, Force }));
+            Assert.That(Enum.GetValues(typeof(EcaVariablesCommandKey)).Cast<EcaVariablesCommandKey>().Select(EcaVariablesCommandIds.Get), Is.EquivalentTo(new[] { Set, Force, "variables.rule.variable.set" }));
             _connector.Connect(_system);
             Assert.That(_systems.Resolve("variables"), Is.SameAs(_system));
             Assert.That(_namespaces.Resolve("variables"), Is.SameAs(_system.Namespace));
@@ -312,7 +312,7 @@ namespace EcaSystems.Tests.VariablesEca
             Assert.Throws<ArgumentNullException>(() => VariablesEcaSetup.CreateSystem(null));
             Assert.Throws<ArgumentNullException>(() => new EcaSetVariableCommand(null));
             Assert.Throws<ArgumentNullException>(() => new EcaForceSetVariableCommand(null));
-            Assert.Throws<ArgumentNullException>(() => new VariablesEcaAdapter(null, _system.Events, _emitter));
+            Assert.Throws<ArgumentNullException>(() => new VariablesEcaAdapter((EcaVariablesSystem)null, _system.Events, _emitter));
             Assert.Throws<ArgumentNullException>(() => new VariablesEcaAdapter(_variables, null, _emitter));
             Assert.Throws<ArgumentNullException>(() => new VariablesEcaAdapter(_variables, _system.Events, null));
             Assert.Throws<ArgumentNullException>(() => new EcaVariableChangedEventStateMapper().Map(null));
@@ -364,6 +364,7 @@ namespace EcaSystems.Tests.VariablesEca
             internal int ResolveCount;
             internal CountingRegistry(IEcaEventRegistry inner) => _inner = inner;
             public IReadOnlyCollection<IEcaEvent> Events => _inner.Events;
+            public IReadOnlyList<IEcaEvent> GetSnapshot() => _inner.GetSnapshot();
             public void Register(IEcaEvent item) => _inner.Register(item);
             public bool Unregister(string id) => _inner.Unregister(id);
             public bool Contains(string id) => _inner.Contains(id);

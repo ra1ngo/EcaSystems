@@ -18,6 +18,8 @@ namespace EcaSystems.Core2
         private readonly EcaCommandRunner _commandRunner;
         private readonly EcaScopeRuntime _scopes;
         private bool _isDisposed;
+        private bool _disposing;
+        private readonly EcaSystemLifecycleCoordinator _lifecycle;
 
         public EcaSystemsRuntime()
         {
@@ -27,24 +29,52 @@ namespace EcaSystems.Core2
             _stateResolver = new EcaStateResolver(_states);
             _systems = new EcaSystemRegistry();
             var namespaces = new EcaSystemNamespaceRegistry();
-            _connector = new EcaSystemConnector(_systems, namespaces, _events, commands, _states);
+            var connectors = new EcaSystemLifecycleConnectorRegistry();
+            _connector = new EcaSystemConnector(_systems, namespaces, _events, commands, _states, connectors);
             _commandRunner = new EcaCommandRunner(commands);
             _conditionChecker = new EcaBaseConditionChecker();
             _actionRunner = new EcaBaseActionRunner();
             _ruleCreator = new EcaRuleCreator(_events, _commandRunner, _stateResolver);
-            _scopes = new EcaScopeRuntime(_events, _conditionChecker, _actionRunner);
+            var lifecycle = new EcaScopeLifecycle();
+            _scopes = new EcaScopeRuntime(_events, _conditionChecker, _actionRunner, lifecycle);
+            _lifecycle = new EcaSystemLifecycleCoordinator(connectors, _scopes);
+            lifecycle.Register(_lifecycle);
         }
 
         public void ConnectSystem(EcaSystem system)
         {
             ThrowIfDisposed();
-            _connector.Connect(system);
+            _scopes.Mutate(() =>
+            {
+                _connector.Connect(system);
+                try { _lifecycle.Connect(system.LifecycleConnector); }
+                catch (Exception failure)
+                {
+                    var undo = new Stack<Action>();
+                    undo.Push(() => _connector.Disconnect(system));
+                    EcaScopeLifecycle.Rollback(undo, failure);
+                    throw;
+                }
+            });
         }
 
         public void DisconnectSystem(EcaSystem system)
         {
             ThrowIfDisposed();
-            _connector.Disconnect(system);
+            _scopes.Mutate(() =>
+            {
+                if (system == null) throw new ArgumentNullException(nameof(system));
+                if (!_systems.CheckRegistered(system)) throw new InvalidOperationException("System is not the connected instance.");
+                _lifecycle.Disconnect(system.LifecycleConnector);
+                try { _connector.Disconnect(system); }
+                catch (Exception failure)
+                {
+                    var undo = new Stack<Action>();
+                    undo.Push(() => _lifecycle.Connect(system.LifecycleConnector));
+                    EcaScopeLifecycle.Rollback(undo, failure);
+                    throw;
+                }
+            });
         }
 
         public EcaScope CreateScope(string scopeId = null)
@@ -88,13 +118,16 @@ namespace EcaSystems.Core2
         public void Dispose()
         {
             if (_isDisposed) return;
-            _isDisposed = true;
-            List<Exception> failures = null;
+            if (_disposing) throw new InvalidOperationException("Runtime is already disposing.");
+            _disposing = true;
             try { _scopes.Dispose(); }
-            catch (Exception error) { (failures ??= new()).Add(error); }
+            catch { _disposing = false; throw; }
+            _isDisposed = true;
+            _disposing = false;
+            List<Exception> failures = null;
 
             // Systems is a live view: disconnect against a snapshot, continuing after failures.
-            foreach (var system in new List<EcaSystem>(_systems.Systems))
+            foreach (var system in _systems.GetSnapshot())
             {
                 try { _connector.Disconnect(system); }
                 catch (Exception error) { (failures ??= new()).Add(error); }
@@ -105,7 +138,7 @@ namespace EcaSystems.Core2
 
         private void ThrowIfDisposed()
         {
-            if (_isDisposed) throw new ObjectDisposedException(nameof(EcaSystemsRuntime));
+            if (_isDisposed || _disposing) throw new ObjectDisposedException(nameof(EcaSystemsRuntime));
         }
     }
 }

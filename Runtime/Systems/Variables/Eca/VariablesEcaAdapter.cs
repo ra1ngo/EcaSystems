@@ -7,14 +7,26 @@ namespace EcaSystems.Variables.Eca
     public sealed class VariablesEcaAdapter
     {
         private readonly EcaVariablesSystem _variables;
+        private readonly EcaVariableStore _store;
         private readonly IEcaEventEmitter _emitter;
         private readonly IEcaEvent<EcaVariableChangedEventState> _changed;
         private readonly EcaVariableChangedEventStateMapper _mapper = new();
         private bool _connected;
 
         public VariablesEcaAdapter(EcaVariablesSystem variables, IEcaEventRegistry events, IEcaEventEmitter emitter)
+            : this(events, emitter)
         {
             _variables = variables ?? throw new ArgumentNullException(nameof(variables));
+        }
+
+        public VariablesEcaAdapter(EcaVariableStore store, IEcaEventRegistry events, IEcaEventEmitter emitter)
+            : this(events, emitter)
+        {
+            _store = store ?? throw new ArgumentNullException(nameof(store));
+        }
+
+        private VariablesEcaAdapter(IEcaEventRegistry events, IEcaEventEmitter emitter)
+        {
             _emitter = emitter ?? throw new ArgumentNullException(nameof(emitter));
             if (events == null) throw new ArgumentNullException(nameof(events));
             var id = EcaVariablesEventIds.Get(EcaVariablesEventKey.ECA_EVENT_VARIABLE_CHANGED_ID);
@@ -28,14 +40,16 @@ namespace EcaSystems.Variables.Eca
         public void Connect()
         {
             if (_connected) throw new InvalidOperationException("Variables adapter is already connected.");
-            _variables.VariableChanged += Changed;
+            if (_store != null) _store.VariableChanged += Changed;
+            else _variables.VariableChanged += Changed;
             _connected = true;
         }
 
         public void Disconnect()
         {
             if (!_connected) return;
-            _variables.VariableChanged -= Changed;
+            if (_store != null) _store.VariableChanged -= Changed;
+            else _variables.VariableChanged -= Changed;
             _connected = false;
         }
 
