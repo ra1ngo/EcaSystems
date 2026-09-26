@@ -4,6 +4,8 @@ namespace EcaSystems.Core2
 {
     public interface IEcaRuleRegistry
     {
+        IReadOnlyList<IEcaRule> GetSnapshot();
+
         void Register<E, R>(IEcaRule<E, R> rule)
             where R : IEcaRuleState<E>;
 

@@ -4,6 +4,9 @@ namespace EcaSystems.Time
 {
     internal sealed class WaitRegistry
     {
+        // Frozen membership, retaining the original entry references.
+        internal IReadOnlyList<WaitTimer> GetSnapshot() => new List<WaitTimer>(_waits).AsReadOnly();
+
         private readonly HashSet<WaitTimer> _waits = new();
         internal HashSet<WaitTimer> Values => _waits;
         internal long LastId { get; private set; }

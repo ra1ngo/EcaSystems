@@ -5,6 +5,9 @@ namespace EcaSystems.Time
 {
     internal sealed class TimerRegistry
     {
+        // Frozen membership, retaining the original entry references.
+        internal IReadOnlyList<Timer> GetSnapshot() => new List<Timer>(_timers.Values).AsReadOnly();
+
         private readonly Dictionary<string, Timer> _timers = new(StringComparer.Ordinal);
         internal Dictionary<string, Timer>.ValueCollection Values => _timers.Values;
         internal bool HasActive

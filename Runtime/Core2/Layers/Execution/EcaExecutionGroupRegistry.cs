@@ -5,6 +5,9 @@ namespace EcaSystems.Core2
 {
     public sealed class EcaExecutionGroupRegistry : IEcaExecutionGroupRegistry
     {
+        // Frozen membership, retaining the original entry references.
+        public IReadOnlyList<IEcaExecutionGroup> GetSnapshot() => new List<IEcaExecutionGroup>(_groups.Values).AsReadOnly();
+
         private readonly Dictionary<string, IEcaExecutionGroup> _groups = new(StringComparer.Ordinal);
 
         public void Register(IEcaExecutionGroup group)

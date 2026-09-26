@@ -5,6 +5,9 @@ namespace EcaSystems.Core2
 {
     public sealed class EcaBaseEventRegistry : IEcaEventRegistry
     {
+        // Frozen membership, retaining the original entry references.
+        public IReadOnlyList<IEcaEvent> GetSnapshot() => new List<IEcaEvent>(_events.Values).AsReadOnly();
+
         private readonly Dictionary<string, IEcaEvent> _events = new(StringComparer.Ordinal);
         public IReadOnlyCollection<IEcaEvent> Events => _events.Values;
 

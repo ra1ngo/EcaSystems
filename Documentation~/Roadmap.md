@@ -2,21 +2,17 @@
 
 Эти возможности не блокируют первое практическое применение. Обязательные этапы — в [ToDo.md](ToDo.md), согласованные решения — в [Context.md](Context.md). Execution v1, Scope v1, Base context refactor и Commands v1 завершены. Ниже перечислены нереализованные возможности, требующие отдельного проектирования и практических сценариев. Документ ведётся на русском языке.
 
-Core1 Base создан параллельно старому Core: A/Abstractions плоский, RuleState = data, RunnerContext = infrastructure, RuleRun скрывает типы от BaseEngine. В prototype уже выбран синхронный classic C# event dispatcher с immediate/reentrant Fire; ALL CONDITIONS → ALL ACTIONS принадлежит BaseEngine. Reuse через ExecutionRuleRunner и ScopeRuleRunner реализован; следующий обязательный шаг — review Core1 Execution/Scope (ToDo). Возможности ниже не реализованы этим prototype.
+Актуальная production-архитектура — Runtime/Core2; Core/Core1 сохранены как historical/reference. Их bridge/RuleRunner решения не являются планом текущего runtime.
 
-## Standalone TimeSystem: будущие возможности
+Продуктовые возможности standalone Systems перенесены в [Time Roadmap](../Runtime/Systems/Time/Documentation~/Roadmap.md) и [Variables Roadmap](../Runtime/Systems/Variables/Documentation~/Roadmap.md). Core предоставляет инфраструктуру; данные и lifetime остаются внешними.
 
-Core v1 реализует только одноразовые ID timers и Awaitable Wait через обычную Update phase. Time ECA adapter реализован; EcaSystemsRuntime v1 реализован; следующий этап — Global State / Variables (ToDo). Дополнительные candidates, не входящие в v1:
+## Scope identity и package cleanup
 
-- [ ] Repeat/looping timers, restart/reset convenience.
-- [ ] Cancellation для Wait.
-- [ ] Groups/tags/bulk operations.
-- [ ] Local/custom scale и time channels.
-- [ ] Дополнительные PlayerLoop phases.
-- [ ] Conditional/frame waits.
-- [ ] Timer debug/editor tooling.
+- [ ] Одинаковые local ScopeId в разных ветках допустимы только после отдельного redesign identity/lookup/lifetime. Сейчас active ScopeId globally unique в одном runtime, ParentScopeId не является частью Core identity.
+- [ ] Core хранит ScopeId + ParentScopeId, но canonical full path как first-class abstraction отсутствует. Persistence, relocation/reparent, external addressing или сложная topology могут потребовать отдельный path/identity contract; сейчас он не реализуется.
+- [ ] Пустая EcaSystems.Unity assembly выдаёт предупреждение Unity. Решить, станет ли она реальным Unity bridge layer, или убрать/перестроить assembly layout. В этой итерации layout не менять.
 
-## Core2: adapters внешних событий — после composition / Global State / Sandbox
+## Core2: adapters внешних событий — после Sandbox
 
 Предоставить несколько способов адаптации источников к одному public порту `IEcaEventEmitter.Fire<E>(IEcaEvent<E> ecaEvent, E eventState, IEcaConditionContext conditionContext = null, IEcaActionContext actionContext = null)`:
 
@@ -25,7 +21,7 @@ Core v1 реализует только одноразовые ID timers и Awai
 - [ ] Polling sources.
 - [ ] UnityEvent, InputAction / Unity callbacks и другие adapters по практическим сценариям.
 
-Первый конкретный TimeEcaAdapter уже использует typed Fire<E>. Перечисленные generic adapters остаются будущими возможностями после production composition / Global State / Sandbox; универсальный binding framework, Signals не реализованы; State registry/resolver добавлен отдельно, без владения внешними данными. Способы адаптации могут различаться; lifecycle внешних Systems/adapters не принадлежит Core. Framework helpers допустимы без обязательной общей Core abstraction.
+Первый конкретный TimeEcaAdapter уже использует typed Fire<E>. Перечисленные generic adapters остаются будущими возможностями после Sandbox; универсальный binding framework, Signals не реализованы; State registry/resolver добавлен отдельно, без владения внешними данными. Способы адаптации могут различаться; lifecycle внешних Systems/adapters не принадлежит Core. Framework helpers допустимы без обязательной общей Core abstraction.
 
 ## Core2: согласованность Runtime и registries
 
@@ -47,8 +43,8 @@ Core v1 реализует только одноразовые ID timers и Awai
 - [ ] Проверить модель на реальном сценарии, включая основу для сохранения/загрузки.
 - [ ] При необходимости отдельно определить cancellation cleanup hook и контракты прерывания/очистки; текущий Dispose/Unregister не отменяет Actions.
 - [ ] Рассматривать Queue и Reset как возможные будущие возможности, не обязательные стандартные режимы.
-- [ ] Queued/deferred **Event processing** как optional future execution policy. Это отдельно от overlap Queue: Core1 Base сейчас не имеет queue/pendingEvents и сохраняет immediate/reentrant Fire.
-- [ ] Оценить отдельный Group layer между Execution и Scope при реальном use case. Сейчас non-generic Group реализована внутри Core1 Execution; отдельный vertical Group layer не реализован и остаётся future mental-test.
+- [ ] Queued/deferred **Event processing** как optional future execution policy. Это отдельно от overlap Queue: Core2 сейчас не имеет очереди Events и сохраняет immediate/reentrant Fire.
+- [ ] Оценить отдельный Group layer между Execution и Scope при реальном use case. Сейчас Group реализована внутри Core2 Execution; отдельный vertical Group layer не реализован и остаётся future mental-test.
 - [ ] Оценить Priority, Retry, Timeout, MaxConcurrency, Dependencies, Sequences и Parallel при наличии оснований.
 - [ ] Для каждой возможности отдельно определить ответственный слой; заранее не расширять минимальную Execution v1.
 
@@ -96,7 +92,7 @@ Scope v1: hierarchy определяет только время жизни; Fir
 - [ ] Рассмотреть event/execution trace, nested fire depth diagnostics и настраиваемые ограничения глубины, включая A → B → A.
 - [ ] Сначала диагностировать, затем ограничивать, сохраняя допустимые сложные цепочки.
 
-- [ ] Public external event callback/bridge при реальном use case. Core1 Fired теперь internal infrastructure event Dispatcher → BaseEngine, публичного gameplay callback нет; межскоуповый routing учтён в разделе развития Scope.
+- [ ] Public external event callback/bridge при реальном use case. Core2 emitter — direct generic transport к Runtime, отдельного Dispatcher/Receiver нет; межскоуповый routing учтён в разделе развития Scope.
 
 ## Расширение Overlap
 
@@ -119,7 +115,7 @@ Scope v1: hierarchy определяет только время жизни; Fir
 
 ## Сохранение / загрузка
 
-- [ ] Сохранять Global State, таймеры и scopes/rules при практической необходимости.
+- [ ] Согласовать сохранение scopes/rules при практической необходимости. Domain persistence конкретных Systems описывается в их локальных Roadmap.
 - [ ] Исследовать сохранение/продолжение посреди execution через явную модель шагов/состояния выше; не обещать продолжение произвольной async Action.
 
 ## Расширенные тесты и производительность
@@ -147,7 +143,6 @@ Core2 Commands уже используют stable IEcaCommands и явные Rul
 
 - [ ] Code coverage отдельной итерацией: input coverageEnabled сейчас не задан, GameCI может включать coverage во временном проекте; отключение не гарантируется.
 - [ ] Optional required CI checks / branch protection после стабилизации CI, по решению владельца.
-- [ ] Дальнейшее удобство Rule API сверх реализованных Core1 Base/empty shortcuts.
 - [ ] Развивать ergonomics сверх реализованного class/delegate CreateRule только по новым сценариям.
 - [ ] Универсальный ContextFactory/hydration как возможное улучшение кода после выбора модели контекстов.
 
@@ -181,17 +176,14 @@ Rule creation по Event ID реализован через internal EcaRuleCrea
 
 Core2 StateRegistry хранит resolution functions по stable string ID; один T допустим под разными IDs. Type служит только строгим declared contract. Stable StateResolver.Resolve<T>(stateId, ruleState) требует оба аргумента явно, без Bind и Type-only lookup. Actual data остаётся во внешней System. RuleId — identity Rule и lookup key Group внутри конкретного ExecutionRuntime; в scoped normal Execution текущая Group определяется ScopeId + RuleId. ForceFire имеет RuleId без участия Group. ExecutionGroupId не добавлен. Эти primitives не реализуют VariableSystem, Save/Load или automatic inheritance.
 
-- [ ] VariableSystem как отдельная standalone System и её ECA exports.
-- [ ] Save/Load внешних state отдельно от registry/resolver infrastructure.
-
-- [ ] Scoped/hierarchical SystemState после Global State/Variables: inheritance, lookup, override по global → child → grandchild/local scopes. Этап отражён в ToDo; внешние функции уже могут использовать ScopeId/RuleId, но automatic inheritance/override не предоставляются.
+Продуктовые state/persistence/inheritance возможности принадлежат внешним Systems и их локальной документации. StateResolver уже передаёт ScopeId/RuleId через ruleState; это не automatic hierarchy/lookup policy.
 
 ## Технический долг и архитектурное review
 
-- [ ] Review реализованного Core1 reuse: Execution/Scope используют один Base pipeline и общий type-erasure bridge. Старые Base/Execution пока остаются reference implementation с дублированием orchestration.
-- [ ] Base async failure handling: fire-and-forget Task в EcaBaseEngine не имеет полноценной observability/error policy. Execution observability/history учтены в разделах инспекции и отладки выше.
+- [ ] Консолидация package layout: отделить historical Core/Core1 reference от production Core2 без автоматического возврата bridge/RuleRunner architecture.
+- [ ] Base async failure handling: fire-and-forget Task в EcaBaseRuntime не имеет полноценной observability/error policy. Execution observability/history учтены в разделах инспекции и отладки выше.
 - [ ] Определить threading contract Core; main-thread/single-thread orchestration для Unity — вероятное направление, ещё не принятое решение.
-- [ ] При необходимости развить Core1 Event ID ↔ точный EventStateType contract и immutability custom declarations; базовая EventRegistry validation уже реализована.
+- [ ] При необходимости развить Core2 Event ID ↔ точный EventStateType contract и immutability custom declarations; базовая EventRegistry validation уже реализована.
 - [ ] ActionRegistry/ConditionRegistry только при реальном сценарии lookup/ownership; сейчас Rule хранит прямые ссылки.
 
 Ergonomics generic Rule/Context API учтена в разделах развития контекстов и удобства Rule API; будущая ergonomics Commands — в разделе контекстов/Commands. Эти вопросы не означают реализацию нового runtime в checkpoint.

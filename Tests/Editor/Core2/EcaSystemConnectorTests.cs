@@ -296,6 +296,7 @@ namespace EcaSystems.Tests.Core2
             internal string FailRegisterId, FailUnregisterId;
             internal System.Action OnRegister;
             public IReadOnlyCollection<IEcaEvent> Events => _inner.Events;
+            public IReadOnlyList<IEcaEvent> GetSnapshot() => _inner.GetSnapshot();
             public void Register(IEcaEvent item)
             {
                 if (item.Id == FailRegisterId) throw new InvalidOperationException("register failure");
