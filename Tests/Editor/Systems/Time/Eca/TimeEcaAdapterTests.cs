@@ -370,6 +370,7 @@ namespace EcaSystems.Tests.TimeEca
             internal int ResolveCount;
             internal CountingRegistry(IEcaEventRegistry inner) => _inner = inner;
             public IReadOnlyCollection<IEcaEvent> Events => _inner.Events;
+            public IReadOnlyList<IEcaEvent> GetSnapshot() => _inner.GetSnapshot();
             public void Register(IEcaEvent item) => _inner.Register(item);
             public bool Unregister(string id) => _inner.Unregister(id);
             public bool Contains(string id) => _inner.Contains(id);

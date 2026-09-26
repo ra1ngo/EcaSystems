@@ -4,6 +4,8 @@ namespace EcaSystems.Core2
 {
     public interface IEcaEventRegistry
     {
+        IReadOnlyList<IEcaEvent> GetSnapshot();
+
         IReadOnlyCollection<IEcaEvent> Events { get; }
         void Register(IEcaEvent ecaEvent);
         bool Unregister(string eventId);

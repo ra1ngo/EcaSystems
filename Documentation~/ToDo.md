@@ -2,18 +2,20 @@
 
 Здесь только работа до первого полноценного применения в играх. Execution v1, Scope v1, Base context refactor и Commands v1 завершены. Актуальные решения — в [Context.md](Context.md), необязательные будущие возможности — в [Roadmap.md](Roadmap.md). Документы ведутся на русском языке.
 
-## Актуальный порядок следующих итераций — 2026-09-20
+## Актуальный порядок следующих итераций — 2026-09-26
 
 - [x] Standalone TimeSystem.
 - [x] TimeSystem architecture refactor + Time/Eca adapter.
 - [x] PR #17 registry cleanup: canonical CheckRegistered, live items/public Resolve, local System registries, concrete Time Commands и cached Events.
 - [x] Core2 Fire/Context refactor: IEcaRule<E,R>, nullable раздельные contexts конкретного Fire, event-only Fire и Scope-owned EventEmitter.
-- [x] EcaSystemsRuntime v1 — production composition root: EcaScopeRuntime, global System/Event/Command/Namespace registries, EcaSystemConnector и EcaCommandRunner; без автоматического root Scope. Внешний adapter lifecycle не принадлежит Core/Runtime. Class/delegate Rule creation реализован; Unity/visual authoring остаётся Roadmap.
+- [x] EcaSystemsRuntime v1 — production composition root: EcaScopeRuntime, global System/Event/Command/Namespace registries, EcaSystemConnector и EcaCommandRunner; без автоматического root Scope. Внешний lifespan не принадлежит Core; optional lifecycle connector управляет declared bindings. Class/delegate Rule creation реализован; Unity/visual authoring остаётся Roadmap.
 - [x] RuleCreator/CreateRule, AEcaCondition/AEcaAction, shared checker/runner и state-aware Commands без Bind; Time Commands мигрированы.
 - [x] State registrations/resolver без Bind, State initialization Condition/Action, Base RuleId, технический ForceFire и local ExecutionRuntime composition внутри Scope.
 - [x] PR #21 follow-up: State ID lookup + exact declared type, canonical ID/type/delegate validation, runtime RuleId invariant. ScopeRuntime создаёт per-Scope registries и передаёт их ссылками в Scope; Scope создаёт только ExecutionRuntime из dependencies.
-- [x] VariableSystem / Global Variables standalone System + ECA: Core V3, whole-forest State, адресные Store/Subtree States, VariableChanged и Set/ForceSet, explicit adapter lifecycle. Save/Load остаётся отдельным этапом.
-- [ ] Save/Load как отдельная следующая задача.
+- [x] Scope lifecycle с multiple listeners, transactional reverse rollback и atomic subtree prepare/commit Dispose.
+- [x] Optional System LifecycleConnector, registry/coordinator и transactional late sync без дублирования topology.
+- [x] GetSnapshot convention для актуальных Core2/Variables registries.
+- [x] ScopeId identity: globally unique active IDs в runtime, reuse только новым instance; regression tests.
 - [ ] Небольшой end-to-end Sandbox / PlayMode scenario.
 - [ ] External event adapters.
 - [ ] Project cleanup/consolidation.
@@ -31,7 +33,7 @@
 - [x] Systems v1: passive EcaSystem/Namespace, отдельные registries, EcaSystemConnector.Connect/Disconnect с prevalidation и локальным rollback; EventRegistry расширен non-generic Register/Unregister/Contains.
 - [x] Standalone TimeSystem Core v1: независимая Unity assembly, ID timers, lifecycle events, PlayerLoop и Awaitable Wait; изолированные tests.
 - [x] TimeSystem architecture refactor + первый Time/Eca adapter: aggregate lifecycle, typed event snapshots, семь Commands.
-- [ ] После production composition / Global State / Sandbox рассмотреть external event adapters к IEcaEventEmitter.Fire<E>: C# events, callbacks, observables, polling, UnityEvent/InputAction и другие источники; список в Roadmap. Сейчас реализованы прямой Emitter API и конкретный TimeEcaAdapter.
+- [ ] После production composition / Sandbox рассмотреть external event adapters к IEcaEventEmitter.Fire<E>: C# events, callbacks, observables, polling, UnityEvent/InputAction и другие источники; список в Roadmap. Сейчас реализованы прямой Emitter API и конкретный TimeEcaAdapter.
 - [ ] Рассмотреть StateBuilder/StateFactory позже, если последовательное расширение RuleState между слоями станет достаточно сложным, повторяемым или неудобным через Func. Execution использует Func<E, EcaExecutionGroupState, R>, Scope — Func<IEcaExecutionRuleState<E>, EcaScopeState, R>; отдельный builder не проектируется.
 - [ ] Следующие слои согласовывать отдельными итерациями. FireEventCommand, Unity bridge, cancellation и Reset/Queue сейчас не реализованы.
 
@@ -88,13 +90,9 @@
 - [x] Standalone TimeSystem Core v1 в Runtime/Systems/Time/Core, без ECA dependencies; отдельные runtime/test assemblies.
 - [x] Time/Eca adapter в Runtime/Systems/Time/Eca: passive descriptor, шесть Events и семь Commands, включая адаптацию Awaitable Wait.
 
-## 5. Global State / переменные
+## Внешние Systems
 
-- [ ] Спроектировать как отдельную System, а не встроенную возможность Base.
-
-## 6. Scope-aware / hierarchical SystemState
-
-- [ ] После Global State/Variables спроектировать global → child → grandchild/local scopes: inheritance, lookup и override semantics. StateResolver уже позволяет внешней System выбрать global/per-Scope/per-Rule state; automatic hierarchy/inheritance пока не реализована. Это отдельная возможность, не EcaScopeState с ScopeId.
+Продуктовые задачи внешних Systems ведутся только в их локальных Documentation~/ToDo.md. Общий план содержит Core2 integration contracts и инфраструктуру, не планы хранения/типов/истории конкретной System.
 
 ## 7. Интеграция Unity и удобство пакета
 

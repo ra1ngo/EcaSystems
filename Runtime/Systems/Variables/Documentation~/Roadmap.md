@@ -4,7 +4,13 @@
 
 ## После Variables/ECA V1
 
-Variables/ECA V1 завершён: variables.state — whole-forest EcaVariablesSystemState и default read model для будущего visual programming; variables.store/subtree дают адресные snapshots. Это не Save/Load implementation. Следующий отдельный этап — persistence/SaveLoad contract, включая identity, immutable defaults и event policy при восстановлении. Visual authoring/Sandbox может опираться на эти read models без automatic Store↔Scope mapping.
+Variables/ECA V1 завершён: variables.state — whole-forest EcaVariablesSystemState и default read model для будущего visual programming; variables.store/subtree дают адресные snapshots. Это не Save/Load implementation. После следующей отдельной Global Store итерации — persistence/SaveLoad contract, включая identity, immutable defaults и event policy при восстановлении. Visual authoring/Sandbox может опираться на эти read models без automatic Store↔Scope mapping.
+
+## Persistent mirrored identity и будущий path contract
+
+Lifecycle integration создаёт persistent scope:{fullPath} и rule:{fullPath}:{ruleId} Stores с escaped segments. Runtime binding lifetime не равен Store lifetime. ScopeId глобально уникален среди active Scope, но при reuse под другим parent persistent Store другой. Core не предоставляет canonical path: при persistence/relocation/reparent/external addressing может потребоваться отдельная first-class identity abstraction, сейчас не реализована.
+
+Global Store планируется отдельным механизмом (порядок — в локальном ToDo), не implicit parent всех обычных Stores. Ordinary events остаются self + bubble-up; global propagation/access не являются inheritance и требуют отдельного решения. Store Remove/Reparent/Copy/Templates не добавляются ради lifecycle disconnect или rollback.
 
 ## Store tree evolution
 

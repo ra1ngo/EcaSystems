@@ -5,6 +5,8 @@ namespace EcaSystems.Variables
 {
     public sealed class EcaVariableRegistry
     {
+        public IReadOnlyList<EcaVariable> GetSnapshot() => new List<EcaVariable>(_variables.Values).AsReadOnly();
+
         private readonly Dictionary<string, EcaVariable> _variables = new(StringComparer.Ordinal);
         public IReadOnlyCollection<EcaVariable> Variables => _variables.Values;
 

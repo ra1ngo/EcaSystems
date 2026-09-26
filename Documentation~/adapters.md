@@ -8,7 +8,13 @@
 
 EcaTimeEventState представляет immutable snapshot перехода, а не живой Timer. Immediate/reentrant handling может перезапустить таймер, но уже отправленный snapshot остаётся описанием исходного события.
 
-## Порядок подключения
+## Scope/System lifecycle и Variables — 2026-09-26
+
+У EcaSystem теперь один optional IEcaSystemLifecycleConnector. EcaSystemLifecycleCoordinator слушает нижний EcaScopeLifecycle, связывает Scope/Rule membership и late-sync с существующими registries. Core знает только общий contract и не владеет actual external state. Scope-layer не зависит от Systems-layer. Полные transaction/prepare-commit правила — в Context.
+
+Variables setup предоставляет такой connector: scoped adapter подписан на соответствующий Scope Store.VariableChanged, поэтому ordinary routing self + bubble-up определяется внешним Core tree без фильтрации topology в ECA. Binding disconnect не удаляет persistent Stores. Старый вручную создаваемый aggregate adapter остаётся whole-system/debug вариантом и не используется автоматическим scoped wiring. Time adapter по-прежнему explicit caller-owned, его lifecycle не менялся. Эти два способа адаптации не требуют generic adapter framework.
+
+## Порядок подключения Time и ручных adapters
 
 Emitter только передаёт Fire bound handler; в scope-owned path регистрацию Event валидирует runtime/RuleRegistry после lifecycle проверки EcaScope.Fire. Caller обязан выполнять:
 
@@ -32,7 +38,7 @@ Emitter остаётся typed instance-based Fire<E>(IEcaEvent<E>, E, IEcaCondi
 
 ## Что не обобщаем пока
 
-Один adapter ещё не обосновывает универсальный external-adapter framework. Production Core2 composition реализована; далее standalone Global State/Variables + ECA и небольшой end-to-end Sandbox/PlayMode scenario. После нескольких реальных adapters можно сравнить общие потребности.
+Один adapter ещё не обосновывает универсальный external-adapter framework. Production Core2 composition реализована; Variables/ECA и scoped lifecycle integration реализованы; далее небольшой end-to-end Sandbox/PlayMode scenario. После нескольких реальных adapters можно сравнить общие потребности.
 
 Queries, Signals, FireEvent и routing — самостоятельные будущие concepts. Generic C# event/Observable/polling/UnityEvent/InputAction adapters, cancellation, Repeat, timer groups и другие Time features не входят в эту итерацию.
 
@@ -45,9 +51,9 @@ Caller может передать TimeEcaAdapter готовый scope.EventEmit
 
 Context = input конкретного Fire: ConditionContext и ActionContext раздельны, nullable и проходят без замены references. R создаётся runtime state factory и не входит в emitter payload. Game composition, framework helper или adapter могут сформировать contexts; Core не создаёт/enrich'ит их, не владеет lifetime. Механизм context composition/enrichment ещё не выбран.
 
-Core2 ничего не знает о lifecycle внешних систем и способе получения их событий. EcaSystem описывает ECA exports. Способы внешней адаптации могут различаться: callbacks, Unity events, observables, polling и другие. Framework может предоставлять готовые adapters/helpers, но они не являются обязательной частью Core-модели. Универсальная lifecycle adapter abstraction не вводится; Scope.Dispose не вызывает Disconnect внешнего adapter.
+Core2 не управляет lifetime внешних систем и способом получения их событий. EcaSystem описывает ECA exports и optional lifecycle connector для Scope/Rule bindings. Способы внешней адаптации могут различаться: callbacks, Unity events, observables, polling и другие. Framework может предоставлять готовые adapters/helpers, но они не являются обязательной частью Core-модели. Универсальная lifecycle adapter abstraction не вводится; Scope.Dispose вызывает общий lifecycle contract, а конкретный System connector снимает свои bindings. Произвольные внешние adapters остаются caller-owned.
 
-EcaSystemsRuntime v1 — production composition root поверх ScopeRuntime и global registries/Connector/одного CommandRunner, shared checker/action runner и internal RuleCreator. Public API: ConnectSystem, DisconnectSystem, CreateScope, CreateRule, Dispose; автоматического root Scope и public getters registries/runner нет. Runtime не создаёт contexts и не участвует в Fire. Dispose сначала закрывает scopes, затем disconnect-ит snapshot System exports, продолжая cleanup после ошибок и возвращая AggregateException; adapters не disconnect-ит. Running Actions завершаются естественно. DisconnectSystem не удаляет Rules, reconnect exact exports восстанавливает их Fire. Class/delegate CreateRule реализован; Unity/visual authoring остаётся Roadmap. После Connect local Event/Command exports стабильны по convention; изменение local registries может рассинхронизировать local/global. Freeze/snapshot/ownership/consistency не реализованы.
+EcaSystemsRuntime v1 — production composition root поверх ScopeRuntime и global registries/Connector/одного CommandRunner, shared checker/action runner и internal RuleCreator. Public API: ConnectSystem, DisconnectSystem, CreateScope, CreateRule, Dispose; автоматического root Scope и public getters registries/runner нет. Runtime не создаёт contexts и не участвует в Fire. Dispose сначала транзакционно готовит lifecycle disconnect всего forest и закрывает scopes, затем disconnect-ит snapshot System exports, продолжая cleanup после ошибок и возвращая AggregateException. Ошибка prepare оставляет topology live. Произвольные caller-owned adapters Runtime не disconnect-ит; scoped Variables bindings снимает их connector. Running Actions завершаются естественно. DisconnectSystem не удаляет Rules, reconnect exact exports восстанавливает их Fire. Class/delegate CreateRule реализован; Unity/visual authoring остаётся Roadmap. После Connect local Event/Command exports стабильны по convention; изменение local registries может рассинхронизировать local/global. Freeze/ownership/автоматическая consistency не реализованы; GetSnapshot фиксирует только membership registry.
 
 Time Commands используют AEcaCommand<IEcaRuleState,IEcaActionContext,A>: текущие state/context передаются явно, но сами Time operations их не используют. ActionContext nullable, Commands в нём не хранятся; Action получает stable IEcaCommands через RuleCreator. Task contract и standalone Time business semantics сохранены.
 

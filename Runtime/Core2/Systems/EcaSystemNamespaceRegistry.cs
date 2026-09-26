@@ -5,6 +5,8 @@ namespace EcaSystems.Core2
 {
     public sealed class EcaSystemNamespaceRegistry
     {
+        public IReadOnlyList<EcaSystemNamespace> GetSnapshot() => new List<EcaSystemNamespace>(_namespaces.Values).AsReadOnly();
+
         private readonly Dictionary<string, EcaSystemNamespace> _namespaces = new(StringComparer.Ordinal);
         public IReadOnlyCollection<EcaSystemNamespace> Namespaces => _namespaces.Values;
 
