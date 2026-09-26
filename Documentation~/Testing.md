@@ -6,6 +6,26 @@
 
 Локальная разработка и проверки выполняются на Unity **6000.5.6f1**, а GitHub Actions / GameCI намеренно закреплён на **6000.3.19f1**. Это не случайная устаревшая версия. Попытка GameCI `unity-test-runner@v4` в package mode с Unity 6000.5.6f1 вызвала проблему Code Coverage / compilation: нормальный EditMode test result не создавался. `coverageEnabled: false` также не помог: используемая версия GameCI формировала некорректный CLI argument `--no-coverageEnabled`. После pin на 6000.3.19f1 CI снова заработал. Не обновлять CI обратно на 6000.5.6f1, пока отдельной проверкой не подтверждено устранение проблемы GameCI/coverage. Текущая конфигурация — [.github/workflows/tests.yml](../.github/workflows/tests.yml).
 
+## Registry snapshots / documentation cleanup — 2026-09-26
+
+Ветка начата от актуального main `17a4ae0537360917ae85792d238d99769bea318c` после fetch origin/main. Lifecycle ветка/PR #26 не использовались, cherry-pick отсутствует. Production изменения ограничены GetSnapshot у 10 Registry и трёх Registry interfaces; Core/Core1, Scope/System runtime/connector, Time tick processors и Variables adapter/commands не менялись.
+
+Добавлено **10 focused cases**: 7 Core2, 2 Time, 1 Variables. Проверены frozen membership после add/remove (у Variables removal API отсутствует), новые snapshots, read-only mutations, exact object references и mutable metadata/data без deep copy. List-backed RuleRegistry сохраняет registration order; Dictionary/HashSet tests не закрепляют ordering. StateRegistry snapshot содержит только IDs, internal resolver records не раскрываются. Четыре прежних IEcaEventRegistry test doubles получили только forwarding GetSnapshot; существующие assertions не менялись.
+
+Unity **6000.5.6f1**, фактически завершённые последовательные runs:
+
+| Run | Total | Passed | Failed | Skipped | Inconclusive |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Focused RegistrySnapshotTests | 10 | 10 | 0 | 0 | 0 |
+| Time Core + Eca | 72 | 72 | 0 | 0 | 0 |
+| Variables Core + Eca | 96 | 96 | 0 | 0 | 0 |
+| Core2 | 287 | 287 | 0 | 0 | 0 |
+| Полный EditMode | 569 | 569 | 0 | 0 | 0 |
+
+Все runs завершились с exit code 0. Full breakdown: Core 37, Core1 77, Core2 287, Time 55, Time/Eca 17, Variables 73, Variables/Eca 23. XML/log: `.validation~/snapshots-focused`, `snapshots-time`, `snapshots-variables`, `snapshots-core2`, `snapshots-full` с суффиксами `-results.xml` и `.log`; локальные artifacts не входят в commit.
+
+При перекомпиляции остался существующий CS0108 в неизменённом EcaScopeTests.cs:60 (Fire скрывает helper базового fixture). Новых compiler warnings/errors от изменённых файлов нет. Unity сообщает о пустой EcaSystems.Unity assembly; решение её layout вынесено в общий Roadmap. Служебные licensing diagnostics не помешали suite; callback errors Time tests являются ожидаемыми regression scenarios. PlayMode, IL2CPP и remote CI не запускались. CI configuration и rationale local/dev 6000.5.6f1 / CI 6000.3.19f1 выше сохранены без изменения версии.
+
 ## PR #25 cleanup — 2026-09-24
 
 Declaration переименован в EcaVariableChangedEvent с сохранением meta GUID; descriptor test дополнен проверкой concrete type, прежние assertions сохранены. Event ID/type/exports/lifecycle/behavior не менялись. Unity asmdef теперь ссылается на существующую EcaSystems.Core2; лишних references нет. Placeholder Eca/.gitkeep уже отсутствовал в исходном HEAD.

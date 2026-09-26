@@ -5,6 +5,9 @@ namespace EcaSystems.Core2
 {
     public sealed class EcaSystemRegistry
     {
+        // Frozen membership, retaining the original entry references.
+        public IReadOnlyList<EcaSystem> GetSnapshot() => new List<EcaSystem>(_systems.Values).AsReadOnly();
+
         private readonly Dictionary<string, EcaSystem> _systems = new(StringComparer.Ordinal);
         public IReadOnlyCollection<EcaSystem> Systems => _systems.Values;
 

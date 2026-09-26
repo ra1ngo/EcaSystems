@@ -6,6 +6,9 @@ namespace EcaSystems.Core2
     // Stores access functions, never the external state returned by them.
     public sealed class EcaStateRegistry
     {
+        // Frozen registration IDs; resolver records remain internal.
+        public IReadOnlyList<string> GetSnapshot() => new List<string>(_registrations.Keys).AsReadOnly();
+
         internal sealed class Registration
         {
             internal string Id { get; }

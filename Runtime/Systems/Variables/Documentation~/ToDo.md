@@ -96,9 +96,14 @@ Reparent, Copy, Templates, hierarchical lookup/inheritance/override остают
 - [x] Focused snapshots/State/Commands/lifecycle/Connector и real Scope emitter tests.
 - [x] Unity 6000.5.6f1: SystemState 5/5, Eca 23/23, весь Variables 95/95, Core2 280/280, EditMode 559/559.
 
-## Следом
+## Следующие product iterations
 
-- [ ] Save/Load VariablesSystem отдельной итерацией.
-- [ ] Enum после решения persistence contract.
-- [ ] History вместо одиночного OldValue — future feature.
-- [ ] Reactive/computed/watch/collections сюда не добавлять.
+1. Global Store — следующая отдельная итерация. Не implicit parent всех Stores; точные access/event semantics ещё не согласованы. Пока только план, без implementation.
+2. Save/Load.
+3. Enum после persistence contract.
+4. History / Store lifecycle operations / Copy / Templates / inheritance — позже.
+5. Reactive/computed/watch/collections — не текущий Variables scope.
+
+- [x] EcaVariableRegistry.GetSnapshot(): frozen membership, exact mutable facade references; values snapshots остаются отдельными GetStoreState/GetSubtreeState/GetState.
+
+Automatic Scope/Rule binding не реализован и не является частью Registry snapshots итерации.

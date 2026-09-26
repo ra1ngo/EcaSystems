@@ -5,6 +5,9 @@ namespace EcaSystems.Core2
 {
     public sealed class EcaBaseRuleRegistry : IEcaRuleRegistry
     {
+        // Frozen membership, retaining the original entry references.
+        public IReadOnlyList<IEcaRule> GetSnapshot() => new List<IEcaRule>(_rules).AsReadOnly();
+
         private readonly List<IEcaRule> _rules = new();
         private readonly IEcaEventRegistry _events;
 

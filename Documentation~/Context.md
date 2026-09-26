@@ -1,5 +1,15 @@
 # EcaSystems — контекст разработки
 
+## Актуальная production-архитектура — 2026-09-26
+
+Source of truth — `Runtime/Core2`. `Runtime/Core` и `Runtime/Core1` являются historical/reference layers; более поздние решения Core2 имеют приоритет. Исторические Architecture/recovery документы сохраняют прежние обсуждения и не задают текущий production plan.
+
+Каждый актуальный `*Registry` в Core2, Time и Variables предоставляет `GetSnapshot()`: новая read-only коллекция фиксирует membership на момент вызова, последующие additions/removals её не меняют. Объекты остаются exact references, без deep-copy mutable state/metadata. Прежние live views сохранены. Object registries возвращают `IReadOnlyList<T>`, StateRegistry — `IReadOnlyList<string>` IDs, скрывая internal registration records/resolver delegates. RuleRegistry сохраняет registration order; Dictionary/HashSet registries не обещают дополнительного порядка. Generic Registry abstraction не введён. Snapshot выделяет новую коллекцию по явному запросу; Time tick processors продолжают использовать reusable buffers.
+
+`ScopeId` globally unique среди active Scope одного `EcaScopeRuntime`, а не только siblings. `ParentScopeId` не входит в Core identity. Два одновременно active Scope с одинаковым ID запрещены даже под разными parents. После Dispose ID доступен новому Scope instance; старый instance/emitter не оживает. Эта итерация документирует существующее поведение и не меняет Scope implementation.
+
+TimeSystem и VariablesSystem — standalone внешние Systems; Core2 предоставляет contracts/infrastructure, но не владеет их actual state, lifetime и domain behavior. В перспективе они могут жить отдельными packages/repos. Продуктовые планы ведутся локально: [Time](../Runtime/Systems/Time/Documentation~/Context.md), [Variables](../Runtime/Systems/Variables/Documentation~/Context.md). Scope↔Store mapping, System lifecycle coordination и global routing в текущем production не реализованы.
+
 ## Назначение
 
 EcaSystems — Unity-first UPM-фреймворк для взаимодействия независимых Systems через ECA. Core не зависит от Unity; Base пригоден как самостоятельный минимальный ECA-слой. Base context refactor, Commands v1 и их интеграция в Execution/Scope завершены.
@@ -126,7 +136,7 @@ TimeEcaEvents удалён. Internal EcaTimeEvent — отдельная declara
 
 Семь public concrete Commands расположены в Runtime/Systems/Time/Eca/Commands с прежним namespace EcaSystems.Time.Eca и обязательной TimeSystem dependency. Id получают из internal EcaTimeCommandKey + EcaTimeCommandIds; public ID constants удалены, строковые runtime IDs не изменены. Lifecycle Run сохраняет string, параметр называется timerId. Остальные args: TimerCreateOptions и TimeWaitArgs. TimeWaitArgs перенесён в Time/Core, assembly/namespace EcaSystems.Time, без переименования и без нового Wait overload. State — IEcaRuleState, контекст — nullable IEcaActionContext; Time Commands не используют эти параметры, business result отсутствует. Только EcaWaitCommand делает Awaitable → Task bridge.
 
-ScaleMode/SOLID cleanup отложен до отдельного обсуждения TimeSystem; ITimeSource, resolver/provider и TimeSnapshot не вводились. TimerTickProcessor, его two-phase processing, version checks, reentrant buffers и error aggregation в структурном follow-up не менялись.
+Локальный [Time Roadmap](../Runtime/Systems/Time/Documentation~/Roadmap.md) содержит дальнейшие Time-specific решения. ScaleMode/SOLID cleanup отложен до отдельного обсуждения TimeSystem; ITimeSource, resolver/provider и TimeSnapshot не вводились. TimerTickProcessor, его two-phase processing, version checks, reentrant buffers и error aggregation в структурном follow-up не менялись.
 
 Production Core2 composition собрана в EcaSystemsRuntime v1; Rule creation по Event ID реализован через runtime.CreateRule(...). Lifecycle внешних adapters не принадлежит Core/Runtime. В PR #17 follow-up изменены simple registries и registry-backed EcaSystem; Fire/Context итерация добавила optional contexts к EventEmitter, двухаргументный вызов сохранён. ID-based Fire отсутствует. Queries, Signals, routing, generic Registry/adapter abstraction и deferred Time features не реализованы.
 
@@ -446,7 +456,7 @@ Global State / Variables планируется отдельной system/capabi
 
 ### Структура будущих готовых Systems пакета
 
-Готовые системы самого пакета предполагается размещать рядом с Runtime/Core, в Runtime/Systems. Каждая может быть разделена на `Runtime/Systems/<System>/Core` — самостоятельный функционал системы, и `Runtime/Systems/<System>/Eca` — адаптер/мост к EcaSystems. Будущие примеры — Time и Global Variables / Global State; сейчас они не реализуются.
+Готовые системы пакета размещаются в Runtime/Systems рядом с production Runtime/Core2. Каждая может быть разделена на `Runtime/Systems/<System>/Core` — самостоятельный функционал системы, и `Runtime/Systems/<System>/Eca` — адаптер/мост к EcaSystems. Time и Variables уже реализованы как standalone Core + Eca; дополнительные возможности планируются в их локальной документации.
 
 Эта договорённость относится к готовым системам пакета. Сторонние и клиентские Unity-системы могут иметь любую архитектуру и расположение файлов; ECA-модуль служит адаптером к ним и не требует такой структуры от внешнего кода.
 
@@ -454,7 +464,7 @@ Global State / Variables планируется отдельной system/capabi
 
 ## Следующий шаг
 
-Текущая итерация завершает Core1 Execution/Scope поверх единого BaseEngine. Следующий этап — review; Commands/Systems обсуждаются отдельно, затем TimeSystem/Wait и Global Variables. EventRegistry и синхронный dispatcher реализованы только в Core1 Base; Fire Event Command и Systems отсутствуют. DI и размещение root engine остаются решением приложения.
+Следующий framework этап — Sandbox/PlayMode end-to-end и проверка внешней композиции на текущем Core2. Production composition root, Commands, State, RuleCreator и отдельные Time/Variables adapters уже реализованы. Продуктовые планы Systems вынесены в их локальные docs; общий порядок — [ToDo](ToDo.md).
 
 ## Тестовая инфраструктура
 
@@ -462,4 +472,4 @@ Global State / Variables планируется отдельной system/capabi
 
 Unity Test Framework + NUnit; Core проверяется в EditMode. GitHub Actions запускает один EditMode job на Unity 6000.3.19f1 через GameCI packageMode с копией пакета в _ci/EcaSystemsPackage. Триггеры: PR, push main, workflow_dispatch. PlayMode job отсутствует до появления lifecycle-сценариев. Coverage input не задан; отсутствие input не гарантирует отключение coverage внутри GameCI. Recovery-срез сообщает о предыдущем CI результате 31/31, а не о проверке этой ветки. CI остаётся authoritative проверкой; фактические проверки checkpoint — в [Testing.md](Testing.md).
 
-Core1 уже содержит минимальные Base/empty Rule shortcuts; дальнейшая ergonomics и factory-style Rule API остаются возможностями Roadmap.
+Core2 уже предоставляет class/delegate CreateRule; дальнейшая ergonomics и Unity authoring остаются возможностями Roadmap.

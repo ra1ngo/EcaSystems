@@ -5,6 +5,9 @@ namespace EcaSystems.Core2
 {
     public sealed class EcaCommandRegistry
     {
+        // Frozen membership, retaining the original entry references.
+        public IReadOnlyList<AEcaCommand> GetSnapshot() => new List<AEcaCommand>(_commands.Values).AsReadOnly();
+
         private readonly Dictionary<string, AEcaCommand> _commands = new(StringComparer.Ordinal);
         public IReadOnlyCollection<AEcaCommand> Commands => _commands.Values;
 
